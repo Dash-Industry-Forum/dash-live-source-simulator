@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MPD xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="urn:mpeg:dash:schema:mpd:2011" xsi:schemaLocation="urn:mpeg:dash:schema:2011 DASH-MPD.xsd" profiles="urn:mpeg:dash:profile:isoff-live:2011,urn:com:dashif:dash264" maxSegmentDuration="PT6S" availabilityStartTime="1970-01-01T00:00:00" minBufferTime="PT2S" publishTime="2013-04-19T13:58:32" type="static" mediaPresentationDuration="PT1H5M">
+   <ProgramInformation>
+      <Title>Media Presentation Description by MobiTV. Powered by MDL Team@Sweden.</Title>
+   </ProgramInformation>
+   <Period id="precambrian">
+      <AdaptationSet contentType="audio" mimeType="audio/mp4" lang="en" segmentAlignment="true" startWithSAP="1">
+         <SegmentTemplate initialization="$RepresentationID$/init.mp4" media="$RepresentationID$/$Number$.m4s" duration="6" startNumber="1"/>
+         <Representation id="A1" codecs="mp4a.40.2" bandwidth="48000" audioSamplingRate="32000">
+            <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"/>
+         </Representation>
+      </AdaptationSet>
+      <AdaptationSet contentType="video" mimeType="video/mp4" segmentAlignment="true" startWithSAP="1" minWidth="320" maxWidth="640" minHeight="180" maxHeight="360" maxFrameRate="30" par="16:9">
+         <SegmentTemplate initialization="$RepresentationID$/init.mp4" media="$RepresentationID$/$Number$.m4s" duration="6" startNumber="1"/>
+         <Representation id="V1" codecs="avc1.42000b" bandwidth="100000" width="320" height="180" frameRate="30" sar="1:1"/>
+         <Representation id="V2" codecs="avc1.42000b" bandwidth="200000" width="640" height="360" frameRate="30" sar="1:1"/>
+      </AdaptationSet>
+   </Period>
+</MPD>

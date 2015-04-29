@@ -1,0 +1,261 @@
+DASH-IF configurable live content simulator
+==================================================
+
+Purpose
+-------
+The purpose of the DASH live simulator is to provide well-controlled live time-synced content for testing.
+
+The main link to the content is [http://vm2.dashif.org/livesim/testpic_2s/Manifest.mpd][testpic_2s_base].
+You can test it directly with Chrome (version>=38), Safari 8, IE 11 (on Windows 8.1) using the the
+[DASH-IF reference player][dashif_player].
+
+It provides an infinite source that is synced with the wall clock at the source side (modulo 1 hour).
+
+Time-synced content
+--------------
+The content testpic\_2s shows pictures with a clock and frame number.
+![Test picture](testpic.png)
+
+The content wraps every hour, and is synchronized with the server clock, so that the content for a
+specific time is made available when the end the corresponding segment has passed.
+
+For example, the segment containing the data for 2min to 2min and ss passed a full hour,
+is available at 2min and ss after the hour.
+
+By watching the screen and noting the time and comparing it to a synchronized clock,
+it is possible to measure the delay in the transport and rendering system. It is typically
+longer for longer segments.
+
+Options
+---------
+
+The test server offers the following features where some are turned on by modifying the URL path to the MPD.
+
+* Live content simulation by providing segments from VoD content in a looped fashion
+* Synchronization with wall-clock, so that a particular media segment is made available at a specific time.
+This can be used for e2e delay estimation, see below.
+* Full control over the bitrate and duration of the segments, since these are preproduced.
+There are thus no surprises due to network problems in the live content stream towards the segmenter.
+* Compliance with DASH264 Interoperability Guidelines
+* Support for many different scenarios by specifying modifiers in the path
+* Support for infinite sessions (no change in the MPD, and no duration set)
+* Support for time-limited services and updated MPD which is configured in the URL
+* Support for configuration of minimumUpdatePeriod, timeShiftBufferDepth
+* Support for periodic services which repeat every 10min or similar.
+* Support for multiple periods and one period that started later that the session.
+* Feedback on too early or too late segment fetching attempts by explicit text in HTTP 404 return messages
+* Disabling of all timing checks of segments by specifying the `all_1` modifier.
+* On the fly multiplexing of audio and video (for eMBMS testing, rather than DASH-IF)
+* Insertion of SCTE-35 ad signaling as emsg messages following the DASH-IF guidelines.
+* Support for client-server time-sync using UTCTiming (head and direct methods). This reduces dash.js startup time.
+
+Links and usage
+---------------
+The DASH-IF server is in the Amazon cloud at vm2.dashif.org.
+There is currently only one test sequence, which is 1 hour long and provides a clock.
+It is available with 2s segments in DASH live profile.
+The content is available as `http://[serveraddress]/livesim/[contentName]/[Manifest].mpd`
+and, in particular, the 2s source is [http://vm2.dashif.org/livesim/testpic_2s/Manifest.mpd][testpic_2s_base].
+
+There are multiple modifiers that can be used. They need to be placed before `/testpic_2s` and are all of the form `/option_n`.
+
+Events and other time-limited content
+-------------------------------------
+To control availabilityStartTime (AST) and availabilityEndTime (AET), one can add extra parts to the URL after pdash.
+
+    http://<server>/<proxy>/start_ut/... will set the AST to the UNIX time ut (clipped to a multiple of duration)
+    http://<server>/<proxy>/dur_dt/... will set the AET as well (ut+dt)
+    http://<server>/<proxy>/dur_dt1/dur_dt2/ will set the AET and then updated it 2*minimumUpdatePeriod before the first has duration has been reached
+
+The minimumUpdatePeriod is set to 1min by default in this mode.
+
+One can also make the initialization segments available earlier than AST, by specifying init_ot where ot is an offset time in seconds.
+
+An example
+
+    http://<server>/<proxy>/start_1370809900/dur_1800/dur_300/init_10800/testpic_2s/Manifest.mpd
+
+will set the availabilityStartTime to `2013-06-09T20:31:40 (UTC)`, and set the availabilityEndTime to
+`013-06-09T21:01:40`, and the update it to  `2013-06-09T21:06:40`. The initialization segments are set to be available 3 hours in advance.
+
+The last media segments in a timelimited session, (with duration) will have the `lmsg` compatibility brand set,
+to signal that they are last and that there are no more segments to fetch.
+
+Note that one can influence the
+`minimumUpdatePeriod`by the parameter `mup_x` in the path and `timeShiftBufferDepth`  by the parameter `tsbd_x`. Here `x` is the value in seconds.
+
+Too facilitate the creation of URLs for timelimited content, there is an online link generator [urlgen.html](urlgen.html).
+There is also a command-line tool written in Python [generate_dashif_url.py](generate_dashif_url).
+
+Dynamic MPD with static URLs
+-----------------------------
+To allow for testing of dynamic MPD updates without the need to construct a time-specific MPD, the following scheme is supported:
+
+    http://<server>/<proxy>/modulo_x/<content>/<mpd>
+
+Here, `modulo_x` denotes that the content is available module `x` minutes,
+the `availabilityStartTime` and the `mediaPresentationDuration` vary in an `x`-minute periodic pattern.
+The number `x` must be a divisor of 60, i.e. on of 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60.
+For example, if `x=10`, the following happens (mpd = mediaPresentationDuration, mup=minimumUpdatePeriod):
+
+    hh:00:00-hh:00:59          ast = hh:00:00 mpd = 120s mup = 30s
+    hh:01:00-hh:02:59          ast = hh:00:00 mpd = 240s
+    hh:03:00-hh:04:59          ast = hh:00:00 mpd = 360s
+    hh:05:00-hh:08:59          ast = hh:00:00 mpd = 480s
+    hh:09:00-hh:10:59          ast = hh:10:00 mpd = 120s
+
+In other words:
+
+    mup = 5% of the interval
+    0-10% of the interval, the mpd=20% of interval
+    10-30% of the interval, the mpd=40% of the interval
+    30-50% of the interval, the mpd=60% of the interval
+    50-90% of the interval, the mpd=80% of the interval
+    90-100% of the interval, the mpd=20% of the next interval
+
+Thus, beyond the media session getting longer and longer during the first 50% of the session,
+from 80-90% of the interval, the MPD will describe an expired session, and
+from 90-100% of the interval, the MPD will describe a future session.
+
+Multiple periods
+----------------
+Multiple periods are generated by specifying `periods_n` which results in the following:
+
+* n = 0  One period but it starts 1000h after AST, so Period@start and presentatimeOffset are non-zero
+* n > 0  n periods per hour (n = 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60) and
+
+`minimumUpdatePeriod` adjusted to be 5s less than half the period duration. The number of previous periods presented
+depends on the `timeShiftBufferDepth`
+
+The `presentationTimeOffset` is signalled in the `SegmentTemplate`. By specifying the option `/peroff_1`,
+the `PTO` is instead signaled in a `SegmentBase` element in top level of the `Period`.
+
+Ad insertion
+------------
+For testing of App-based ad-insertion, the server can add SCTE35 Splice Insert signals for one-three 10s ad insertions per minute.
+Turn this on by specifying scte35_<n> where <n> is 1,2, or 3 in the path before the content.
+The ad timing is the following
+
+* 1 ad per minute, start 10s past full minute
+* 2 ads per minute, start at 10s and 40s past full minute
+* 3 ads per minute, start at 10s, 30s, and 50s past full minute
+
+The presence of such an event-stream is indicated in the manifest.
+
+UTCTiming
+---------
+By specifying utc_head, utc_direct or a combination like utc_direct-head extra information will be added in the MPD
+to provide the timing information. This is used by the dash.js to get a shorter startup time.
+
+Multiplexed Content
+-------------------
+For eMBMS, better robustness can be achieved by multiplexing audio and video segments.
+This can be done automatically by the server. It happens if the path to a segment has two underscores in the
+next to last path component, like `.../V1__A1/123.m4s`. In this case the two segments `V1/123.m4s` and `V2/123.m4s` are fetched and multiplexed.
+The corresponding thing happens for the init segments. For this to work, the MPD must be manually changed to have
+a multiplexed representation.
+
+How it works
+------------
+The module is stateless, and uses the URL to find out what content to serve.
+The content must have an MPD with extension .mpd, initialization segments with extension .mp4 and
+media segments with extension .m4s. Depending on the extension, the server will deliver read the
+corresponding data from the VoD content and modify it. The modifications to the various
+data server are:
+
+*MPD file:*
+
+    @MPD level
+        set type dynamic
+        set publishTime /* Configurable in code */
+        set timeShiftBufferDepth
+        set availabilityStartTime
+        set minimumUpdatePeriod
+        set maxSegmentDuration
+        set mediaPresentationDuration if time-limited
+        set availabilityEndTime if time-limited
+
+    @Period level
+        set start
+        set periodname
+
+    @BaseURL
+        adding BaseURL if not present, or modifying if present
+
+    @SegmentTemplate level
+        set startNumber
+        set presentationTimeOffset if needed
+
+*Initialization segments:*
+
+        No change
+
+*Media segments:*
+
+    Mapped from live number to VoD number and multiplexed if needed
+    sequenceNumber updated to be continuous (and identical to sequenceNumber)
+    tfdt is changed to be continuously grown with start at epoch.
+
+
+Our basic service is a 24/7 service with no updates to the MPD. To facilitate calculations
+we have chosen the epoch time to be the the anchor for calculations. Our default is:
+
+        startNumber = 0
+        availabilityStartTime = epochStart (Jan. 1 1970)
+        minimumUpdatePeriod = 100Y
+        period start = PT0s
+        presentationTimeOffset = 0
+
+The availabilityStartTime tells when the initialization segments are available.
+The first segments should be available one segmentDuration later.
+
+The latest available segment number can be then be calculated as
+
+        latestSegmentNumber = (now - availabilityStartTime - duration)/duration + startNumber
+
+The server makes sure that segments are only available from their startTime and for a period
+corresponding to the timeShiftBufferDepth (the default is 5 min).
+
+The media timeline shall be synchronized with the MPD. Thus, at the start of a period,
+the offset of the presentationTime in the media segments should be equal to the period start time or rather
+
+    MediaTimeAtPeriodStart = AST + Period@Start - presentationTimeOffset
+
+We fulfill this by having Period@start = 0 and presentationTimeOffset = 0, and relating the media timeline to AST.
+However, when periods do not start at AST, we must adjust the presentationTimeOffset to be equal to the Period@start.
+
+Some examples of this are the modifiers:
+
+    /periods_0 - one period that starts 1000hours after AST
+    /periods_n - multiple periods (n per hour)
+    /periods_0/peroff_1 - one period but presentationTimeOffset signaled in SegmentBase at Period level
+    /periods_n/peroff_1 - similar to /periods_n but SegmentBase used for presentationTimeOffset
+
+## Changelog
+
+* 0.9.9 - Apr. 29, 2015: First commit to DASH-IF/live-source-simulator Github project.
+
+The following is the change-log for the code as internal MobiTV code.
+
+* 0.9.5 - Apr. 13, 2015: Support for specifying UTCTiming methods (head or direct)
+* 0.9.0 - Mar. 16, 2015: Added option of scte_35 signals 1, 2, or 3 times a minute, by specifying scte35_2 as option.
+* - Changed duration in init segment to maxint (only 1's instead of 0) since the duration is unknown for live.
+* 0.8.6 - Oct. 14, 2014: Added possibility of multiple periods and period not starting at AST.
+* 0.8.5 - Mar. 4, 2014: Add presentationTimeOffset when AST is not start of epoch.
+* 0.8.4 - Feb. 18, 2014: Corrected tfdt timing. Can now specify all\_1 as option to avoid timing checks.
+* 0.8.3 - Feb. 13, 2014: The 404 responses do now include the a message of why content is not available including timing issues.
+* 0.8.2 - Feb. 11, 2014: Fixed bug in BaseURL. Added error_logging for too early and too late segments.
+* 0.8.1 - Jan. 28, 2014: Added modulo period
+* 0.8.0 - Jan. 27, 2014: Supports multiplexing and aligned with DASH-IF contributed server with some extra functionality
+* 0.6.8 - Oct. 30, 2013: One can now set another value for the availabilityStartTime for the bdash server.
+* 0.6.7 - Sep. 30, 2013: Bugfixes for old namespace, range and non-existing segments.
+* 0.6.6 - Sep. 27, 2013: Configurable to remove publishTime and substitute old namespace
+* 0.6.5 - Sep. 20, 2013: Fixed byterange to handle open intervals and return 206.
+* 0.6.4 - Sep. 16, 2013: Now uses tfdt for sync and removes sidx.
+* 0.6.3 - Aug. 30, 2013: Added support for byte-range requests
+* 0.6.2 - Aug. 23, 2013: Added support for additional directory structure for languages
+* 0.6.1 - July 23, 2013: Added Z for GMT timezone in all dates in the MPD.
+* 0.6 - June 5, 2013: Added support for events and other time-limited sessions.
+
+[testpic_2s_base]: http://vm2.dashif.org/livesim/testpic_2s/Manifest.mpd "Live simulator infinite clock source."
+[dashif_player]: http://dashif.org/reference/players/javascript/1.3.0/samples/dash-if-reference-player/index.html?url=http://vm2.dashif.org/livesim/testpic_2s/Manifest.mpd "DASH-IF Reference Player"
