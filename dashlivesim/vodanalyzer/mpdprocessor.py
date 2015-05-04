@@ -243,7 +243,7 @@ class MpdProcessor(MpdElement):
     def parse(self):
         "Parse and find all the adaptation sets and their representations."
         mpd = self.root
-        tag, self.mpd_namespace = self.tag_and_namespace(MPD.tag)
+        tag, self.mpd_namespace = self.tag_and_namespace(mpd.tag)
         assert tag == "MPD"
         if mpd.attrib.has_key('mediaPresentationDuration'):
             self.media_presentation_duration = mpd.attrib['mediaPresentationDuration']
