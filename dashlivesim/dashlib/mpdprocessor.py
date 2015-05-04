@@ -35,12 +35,10 @@ import cStringIO
 import time
 import re
 
-from dashlivesimulator.dashlib import scte35
+from dashlivesim.dashlib import scte35
 
 SET_BASEURL = True
-PUBLISH_TIME = False
 DASH_NAMESPACE = "{urn:mpeg:dash:schema:mpd:2011}"
-UTC_TIMING_HEAD_URL = 'http://streamtest.eu/time.html'
 
 RE_NAMESPACE_TAG = re.compile(r"({.*})?(.*)")
 
@@ -60,10 +58,11 @@ class MpdProcessor(object):
     "Process a VoD MPD. Analyzer and convert it to a live (dynamic) session."
     # pylint: disable=no-self-use, too-many-locals
 
-    def __init__(self, infile, scte35_present, utc_timing_methods):
+    def __init__(self, infile, scte35_present, utc_timing_methods, utc_head_url=""):
         self.tree = ElementTree.parse(infile)
         self.scte35_present = scte35_present
         self.utc_timing_methods = utc_timing_methods
+        self.utc_head_url = utc_head_url
         self.root = self.tree.getroot()
 
     def process(self, data, period_data):
@@ -88,11 +87,6 @@ class MpdProcessor(object):
                 mpd.set('profiles', new_profiles)
         key_list = ['availabilityStartTime', 'availabilityEndTime', 'timeShiftBufferDepth',
                     'minimumUpdatePeriod', 'maxSegmentDuration', 'mediaPresentationDuration']
-        if not PUBLISH_TIME:
-            if mpd.attrib.has_key('publishTime'):
-                del mpd.attrib['publishTime']
-        else:
-            key_list.append('publishTime')
         for key in key_list:
             self.set_value(mpd, key, data)
         if mpd.attrib.has_key('mediaPresentationDuration') and not data.has_key('mediaPresentationDuration'):
@@ -208,7 +202,7 @@ class MpdProcessor(object):
                 time_elem = self.create_descriptor_elem('UTCTiming', 'urn:mpeg:dash:utc:direct:2014', direct_time)
             elif utc_method == "head":
                 time_elem = self.create_descriptor_elem('UTCTiming', 'urn:mpeg:dash:utc:http-head:2014',
-                                                        UTC_TIMING_HEAD_URL)
+                                                        self.utc_head_url)
             else: #Unknown or un-implemented UTCTiming method
                 raise MpdModifierError("Unknown UTCTiming method: %s" % utc_method)
             mpd.insert(pos, time_elem)

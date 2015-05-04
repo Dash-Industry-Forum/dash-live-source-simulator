@@ -76,6 +76,8 @@ DEFAULT_MINIMUM_UPDATE_PERIOD = "P100Y"
 DEFAULT_PUBLISH_ADVANCE_IN_S = 7200
 EXTRA_TIME_AFTER_END_IN_S = 60
 
+UTC_HEAD_FILE = "time.html"
+
 PUBLISH_TIME = False
 
 def handle_request(host_name, url_parts, args, vod_conf_dir, content_dir, now=None, req=None):
@@ -91,7 +93,7 @@ class DashSegmentNotAvailableError(DashProxyError):
     "Segment not available."
 
 
-def process_manifest(filename, in_data, now, tfdt_values_from_zero, utc_timing_methods):
+def process_manifest(filename, in_data, now, tfdt_values_from_zero, utc_timing_methods, utc_head_url):
     "Process the manifest and provide a changed one."
     new_data = {'publishTime' : '%s' % make_timestamp(in_data['publishTime']),
                 'availabilityStartTime' : '%s' % make_timestamp(in_data['availability_start_time_in_s']),
@@ -109,7 +111,7 @@ def process_manifest(filename, in_data, now, tfdt_values_from_zero, utc_timing_m
         new_data['mediaPresentationDuration'] = in_data['mediaPresentationDuration']
     if tfdt_values_from_zero and in_data['availability_start_time_in_s'] > 0:
         new_data['presentationTimeOffset'] = in_data['availability_start_time_in_s']
-    mpmod = mpdprocessor.MpdProcessor(filename, in_data['scte35Present'], utc_timing_methods)
+    mpmod = mpdprocessor.MpdProcessor(filename, in_data['scte35Present'], utc_timing_methods, utc_head_url)
     if in_data['periodsPerHour'] < 0:
         period_data = generate_default_period_data(in_data, new_data)
     else:
@@ -161,6 +163,7 @@ class DashProvider(object):
 
     def __init__(self, host_name, url_parts, url_args, vod_conf_dir, content_dir, now=None, req=None):
         self.base_url = "http://%s/%s/" % (host_name, url_parts[0]) # The start. Adding all parts up to content later.
+        self.utc_head_url = "http://%s/%s" % (host_name, UTC_HEAD_FILE)
         self.url_parts = url_parts[1:]
         self.url_args = url_args
         self.vod_conf_dir = vod_conf_dir
@@ -225,7 +228,8 @@ class DashProvider(object):
         mpd_input_data['timeShiftBufferDepthInS'] = cfg.timeshift_buffer_depth_in_s
         mpd_input_data['scte35Present'] = (cfg.scte35_per_minute > 0)
         tfdt_values_from_zero = not cfg.tfdt32_flag
-        mpd = process_manifest(mpd_filename, mpd_input_data, now, tfdt_values_from_zero, cfg.utc_timing_methods)
+        mpd = process_manifest(mpd_filename, mpd_input_data, now, tfdt_values_from_zero, cfg.utc_timing_methods,
+                               self.utc_head_url)
         return mpd
 
     def process_init_segment(self, cfg):
