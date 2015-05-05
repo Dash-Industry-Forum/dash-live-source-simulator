@@ -76,7 +76,7 @@ DEFAULT_MINIMUM_UPDATE_PERIOD = "P100Y"
 DEFAULT_PUBLISH_ADVANCE_IN_S = 7200
 EXTRA_TIME_AFTER_END_IN_S = 60
 
-UTC_HEAD_FILE = "time.html"
+UTC_HEAD_PATH = "dash/time.html"
 
 PUBLISH_TIME = False
 
@@ -163,7 +163,7 @@ class DashProvider(object):
 
     def __init__(self, host_name, url_parts, url_args, vod_conf_dir, content_dir, now=None, req=None):
         self.base_url = "http://%s/%s/" % (host_name, url_parts[0]) # The start. Adding all parts up to content later.
-        self.utc_head_url = "http://%s/%s" % (host_name, UTC_HEAD_FILE)
+        self.utc_head_url = "http://%s/%s" % (host_name, UTC_HEAD_PATH)
         self.url_parts = url_parts[1:]
         self.url_args = url_args
         self.vod_conf_dir = vod_conf_dir
