@@ -96,7 +96,7 @@ class InitFilter(MP4Filter):
 
 
 class InitLiveFilter(MP4Filter):
-    "Process an init segment file and set the durations to maxint."
+    "Process an init segment file and set the durations to 0."
 
     # pylint: disable=too-many-branches
 
@@ -124,32 +124,32 @@ class InitLiveFilter(MP4Filter):
             if version == 1:
                 self.movie_timescale = str_to_uint32(data[28:32])
                 output += data[:32]
-                output += '\xff'*8 # duration
+                output += '\x00'*8 # duration
                 output += data[40:]
             else: # version = 0
                 self.movie_timescale = str_to_uint32(data[20:24])
                 output += data[:24]
-                output += '\xff'*4 # duration
+                output += '\x00'*4 # duration
                 output += data[28:]
         elif path == "moov.trak.tkhd": # Set trak duration
             version = ord(data[8])
             if version == 1:
                 output += data[:36]
-                output += '\xff'*8 # duration
+                output += '\x00'*8 # duration
                 output += data[44:]
             else: # version = 0
                 output += data[:28]
-                output += '\xff'*4 # duration
+                output += '\x00'*4 # duration
                 output += data[32:]
         elif path == "moov.trak.mdia.mdhd": # Set media duration
             version = ord(data[8])
             if version == 1:
                 output += data[:32]
-                output += '\xff'*8 # duration
+                output += '\x00'*8 # duration
                 output += data[40:]
             else: # version = 0
                 output += data[:24]
-                output += '\xff'*4 # duration
+                output += '\x00'*4 # duration
                 output += data[28:]
         else:
             output = data
