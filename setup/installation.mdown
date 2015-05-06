@@ -50,7 +50,7 @@ which typically is a symbolic link to a directory
       /var/www/html/dash/vod/<content>/
 
 In such a directory there should a VoD MPD and associated media files.
-Note that the file extensions are critical, but the the base names not.
+Note that the file extensions are critical, but the base names not.
 
         [contentName]
         ->  [Manifest].mpd
