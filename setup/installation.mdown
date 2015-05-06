@@ -1,6 +1,5 @@
 DASH-IF live source simulator installation
 -------------------------------
-*Version 0.9.0*
 
 The DASH live source simulator is a mod_python plugin to an Apache 2 web server.
 
@@ -62,11 +61,8 @@ Note that the file extensions are critical, but the the base names not.
             ...
 
 ### UTCTiming Head mode
-For UTCTiming head mode to work, there must be file accessible via http://<server>/dash/time.html.
-The CORS rights need to be set for that directory, something that can be done by copying the dash.conf file to
-`/etc/httpd/conf.d`.
+For UTCTiming head mode to work, there must be file accessible via http://<server>/dash/time.txt``.
+The CORS support for the header Date must be supported
 
 ### Sample content and configurations
 Sample content is available at [http://vm2.dashif.org/dash/vod/](http://vm2.dashif.org/dash/vod/).
-
-*Torbjörn Einarsson, April 29 2015*
