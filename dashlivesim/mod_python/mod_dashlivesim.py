@@ -99,7 +99,7 @@ and multiplexed.
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-SERVER_VERSION = "0.9.9 (2015-04-29)"
+SERVER_VERSION = "1.0"
 
 VOD_CONF_DIR = "/var/www/dash-live/vod_configs"
 CONTENT_ROOT = "/var/www/dash-live/content"
