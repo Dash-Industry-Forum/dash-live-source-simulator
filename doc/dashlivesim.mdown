@@ -188,13 +188,13 @@ data server are:
 
 *Initialization segments:*
 
-        No change
+        No change (actually setting duration to 0, but it should already be 0)
 
 *Media segments:*
 
     Mapped from live number to VoD number and multiplexed if needed
-    sequenceNumber updated to be continuous (and identical to sequenceNumber)
-    tfdt is changed to be continuously grown with start at epoch.
+    sequenceNumber updated to be continuous (and identical to segment number)
+    earliest presentation time in tfdt is changed to be continuously grown with start at epoch.
 
 
 Our basic service is a 24/7 service with no updates to the MPD. To facilitate calculations
@@ -233,6 +233,8 @@ Some examples of this are the modifiers:
 
 ## Changelog
 
+* 1.0 - May 7, 2015: First public release. Available as http://vm2.dashif.org/livesim/
+* - Changed init segment durations to 0.
 * 0.9.9 - Apr. 29, 2015: First commit to DASH-IF/live-source-simulator Github project.
 
 The following is the change-log for the code as internal MobiTV code.
