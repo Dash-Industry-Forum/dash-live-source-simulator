@@ -143,7 +143,7 @@ class TestMPDProcessing(unittest.TestCase):
         urlParts = ['pdash', 'utc_direct-head', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = dp.handle_request()
-        head_pos = d.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:http-head:2014" value="http://streamtest.eu/dash/time.html" />')
+        head_pos = d.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:http-head:2014" value="http://streamtest.eu/dash/time.txt" />')
         direct_pos = d.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:direct:2014"')
         self.assertLess(direct_pos, head_pos)
 

@@ -240,13 +240,14 @@ class DashProvider(object):
             init_file = "%s/%s/%s/%s" % (self.content_dir, cfg.content_name, cfg.rel_path, cfg.filename)
             ilf = InitLiveFilter(init_file)
             data = ilf.filter()
-        else:
-            assert nr_reps == 2
+        elif nr_reps == 2: # Something that can be muxed
             com_path = "/".join(cfg.rel_path.split("/")[:-1])
             init1 = "%s/%s/%s/%s/%s" % (self.content_dir, cfg.content_name, com_path, cfg.reps[0]['id'], cfg.filename)
             init2 = "%s/%s/%s/%s/%s" % (self.content_dir, cfg.content_name, com_path, cfg.reps[1]['id'], cfg.filename)
             muxed_inits = segmentmuxer.MultiplexInits(init1, init2)
             data = muxed_inits.construct_muxed()
+        else:
+            data = self.error_response("Bad nr of representations: %d" % nr_reps)
         return data
 
     def process_media_segment(self, cfg, now_float):
