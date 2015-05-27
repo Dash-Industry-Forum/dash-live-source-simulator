@@ -62,9 +62,9 @@ class Config(object):
         self.timeshift_buffer_depth_in_s = None
         self.minimum_update_period_in_s = None
         self.modulo_period = None
-        self.last_segment_number = None
+        self.last_segment_numbers = [] # The last segment number in every period.
         self.init_seg_avail_offset = 0 # The number of secs before AST that one can fetch the init segments
-        self.tfdt32_flag = False
+        self.tfdt32_flag = False # Restart every 3 hours make tfdt fit into 32 bits.
         self.cont = False # Continuous update of MPD AST and seg_nr.
         self.periods_per_hour = -1 # If > 0, generates that many periods per hour. If 0, only one old period.
         self.period_offset = -1 # Make one period with an offset compared to ast
@@ -130,7 +130,7 @@ class Config(object):
         self.availability_start_time_in_s = modulo_period.availability_start_time
         self.media_presentation_duration = modulo_period.media_presentation_duration
         self.availability_end_time = modulo_period.availability_end_time
-        self.last_segment_number = modulo_period.calc_last_segment_number(seg_dur)
+        self.last_segment_numbers.append(modulo_period.calc_last_segment_number(seg_dur))
 
     def update_with_aet(self, now_int, availability_end_times, media_presentation_durations):
         "Find the proper availabilityEndTime and mediaPresentation duration for now and set in cfg."
@@ -161,7 +161,8 @@ class Config(object):
                 end_time = quantize(start_time + total_dur, self.seg_duration)
                 availability_end_times.append(end_time)
                 media_presentation_durations.append(total_dur)
-                self.last_segment_number = end_time//self.seg_duration - 1
+            last_segment_number = (end_time-self.availability_start_time_in_s)//self.seg_duration - 1
+            self.last_segment_numbers.append(last_segment_number)
             self.update_with_aet(now_int, availability_end_times, media_presentation_durations)
 
     def update_publish_time(self, now_int):
@@ -280,7 +281,7 @@ class ConfigProcessor(object):
             if not cfg_parts[0] in self.url_cfg_keys:
                 continue
             key, value = cfg_parts
-            if key == "start": # Change availability start time
+            if key == "start": # Change availability start time in s.
                 start_time = int(value)
             elif key == "dur": # Add a presentation duration for multiple periods
                 durations.append(int(value))

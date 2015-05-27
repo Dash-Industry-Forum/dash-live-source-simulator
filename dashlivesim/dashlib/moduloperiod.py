@@ -43,7 +43,7 @@ The phases depends on now wrt to modulo minutes
 
 def quantize(number, step):
     "Quantize number to a multiple of step."
-    return (int(number)/step)*step
+    return (int(number)//step)*step
 
 class ModuloPeriod(object):
     "Provide the timing data needed for the MPD which has periods of available data."

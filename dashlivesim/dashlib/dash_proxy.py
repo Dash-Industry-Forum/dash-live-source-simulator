@@ -93,7 +93,7 @@ class DashSegmentNotAvailableError(DashProxyError):
     "Segment not available."
 
 
-def process_manifest(filename, in_data, now, tfdt_values_from_zero, utc_timing_methods, utc_head_url):
+def process_manifest(filename, in_data, now, utc_timing_methods, utc_head_url):
     "Process the manifest and provide a changed one."
     new_data = {'publishTime' : '%s' % make_timestamp(in_data['publishTime']),
                 'availabilityStartTime' : '%s' % make_timestamp(in_data['availability_start_time_in_s']),
@@ -109,8 +109,6 @@ def process_manifest(filename, in_data, now, tfdt_values_from_zero, utc_timing_m
         new_data['availabilityEndTime'] = make_timestamp(in_data['availabilityEndTime'])
     if in_data.has_key('mediaPresentationDuration'):
         new_data['mediaPresentationDuration'] = in_data['mediaPresentationDuration']
-    if tfdt_values_from_zero and in_data['availability_start_time_in_s'] > 0:
-        new_data['presentationTimeOffset'] = in_data['availability_start_time_in_s']
     mpmod = mpdprocessor.MpdProcessor(filename, in_data['scte35Present'], utc_timing_methods, utc_head_url)
     if in_data['periodsPerHour'] < 0:
         period_data = generate_default_period_data(in_data, new_data)
@@ -149,10 +147,13 @@ def generate_multiperiod_data(in_data, new_data, now):
                     'startNumber' : "%d" % (start_time/seg_dur), 'duration' : seg_dur,
                     'presentationTimeOffset' : period_nr*period_duration}
             period_data.append(data)
-    else: # nrPeriodsPerHour == 0, make one old period but starting 1000h after the start of the Epoch
-        start = 3600*1000
-        data = {'id' : "p0", 'start' : 'PT%dS' % start, 'startNumber' : "%d" % (start/seg_dur),
-                'duration' : seg_dur, 'presentationTimeOffset' : "%d" % start}
+    else:
+        if nr_periods_per_hour == 0: # nrPeriodsPerHour == 0, make one old period but starting 1000h after the start of the Epoch
+            start = 3600*1000
+            data = {'id' : "p0", 'start' : 'PT%dS' % start, 'startNumber' : "%d" % (start/seg_dur),
+                    'duration' : seg_dur, 'presentationTimeOffset' : "%d" % start}
+        else: # nr_periods_per_hour < 0, Just a simple period with start = 0
+            data = {'id' : "single", 'startNumber' : "0", 'duration' : seg_dur}
         period_data.append(data)
     return period_data
 
@@ -227,9 +228,7 @@ class DashProvider(object):
         mpd_input_data['timeShiftBufferDepth'] = seconds_to_iso_duration(cfg.timeshift_buffer_depth_in_s)
         mpd_input_data['timeShiftBufferDepthInS'] = cfg.timeshift_buffer_depth_in_s
         mpd_input_data['scte35Present'] = (cfg.scte35_per_minute > 0)
-        tfdt_values_from_zero = not cfg.tfdt32_flag
-        mpd = process_manifest(mpd_filename, mpd_input_data, now, tfdt_values_from_zero, cfg.utc_timing_methods,
-                               self.utc_head_url)
+        mpd = process_manifest(mpd_filename, mpd_input_data, now, cfg.utc_timing_methods, self.utc_head_url)
         return mpd
 
     def process_init_segment(self, cfg):
@@ -259,13 +258,14 @@ class DashProvider(object):
         seg_name = cfg.filename
         seg_base, seg_ext = splitext(seg_name)
         seg_nr = int(seg_base)
-        if cfg.last_segment_number is not None:
-            if seg_nr > cfg.last_segment_number:
-                return None
-        lmsg = (seg_nr == cfg.last_segment_number)
-        #period_start_time = 0
-        #media_segment_start_nr = 0
-        seg_time = seg_nr*seg_dur
+        if len(cfg.last_segment_numbers) > 0:
+            very_last_segment = cfg.last_segment_numbers[-1]
+            if seg_nr > very_last_segment:
+                return self.error_response("Request for segment %d beyond last (%d)" % (seg_nr, very_last_segment))
+        lmsg = seg_nr in cfg.last_segment_numbers
+        print cfg.last_segment_numbers
+        #media_segment_start_nr = 0 All calculations assume this.
+        seg_time = seg_nr*seg_dur + cfg.availability_start_time_in_s
         seg_ast = seg_time + seg_dur
 
         if not cfg.all_segments_available_flag:
@@ -275,19 +275,13 @@ class DashProvider(object):
                 diff = now_float - (seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s)
                 return self.error_response("Request for %s was %.1fs too late" % (seg_name, diff))
 
-        ref_time_today = quantize(seg_time, SECS_IN_DAY)
-
+        time_since_ast = seg_time - cfg.availability_start_time_in_s
         loop_duration = cfg.seg_duration * cfg.vod_nr_segments_in_loop
-        time_since_ref_today = seg_time - ref_time_today
-        if time_since_ref_today < 0:
-            ref_time_today -= SECS_IN_DAY
-            time_since_ref_today += SECS_IN_DAY
-        nr_loops_done, time_in_loop = divmod(time_since_ref_today, loop_duration)
-        offset_at_loop_start = ref_time_today + nr_loops_done*loop_duration
+        nr_loops_done, time_in_loop = divmod(time_since_ast, loop_duration)
+        offset_at_loop_start = nr_loops_done*loop_duration
         seg_nr_in_loop = time_in_loop//seg_dur
         vod_nr = seg_nr_in_loop + cfg.vod_first_segment_in_loop
         assert 0 <= vod_nr - cfg.vod_first_segment_in_loop < cfg.vod_nr_segments_in_loop
-
         rel_path = cfg.rel_path
         nr_reps = len(cfg.reps)
         if nr_reps == 1: # Not muxed
@@ -312,8 +306,7 @@ class DashProvider(object):
         media_seg_file = join(self.content_dir, cfg.content_name, rel_path, "%d%s" % (vod_nr, seg_ext))
         timescale = rep['timescale']
         scte35_per_minute = (rep['content_type'] == 'video') and cfg.scte35_per_minute or 0
-        offset_from_ast = offset_at_loop_start - cfg.availability_start_time_in_s
-        seg_filter = MediaSegmentFilter(media_seg_file, seg_nr, cfg.seg_duration, offset_from_ast, lmsg, timescale,
+        seg_filter = MediaSegmentFilter(media_seg_file, seg_nr, cfg.seg_duration, offset_at_loop_start, lmsg, timescale,
                                         scte35_per_minute, rel_path)
         seg_content = seg_filter.filter()
         self.new_tfdt_value = seg_filter.get_tfdt_value()

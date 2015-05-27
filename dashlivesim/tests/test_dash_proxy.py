@@ -52,23 +52,17 @@ class TestMPDProcessing(unittest.TestCase):
         d = dp.handle_request()
         self.assertTrue(d.find("<BaseURL>http://streamtest.eu/pdash/testpic/</BaseURL>") > 0)
 
-    def testMPDwithStart(self):
+    def testMPDwithChangedAST(self):
+        "Put AST to 1200s later than epoch start. There should be no PTO and startNumber=0 still."
         testOutputFile = "start.mpd"
         rm_outfile(testOutputFile)
         urlParts = ['pdash', 'start_1200', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = dp.handle_request()
+        write_data_to_outfile(d, testOutputFile)
         self.assertTrue(d.find('availabilityStartTime="1970-01-01T00:20:00Z"') > 0)
-        write_data_to_outfile(d, testOutputFile)
-
-    def testMPDwithStartHasPresentationTimeOffset(self):
-        testOutputFile = "pto.mpd"
-        rm_outfile(testOutputFile)
-        urlParts = ['pdash', 'start_1200', 'testpic', 'Manifest.mpd']
-        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
-        d = dp.handle_request()
-        self.assertTrue(d.find('presentationTimeOffset="1200"') > 0)
-        write_data_to_outfile(d, testOutputFile)
+        self.assertTrue(d.find('startNumber="0"') > 0)
+        self.assertTrue(d.find('presentationTimeOffset') < 0)
 
     def testMPDwithStartandDur(self):
         urlParts = ['pdash', 'start_1200', 'dur_600', 'testpic', 'Manifest.mpd']
@@ -91,27 +85,40 @@ class TestMPDProcessing(unittest.TestCase):
             self.assertTrue(d.find('publishTime="1970-01-01T00:29:00Z"') > 0)
         self.assertTrue(d.find('availabilityEndTime="1970-01-01T00:35:00Z"') > 0)
 
+class TestInitSegmentProcessing(unittest.TestCase):
     def testInit(self):
         urlParts = ['pdash', 'testpic', 'A1', 'init.mp4']
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = dp.handle_request()
         self.assertEqual(len(d), 617)
 
-    def testMediaSegment(self):
+class TestMediaSegments(unittest.TestCase):
+
+    def testMediaSegmentForTfdt32(self):
         testOutputFile = "t1.m4s"
         rm_outfile(testOutputFile)
-        now = 1356998460
-        segment = "%d.m4s" % ((now-60)/6)
+        now = 110101 # 2101s into a 3h period
+        segment = "349.m4s"
         urlParts = ['pdash', 'tfdt_32', 'testpic', 'A1', segment]
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
         d = dp.handle_request()
         write_data_to_outfile(d, testOutputFile)
+        self.assertEqual(len(d), 43661)
 
     def testMediaSegmentTooEarly(self):
-        urlParts = ['pdash', 'testpic', 'A1', '11.m4s']
+        urlParts = ['pdash', 'testpic', 'A1', '5.m4s'] # Should be available after 36s
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=34)
         d = dp.handle_request()
         self.assertEqual(d['ok'], False)
+
+    def testMediaSegmentTooEarlyWithAST(self):
+        urlParts = ['pdash', 'start_6', 'testpic', 'A1', '0.m4s'] # Should be available after 12s
+        dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10)
+        d = dp.handle_request()
+        self.assertEqual(d['ok'], False)
+        dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=14)
+        d = dp.handle_request()
+        self.assertEqual(len(d), 43753) # A full media segment
 
     def testMediaSegmentBeforeTimeShiftBufferDepth(self):
         now = 1356999060
@@ -122,8 +129,9 @@ class TestMPDProcessing(unittest.TestCase):
         self.assertEqual(d['ok'], False)
 
     def testLastMediaSegment(self):
-        urlParts = ['pdash', 'start_1200', 'dur_600', 'dur_300', 'testpic', 'A1', '349.m4s']
-        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=2102)
+        "With total duration of 2100, the last segment shall be 349 (independent of start) and available at 4101."
+        urlParts = ['pdash', 'start_2000', 'dur_1800', 'dur_300', 'testpic', 'A1', '349.m4s']
+        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=4101)
         d = dp.handle_request()
         #print "LMSG at %d" % d.find("lmsg")
         self.assertEqual(d.find("lmsg"), 24)
@@ -195,20 +203,6 @@ class TestTfdt(unittest.TestCase):
         d = dp.handle_request()
         tfdtValue = dp.new_tfdt_value
         presentationTime = tfdtValue/15360
-        segmentTime = segNr*6
-        self.assertEqual(presentationTime, segmentTime)
-
-    def testTfdtValueFromNonZeroAST(self):
-        "Tfdt value = mediaPresentationTime which corresponds to segmentNr*duration"
-        now = 1393936560
-        segNr = 232322749
-        ast = now - (now % 10800)
-        segment = "%d.m4s" % segNr
-        urlParts = ['pdash', 'tfdt_32', 'testpic', 'V1', segment]
-        dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
-        d = dp.handle_request()
-        tfdtValue = dp.new_tfdt_value
-        presentationTime = ast + tfdtValue/15360
         segmentTime = segNr*6
         self.assertEqual(presentationTime, segmentTime)
 
