@@ -283,8 +283,9 @@ class MediaSegmentFilter(MP4Filter):
         if found_splice_time < 0:
             return "" # Nothing for this segment
         timescale = 90000 # Timescale
+        emsg_id = splice_id = splice_time//10
         emsg = scte35.create_scte35_emsg(timescale, seg_starttime*timescale, found_splice_time*timescale,
-                                         ad_duration*timescale, self.seg_nr, splice_time/10)
+                                         ad_duration*timescale, emsg_id, splice_id)
         #print "Made scte35 emsg %d" % len(emsg)
         return emsg
 
