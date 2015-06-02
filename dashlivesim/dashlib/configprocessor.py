@@ -66,10 +66,11 @@ class Config(object):
         self.init_seg_avail_offset = 0 # The number of secs before AST that one can fetch the init segments
         self.tfdt32_flag = False # Restart every 3 hours make tfdt fit into 32 bits.
         self.cont = False # Continuous update of MPD AST and seg_nr.
-        self.periods_per_hour = -1 # If > 0, generates that many periods per hour. If 0, only one old period.
+        self.periods_per_hour = -1 # If > 0, generates that many periods per hour. If 0, only one offset period.
         self.period_offset = -1 # Make one period with an offset compared to ast
         self.scte35_per_minute = 0 # Number of 10s ads per minute. Maximum 3
         self.utc_timing_methods = []
+        self.start_nr = 0
         self.content_name = None
         self.base_url = base_url
         self.rel_path = None
@@ -242,8 +243,8 @@ class VodConfig(object):
 class ConfigProcessor(object):
     "Process the url and VoD config files and setup configuration."
 
-    url_cfg_keys = ("start", "dur", "init", "tsbd", "mup", "modulo", "all", "tfdt", "cont",
-                    "periods", "peroff", "scte35", "utc")
+    url_cfg_keys = ("start", "ast", "dur", "init", "tsbd", "mup", "modulo", "all", "tfdt", "cont",
+                    "periods", "peroff", "scte35", "utc", "snr")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -278,10 +279,10 @@ class ConfigProcessor(object):
         url_pos = 0
         for part in url_parts: # Should be listed in self.configParts to make sure it works.
             cfg_parts = part.split("_", 1)
-            if not cfg_parts[0] in self.url_cfg_keys:
-                continue
+            if not cfg_parts[0] in self.url_cfg_keys: #Must handle content like testpic_2s
+                break
             key, value = cfg_parts
-            if key == "start": # Change availability start time in s.
+            if key == "start" or key == "ast": # Change availability start time in s.
                 start_time = int(value)
             elif key == "dur": # Add a presentation duration for multiple periods
                 durations.append(int(value))
@@ -307,8 +308,10 @@ class ConfigProcessor(object):
                 cfg.scte35_per_minute = int(value)
             elif key == "utc": # Get hyphen-separated list of utc-timing methods and make into list
                 cfg.utc_timing_methods = value.split("-")
+            elif key == "snr": # Segment startNumber
+                cfg.start_nr = self.interpret_start_nr(value)
             else:
-                break
+                raise ConfigProcessorError("Cannot interpret option %s properly" % key)
             url_pos += 1
 
         cfg.update_with_filedata(url_parts, url_pos)
@@ -333,3 +336,14 @@ class ConfigProcessor(object):
             cfg.update_with_modulo_period(modulo_period, cfg.seg_duration)
         cfg.update_publish_time(now_int)
 
+    #pylint: disable=no-self-use
+    def interpret_start_nr(self, value):
+        "startNr should be 0 or greater. -1 means that it is put to 1, but absent in MPD (default value)"
+        error_msg = "startNr must be an integer >= 0. -1 means default value (=1)."
+        try:
+            start_nr = int(value)
+        except ValueError:
+            raise ConfigProcessorError(error_msg)
+        if start_nr < -1:
+            raise ConfigProcessorError(error_msg)
+        return start_nr

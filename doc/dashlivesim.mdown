@@ -40,7 +40,7 @@ There are thus no surprises due to network problems in the live content stream t
 * Support for many different scenarios by specifying modifiers in the path
 * Support for infinite sessions (no change in the MPD, and no duration set)
 * Support for time-limited services and updated MPD which is configured in the URL
-* Support for configuration of minimumUpdatePeriod, timeShiftBufferDepth
+* Support for configuration of minimumUpdatePeriod, timeShiftBufferDepth, startNumber (including implicit)
 * Support for periodic services which repeat every 10min or similar.
 * Support for multiple periods and one period that started later that the session.
 * Feedback on too early or too late segment fetching attempts by explicit text in HTTP 404 return messages
@@ -174,6 +174,7 @@ data server are:
         set maxSegmentDuration
         set mediaPresentationDuration if time-limited
         set availabilityEndTime if time-limited
+        set startNumber (depending on snr_ parameter. Default is 0).
 
     @Period level
         set start
@@ -232,7 +233,7 @@ Some examples of this are the modifiers:
     /periods_n/peroff_1 - similar to /periods_n but SegmentBase used for presentationTimeOffset
 
 ## Changelog
-
+* 1.1 - Jun 2m 2015: Added snr_ option to control startNumber in manifest. Fixed some bugs with availabilityStartTime and PTO._
 * 1.0 - May 7, 2015: First public release. Available as http://vm2.dashif.org/livesim/
 * - Changed init segment durations to 0.
 * 0.9.9 - Apr. 29, 2015: First commit to DASH-IF/live-source-simulator Github project.

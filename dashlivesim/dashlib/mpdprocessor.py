@@ -144,9 +144,17 @@ class MpdProcessor(object):
             "Set element attributes from data."
             for key in keys:
                 if data.has_key(key):
-                    if key == "presentationTimeOffset" and str(data[key]) == "0":
+                    if key == "presentationTimeOffset" and str(data[key]) == "0": # Remove default value
+                        if key in elem:
+                            del elem[key]
                         continue
                     elem.set(key, str(data[key]))
+
+        def remove_attribs(elem, keys):
+            "Remove attributes from elem."
+            for key in keys:
+                if key in elem.attrib:
+                    del elem.attrib[key]
 
         def insert_segmentbase(period, presentation_time_offset):
             "Insert SegmentBase element."
@@ -178,6 +186,9 @@ class MpdProcessor(object):
                 seg_templates = ad_set.findall(add_ns('SegmentTemplate'))
                 for seg_template in seg_templates:
                     set_attribs(seg_template, segmenttemplate_attribs, pdata)
+                    if pdata.get('startNumber') == '-1': # Default to 1
+                        remove_attribs(seg_template, ['startNumber'])
+
 
     def create_descriptor_elem(self, name, scheme_id_uri, value=None, elem_id=None):
         "Create an element of DescriptorType."
