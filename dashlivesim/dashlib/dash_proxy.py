@@ -120,10 +120,10 @@ def generate_default_period_data(in_data, new_data):
     "Generate period data for a single period starting at the same time as the session (start = PT0S)."
     start = 0
     seg_dur = in_data['segDuration']
-    startNumber = in_data['startNumber'] + start/seg_dur
+    start_number = in_data['startNumber'] + start/seg_dur
     data = {'id' : "p0", 'start' : 'PT%dS' % start, 'duration' : seg_dur,
             'presentationTimeOffset' : "%d" % new_data['presentationTimeOffset'],
-            'startNumber' : str(startNumber)}
+            'startNumber' : str(start_number)}
     return [data]
 
 def generate_multiperiod_data(in_data, new_data, now):
@@ -259,7 +259,7 @@ class DashProvider(object):
         seg_nr = int(seg_base)
         seg_start_nr = cfg.start_nr == -1 and 1 or cfg.start_nr
         if seg_nr < seg_start_nr:
-            return self.error_response("Request for segment %d before first" % (seg_nr, seg_start_nr))
+            return self.error_response("Request for segment %d before first %d" % (seg_nr, seg_start_nr))
         if len(cfg.last_segment_numbers) > 0:
             very_last_segment = cfg.last_segment_numbers[-1]
             if seg_nr > very_last_segment:
