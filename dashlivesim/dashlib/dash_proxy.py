@@ -114,7 +114,7 @@ def process_manifest(filename, in_data, now, utc_timing_methods, utc_head_url):
     else:
         period_data = generate_multiperiod_data(in_data, new_data, now)
     mpmod.process(new_data, period_data)
-    return mpmod.getstring()
+    return mpmod.get_full_xml()
 
 def generate_default_period_data(in_data, new_data):
     "Generate period data for a single period starting at the same time as the session (start = PT0S)."
