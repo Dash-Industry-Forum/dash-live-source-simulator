@@ -67,8 +67,8 @@ from os.path import splitext, join
 from .initsegmentfilter import InitLiveFilter
 from .mediasegmentfilter import MediaSegmentFilter
 from . import segmentmuxer
-from . import mpdprocessor
-from .timeformatconversions import make_timestamp, seconds_to_iso_duration
+from .mpdprocessor import process_manifest
+from .timeformatconversions import seconds_to_iso_duration
 from .configprocessor import ConfigProcessor
 
 SECS_IN_DAY = 24*3600
@@ -93,67 +93,6 @@ class DashSegmentNotAvailableError(DashProxyError):
     "Segment not available."
 
 
-def process_manifest(filename, in_data, now, utc_timing_methods, utc_head_url):
-    "Process the manifest and provide a changed one."
-    new_data = {'publishTime' : '%s' % make_timestamp(in_data['publishTime']),
-                'availabilityStartTime' : '%s' % make_timestamp(in_data['availability_start_time_in_s']),
-                'timeShiftBufferDepth' : '%s' % in_data['timeShiftBufferDepth'],
-                'minimumUpdatePeriod' : '%s' % in_data['minimumUpdatePeriod'],
-                'duration' : '%d' % in_data['segDuration'],
-                'maxSegmentDuration' : 'PT%dS' % in_data['segDuration'],
-                'BaseURL' : '%s' % in_data['BaseURL'],
-                'periodOffset' : in_data['periodOffset'],
-                'presentationTimeOffset' : 0}
-    if in_data.has_key('availabilityEndTime'):
-        new_data['availabilityEndTime'] = make_timestamp(in_data['availabilityEndTime'])
-    if in_data.has_key('mediaPresentationDuration'):
-        new_data['mediaPresentationDuration'] = in_data['mediaPresentationDuration']
-    mpmod = mpdprocessor.MpdProcessor(filename, in_data['scte35Present'], utc_timing_methods, utc_head_url)
-    if in_data['periodsPerHour'] < 0: # Default case.
-        period_data = generate_default_period_data(in_data, new_data)
-    else:
-        period_data = generate_multiperiod_data(in_data, new_data, now)
-    mpmod.process(new_data, period_data)
-    return mpmod.get_full_xml()
-
-def generate_default_period_data(in_data, new_data):
-    "Generate period data for a single period starting at the same time as the session (start = PT0S)."
-    start = 0
-    seg_dur = in_data['segDuration']
-    start_number = in_data['startNumber'] + start/seg_dur
-    data = {'id' : "p0", 'start' : 'PT%dS' % start, 'duration' : seg_dur,
-            'presentationTimeOffset' : "%d" % new_data['presentationTimeOffset'],
-            'startNumber' : str(start_number)}
-    return [data]
-
-def generate_multiperiod_data(in_data, new_data, now):
-    "Generate an array of period data depending on current time (now). 0 gives one period with start offset."
-    #pylint: disable=too-many-locals
-    nr_periods_per_hour = min(in_data['periodsPerHour'], 60)
-    if not nr_periods_per_hour in (0, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60):
-        raise Exception("Bad nr of periods per hour %d" % nr_periods_per_hour)
-    seg_dur = in_data['segDuration']
-    period_data = []
-    if nr_periods_per_hour > 0:
-        period_duration = 3600/nr_periods_per_hour
-        minimum_update_period = "PT%dS" % (period_duration/2 - 5)
-        new_data['minimumUpdatePeriod'] = minimum_update_period
-        this_period_nr = now/period_duration
-        nr_periods_back = in_data['timeShiftBufferDepthInS']/period_duration + 1
-        start_period_nr = this_period_nr - nr_periods_back
-        last_period_nr = this_period_nr + 1
-        for period_nr in range(start_period_nr, last_period_nr+1):
-            start_time = period_nr*period_duration
-            data = {'id' : "p%d" % period_nr, 'start' : 'PT%dS' % (period_nr*period_duration),
-                    'startNumber' : "%d" % (start_time/seg_dur), 'duration' : seg_dur,
-                    'presentationTimeOffset' : period_nr*period_duration}
-            period_data.append(data)
-    else: # nrPeriodsPerHour == 0, make one old period but starting 1000h after epoch
-        start = 3600*1000
-        data = {'id' : "p0", 'start' : 'PT%dS' % start, 'startNumber' : "%d" % (start/seg_dur),
-                'duration' : seg_dur, 'presentationTimeOffset' : "%d" % start}
-        period_data.append(data)
-    return period_data
 
 
 class DashProvider(object):
