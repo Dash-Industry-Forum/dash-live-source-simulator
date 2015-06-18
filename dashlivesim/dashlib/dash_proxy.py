@@ -68,11 +68,12 @@ from .initsegmentfilter import InitLiveFilter
 from .mediasegmentfilter import MediaSegmentFilter
 from . import segmentmuxer
 from .mpdprocessor import process_manifest
+from .mpdprocessor_vodloop import process_manifest_loop
 from .timeformatconversions import seconds_to_iso_duration
 from .configprocessor import ConfigProcessor
 
 SECS_IN_DAY = 24*3600
-DEFAULT_MINIMUM_UPDATE_PERIOD = "P100Y"
+DEFAULT_MINIMUM_UPDATE_PERIOD = "PT15M"
 DEFAULT_PUBLISH_ADVANCE_IN_S = 7200
 EXTRA_TIME_AFTER_END_IN_S = 60
 
@@ -158,6 +159,7 @@ class DashProvider(object):
         "Generate the dynamic MPD."
         if cfg.minimum_update_period_in_s is not None:
             mpd_input_data['minimumUpdatePeriod'] = seconds_to_iso_duration(cfg.minimum_update_period_in_s)
+            mpd_input_data['minimumUpdatePeriodInS'] = cfg.minimum_update_period_in_s
         else:
             mpd_input_data['minimumUpdatePeriod'] = DEFAULT_MINIMUM_UPDATE_PERIOD
         if cfg.media_presentation_duration is not None:
@@ -166,7 +168,10 @@ class DashProvider(object):
         mpd_input_data['timeShiftBufferDepthInS'] = cfg.timeshift_buffer_depth_in_s
         mpd_input_data['scte35Present'] = (cfg.scte35_per_minute > 0)
         mpd_input_data['startNumber'] = cfg.start_nr
-        mpd = process_manifest(mpd_filename, mpd_input_data, now, cfg.utc_timing_methods, self.utc_head_url)
+        if cfg.loop:
+            mpd = process_manifest_loop(mpd_filename, mpd_input_data, now, cfg.utc_timing_methods, self.utc_head_url)
+        else:
+            mpd = process_manifest(mpd_filename, mpd_input_data, now, cfg.utc_timing_methods, self.utc_head_url)
         return mpd
 
     def process_init_segment(self, cfg):

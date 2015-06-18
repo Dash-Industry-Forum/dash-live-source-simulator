@@ -82,6 +82,7 @@ class Config(object):
         self.vod_nr_segments_in_loop = 0
         self.vod_default_tsbd_secs = 0
         self.publish_time = None
+        self.loop = False
 
     def update_with_filedata(self, url_parts, url_pos):
         "Find the content_name, file_name, and representations (if muxed as signalled by MUX_DIVIDER)."
@@ -109,6 +110,7 @@ class Config(object):
             self.timeshift_buffer_depth_in_s = vod_cfg.default_tsbd_secs
         self.vod_first_segment_in_loop = vod_cfg.first_segment_in_loop
         self.vod_nr_segments_in_loop = vod_cfg.nr_segments_in_loop
+        self.loop = vod_cfg.loop
 
     def update_for_tfdt32(self, now_int):
         "Set MPD values for 32-bit tfdt (reset session every 3 hours)."
@@ -184,6 +186,7 @@ class VodConfig(object):
         self.first_segment_in_loop = None
         self.nr_segments_in_loop = 0
         self.segment_duration_s = 0
+        self.loop = False
         self.default_tsbd_secs = DEFAULT_TIMESHIFT_BUFFER_DEPTH_IN_SECS
         self.possible_media = ('video', 'audio')
         self.media_data = {}
@@ -196,8 +199,15 @@ class VodConfig(object):
             version = config.get('General', 'version')
             if version != self.good_version:
                 raise ConfigProcessorError("Bad config file version: %s (should be %s)" % (version, self.good_version))
-            self.first_segment_in_loop = config.getint("Setup", "first_segment_in_loop")
+            try:
+                loop = config.getint("Setup", "loop")
+                self.loop = True
+            except:
+                pass
             self.segment_duration_s = config.getint("Setup", "segment_duration_s")
+            if self.loop:
+                return
+            self.first_segment_in_loop = config.getint("Setup", "first_segment_in_loop")
             self.nr_segments_in_loop = config.getint("Setup", "nr_segments_in_loop")
             self.default_tsbd_secs = config.getint("Setup", "default_tsbd_secs")
             for media in self.possible_media:
