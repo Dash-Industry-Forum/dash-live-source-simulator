@@ -169,7 +169,7 @@ class MpdProcessor(object):
 
         def create_inband_scte35stream_elem():
             "Create an InbandEventStream element for SCTE-35."
-            return self.create_descriptor_elem("InbandEventStream", scte35.SCHEME_ID_URI)
+            return self.create_descriptor_elem("InbandEventStream", scte35.SCHEME_ID_URI, value=str(scte35.PID))
 
         periods = mpd.findall(add_ns('Period'))
         for (period, pdata) in zip(periods, period_data):

@@ -248,7 +248,7 @@ class TestScte35Manifest(unittest.TestCase):
         self.assertTrue(self.mpd.find(",http://dashif.org/guidelines/adin/app") > 0)
 
     def test_inband_stream_signal(self):
-        self.assertTrue(self.mpd.find('<InbandEventStream schemeIdUri="urn:scte:scte35:2013:xml"') > 0)
+        self.assertTrue(self.mpd.find('<InbandEventStream schemeIdUri="urn:scte:scte35:2013a:xml"') > 0)
 
 
 class TestScte35Segments(unittest.TestCase):
