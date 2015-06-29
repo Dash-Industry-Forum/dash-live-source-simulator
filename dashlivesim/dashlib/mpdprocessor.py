@@ -35,7 +35,7 @@ import cStringIO
 import time
 import re
 
-from dashlivesim.dashlib import scte35
+from . import scte35
 
 SET_BASEURL = True
 DASH_NAMESPACE = "{urn:mpeg:dash:schema:mpd:2011}"
