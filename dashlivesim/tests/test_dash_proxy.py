@@ -32,8 +32,6 @@ import unittest, sys
 from dash_test_util import *
 from ..dashlib import dash_proxy
 
-from dash_test_util import *
-
 def findAllIndexes(needle, haystack):
     """Find the index for the beginning of each occurrence of ``needle`` in ``haystack``. Overlaps are allowed."""
     indexes = []

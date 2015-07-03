@@ -32,8 +32,13 @@
 from . import scte35
 from .mp4filter import MP4Filter
 from .structops import str_to_uint32, uint32_to_str, str_to_uint64, uint64_to_str, str_to_sint32, sint32_to_str
+from .ttml_timing_offset import add_offset_in_s
 
 KEEP_SIDX = False
+
+
+class MediaSegmentFilterError(Exception):
+    "Error in MediaSegmentFilter."
 
 class MediaSegmentFilter(MP4Filter):
     """Filter the fragment response to fill in the right seg_nr, tfdtTime and SCTE-35 cue.
@@ -42,7 +47,7 @@ class MediaSegmentFilter(MP4Filter):
 
     #pylint: disable=too-many-instance-attributes, too-many-arguments
     def __init__(self, file_name, seg_nr=None, seg_duration=1, offset=0, lmsg=False, track_timescale=None,
-                 scte35_per_minute=0, rel_path=None):
+                 scte35_per_minute=0, rel_path=None, is_ttml=False):
         MP4Filter.__init__(self, file_name)
         self.seg_nr = seg_nr
         self.seg_duration = seg_duration
@@ -50,13 +55,16 @@ class MediaSegmentFilter(MP4Filter):
         self.track_timescale = track_timescale
         self.rel_path = rel_path
 
-        self.relevant_boxes = ["styp", "sidx", "moof"]
+        self.relevant_boxes = ["styp", "sidx", "moof", "mdat"]
         self.lmsg = lmsg
         self.size_offsets = []
         self.size_change = 0
+        self.ttml_size_offset = None # A position in output for ttml sample size (assuming a single sample)
+        self.ttml_size = None
         self.tfdt_value = None # For testing
         self.duration = None
         self.scte35_per_minute = scte35_per_minute
+        self.is_ttml = is_ttml
 
     def filter_box(self, boxtype, data, file_pos, path=""):
         "Filter box or tree of boxes recursively."
@@ -85,6 +93,8 @@ class MediaSegmentFilter(MP4Filter):
                 size, boxtype = self.check_box(data[pos:pos+8])
                 output += self.filter_box(boxtype, data[pos:pos+size], file_pos+pos, path)
                 pos += size
+        elif path == "moof.traf.tfhd" and self.is_ttml:
+            output += self.process_tfhd(data, file_pos)
         elif path == "moof.traf.trun":
             output += self.process_trun(data)
         elif path == "moof.mfhd" and self.seg_nr is not None: # Change sequenceNumber
@@ -92,6 +102,8 @@ class MediaSegmentFilter(MP4Filter):
             output += data[0:12] + uint32_to_str(self.seg_nr)
         elif path == "moof.traf.tfdt":
             output = self.process_tfdt(data, output)
+        elif path == "mdat" and self.is_ttml:
+                output += self.process_ttml_mdat(data)
         else:
             output = data
         return output
@@ -116,6 +128,25 @@ class MediaSegmentFilter(MP4Filter):
         for brand in brands:
             output += brand
         return output
+
+    def process_tfhd(self, data, file_pos):
+        "Process tfhd to get offset of default_sample_size (for later change)."
+        tf_flags = str_to_uint32(data[8:12]) & 0xffffff
+        trackID = str_to_uint32(data[12:16])
+        pos = 16
+        if tf_flags & 0x01:
+            raise MediaSegmentFilterError("base-data-offset-present not supported in ttml segments")
+        if tf_flags & 0x02:
+            pos += 4
+        if tf_flags & 0x08 == 0:
+            raise MediaSegmentFilterError("Cannot handle ttml segmengs with default_sample_duration absent")
+        else:
+            pos += 4
+        if tf_flags & 0x10:
+            self.ttml_size_offset = file_pos + pos
+        else:
+            raise MediaSegmentFilterError("Cannot handle ttml segments if default_sample_size_offset is absent")
+        return data
 
     def process_trun(self, data):
         "Get total duration from trun. Fix offset if self.size_change is non-zero."
@@ -297,3 +328,17 @@ class MediaSegmentFilter(MP4Filter):
                 new_size = old_size + self.size_change
                 #print "%d: size change %d->%d" % (offset, old_size, new_size)
                 self.output = self.output[:offset] + uint32_to_str(new_size) + self.output[offset+4:]
+        if self.ttml_size_offset:
+            old_sample_size = str_to_uint32(self.output[self.ttml_size_offset:self.ttml_size_offset+4])
+            self.output = self.output[:self.ttml_size_offset] + uint32_to_str(self.ttml_size) +\
+                          self.output[self.ttml_size_offset+4:]
+            #print "Changed ttml sample size %d -> %d" % (old_sample_size, self.ttml_size)
+
+    def process_ttml_mdat(self, data):
+        "Change ttml begin and end timestamps to agree with mediatime."
+        ttml_xml = data[8:]
+        ttml_out = add_offset_in_s(ttml_xml, self.offset)
+        self.ttml_size = len(ttml_out)
+        out_size = self.ttml_size + 8
+        return uint32_to_str(out_size) + 'mdat' + ttml_out
+
