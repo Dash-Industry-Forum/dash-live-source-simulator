@@ -132,14 +132,13 @@ class MediaSegmentFilter(MP4Filter):
     def process_tfhd(self, data, file_pos):
         "Process tfhd to get offset of default_sample_size (for later change)."
         tf_flags = str_to_uint32(data[8:12]) & 0xffffff
-        trackID = str_to_uint32(data[12:16])
         pos = 16
         if tf_flags & 0x01:
             raise MediaSegmentFilterError("base-data-offset-present not supported in ttml segments")
         if tf_flags & 0x02:
             pos += 4
         if tf_flags & 0x08 == 0:
-            raise MediaSegmentFilterError("Cannot handle ttml segmengs with default_sample_duration absent")
+            raise MediaSegmentFilterError("Cannot handle ttml segments with default_sample_duration absent")
         else:
             pos += 4
         if tf_flags & 0x10:
@@ -329,10 +328,8 @@ class MediaSegmentFilter(MP4Filter):
                 #print "%d: size change %d->%d" % (offset, old_size, new_size)
                 self.output = self.output[:offset] + uint32_to_str(new_size) + self.output[offset+4:]
         if self.ttml_size_offset:
-            old_sample_size = str_to_uint32(self.output[self.ttml_size_offset:self.ttml_size_offset+4])
             self.output = self.output[:self.ttml_size_offset] + uint32_to_str(self.ttml_size) +\
                           self.output[self.ttml_size_offset+4:]
-            #print "Changed ttml sample size %d -> %d" % (old_sample_size, self.ttml_size)
 
     def process_ttml_mdat(self, data):
         "Change ttml begin and end timestamps to agree with mediatime."
