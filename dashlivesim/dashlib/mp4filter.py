@@ -32,7 +32,7 @@ The filter is streamlined for DASH or other content with one track per file.
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-from .structops import str_to_uint32
+from .structops import str_to_uint32, uint32_to_str
 
 
 class MP4FilterError(BaseException):
@@ -54,7 +54,10 @@ class MP4Filter(object):
             self.data = data
         self.emsg = None
         self.output = ""
-        self.relevant_boxes = [] # Boxes at top-level to filter
+        self.top_level_boxes_to_parse = [] # Boxes at top-level to filter
+        self.composite_boxes_to_parse = [] # Composite boxes to look into
+        self.next_phase_data = {}
+        self.nr_iterations_done = 0
         #print "MP4Filter with %s" % filename
 
     def check_box(self, data):
@@ -70,17 +73,49 @@ class MP4Filter(object):
         while pos < len(self.data):
             size, boxtype = self.check_box(self.data[pos:pos+8])
             boxdata = self.data[pos:pos+size]
-            if boxtype in self.relevant_boxes:
+            if boxtype in self.top_level_boxes_to_parse:
                 self.output += self.filter_box(boxtype, boxdata, len(self.output))
             else:
                 self.output += boxdata
             pos += size
+        if self.next_phase_data:
+            self.nr_iterations_done += 1
+            self.data = self.output
+            self.output = self.filter()
         self.finalize()
         return self.output
 
-    def filter_box(self, boxtype, boxdata, file_pos, path=""):
-        "Function to be implemented in subclass. Add path element for each level."
-        raise MP4FilterError("Not implemented")
+    def filter_box(self, boxtype, data, file_pos, path=""):
+        "Filter box or tree of boxes recursively."
+        if path == "":
+            path = boxtype
+        else:
+            path = "%s.%s" % (path, boxtype)
+
+        if boxtype in self.composite_boxes_to_parse:
+            #print "Parsing %s" % path
+            output_composite_size = 8
+            #print "Added offset %d for %s" % (file_pos, path)
+            output = data[:8]
+            pos = 8
+            while pos < len(data):
+                child_size, child_box_type = self.check_box(data[pos:pos+8])
+                output_child_box = self.filter_box(child_box_type, data[pos:pos+child_size], file_pos+pos, path)
+                output_composite_size += len(output_child_box)
+                output += output_child_box
+                pos += child_size
+            if output_composite_size != len(data):
+                #print "Rewriting size of %s from %d to %d" % (boxtype, str_to_uint32(output[0:4]), output_composite_size)
+                output = uint32_to_str(output_composite_size) + output[4:]
+        else:
+            method_name = "process_%s" % boxtype
+            method = getattr(self, method_name, None)
+            if method is not None:
+                #print "Calling %s" % method_name
+                output = method(data)
+            else:
+                output = data
+        return output
 
     def finalize(self):
         "Do any final adjustments, if needed."

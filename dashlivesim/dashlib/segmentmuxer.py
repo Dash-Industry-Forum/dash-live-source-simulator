@@ -41,36 +41,32 @@ class InitSegmentStructure(MP4Filter):
 
     def __init__(self, filename=None, data=None):
         MP4Filter.__init__(self, filename, data)
-        self.relevant_boxes = ['ftyp', 'moov']
+        self.top_level_boxes_to_parse = ['ftyp', 'moov']
+        self.composite_boxes_to_parse = ['moov', 'mvex']
         self._ftyp = None
         self._mvhd = None
         self._trex = None
         self._trak = None
 
-    def filter_box(self, boxtype, data, file_pos, path=""):
-        if boxtype == "ftyp":
-            self._ftyp = data
-        elif boxtype == "mvhd":
-            self._mvhd = data
-        elif boxtype == "trex":
-            self._trex = data
-        elif boxtype == "trak":
-            self._trak = data
-        if path == "":
-            path = boxtype
-        else:
-            path = "%s.%s" % (path, boxtype)
-        output = ""
-        if path in ("moov", "moov.mvex"): # Go deeper
-            output += data[:8]
-            pos = 8
-            while pos < len(data):
-                size, boxtype = self.check_box(data[pos:pos+8])
-                output += self.filter_box(boxtype, data[pos:pos+size], file_pos + len(output), path)
-                pos += size
-        else:
-            output = data
-        return output
+    def process_ftyp(self, data):
+        "Get a handle to ftyp."
+        self._ftyp = data
+        return data
+
+    def process_mvhd(self, data):
+        "Get a handle to mvhd."
+        self._mvhd = data
+        return data
+
+    def process_trex(self, data):
+        "Get a handle to trex."
+        self._trex = data
+        return data
+
+    def process_trak(self, data):
+        "Get a handle to trak."
+        self._trak = data
+        return data
 
     @property
     def ftyp(self):
@@ -130,7 +126,7 @@ class MediaSegmentStructure(MP4Filter):
 
     def __init__(self, filename=None, data=None):
         MP4Filter.__init__(self, filename, data)
-        self.relevant_boxes = ['styp', 'moof', 'mdat']
+        self.top_level_boxes_to_parse = ['styp', 'moof', 'mdat']
         self.trun_data_offset = None
         self.trun_data_offset_in_traf = None
         self.traf_start = None
@@ -234,9 +230,3 @@ class MultiplexMediaSegments(object):
         data.append(self.mstruct2.mdat[8:])
 
         return "".join(data)
-
-
-
-
-
-
