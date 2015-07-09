@@ -2,8 +2,8 @@
 
 Start from template (which has timescale=1000)."""
 
-from mp4filter import MP4Filter
-from structops import uint32_to_str, str_to_uint32, uint64_to_str
+from .mp4filter import MP4Filter
+from .structops import uint32_to_str, str_to_uint32, uint64_to_str
 
 
 TTML_MEDIA_TMPL = '\x00\x00\x00\x18stypmsdh\x00\x00\x00\x00msdhdash\x00\x00\x00`moof\x00\x00\x00\x10mfhd\x00\x00\
@@ -11,7 +11,7 @@ TTML_MEDIA_TMPL = '\x00\x00\x00\x18stypmsdh\x00\x00\x00\x00msdhdash\x00\x00\x00`
 \x00\x00\t\x00\x00\x00\x14tfdt\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x14trun\x00\x00\x00\
 \x01\x00\x00\x00\x01\x00\x00\x00h\x00\x00\x00\x08mdat'
 
-SAMPLE_TIME_SCALE = 1000 # This is the units for tfdt time and durations.
+TIMESCALE = 1000 # This is the units for tfdt time and durations.
 TRACK_ID = 3
 # The init has sample_time_scale and trackID according to the values above
 TTML_INIT = '\x00\x00\x00\x18ftypiso6\x00\x00\x00\x01isomdash\x00\x00\x02\x9dmoov\x00\x00\x00lmvhd\x00\x00\x00\x00\
@@ -86,44 +86,19 @@ class TtmlMediaFilter(MP4Filter):
         self.track_id = track_id
         self.sequence_nr = sequence_nr
         self.default_sample_duration = sample_duration
-        self.default_sample_size = len(ttml_data)
         self.tfdt_time = tfdt_time
         self.ttml_data = ttml_data
-        self.relevant_boxes = ['styp', 'moof', 'mdat', 'sidx']
+        self.top_level_boxes_to_parse = ['styp', 'moof', 'mdat', 'sidx']
         self.composite_boxes = ['moof', 'moof.traf']
 
-    def filter_box(self, boxtype, data, file_pos, path=""):
-        "Filter box or tree of boxes recursively."
-        #pylint: disable=too-many-branches
-        if path == "":
-            path = boxtype
-        else:
-            path = "%s.%s" % (path, boxtype)
+    # pylint: disable=unused-argument, no-self-use
+    def process_sidx(self, data):
+        "SIDX not supported."
+        raise TtmlSegmentGeneratorError("SIDX presence not supported")
 
-        output = ""
-
-        #print "%d %s %d" % (len(self.output), boxtype, len(data))
-        if path == "sidx":
-                raise TtmlMediaFilter("SIDX presence not supported")
-        elif path in self.composite_boxes:
-            output += data[:8]
-            pos = 8
-            while pos < len(data):
-                size, boxtype = self.check_box(data[pos:pos+8])
-                output += self.filter_box(boxtype, data[pos:pos+size], file_pos+pos, path)
-                pos += size
-        elif path == "moof.mfhd":
-            output += data[:12]
-            output += uint32_to_str(self.sequence_nr)
-        elif path == "moof.traf.tfhd":
-            output += self.process_tfhd(data)
-        elif path == "moof.traf.tfdt":
-            output += self.process_tfdt(data)
-        elif path == "mdat":
-            output += self.process_mdat(data)
-        else:
-            output = data
-        return output
+    def process_mfhd(self, data):
+        "Set sequence number."
+        return data[:12] + uint32_to_str(self.sequence_nr)
 
     def process_tfhd(self, data):
         "Process a tfhd box and set trackID, defaultSampleDuration and defaultSampleSize"
@@ -132,7 +107,7 @@ class TtmlMediaFilter(MP4Filter):
         output = data[:12]
         output += uint32_to_str(self.track_id)
         output += uint32_to_str(self.default_sample_duration)
-        output += uint32_to_str(self.default_sample_size)
+        output += uint32_to_str(len(self.ttml_data))
         return output
 
     def process_tfdt(self, data):
@@ -145,11 +120,117 @@ class TtmlMediaFilter(MP4Filter):
 
     def process_mdat(self, data):
         "Make an mdat box with the right size to contain the one-and-only ttml sample."
-        size = self.default_sample_size + 8
+        size = len(self.ttml_data) + 8
         return uint32_to_str(size) + 'mdat' + self.ttml_data
 
 
-def create_segment(track_id, sequence_nr, sample_duration, tfdt_time, ttml_data):
+class TtmlInitFilter(MP4Filter):
+    "Generate a TTML init segment from template by changing some values."
+
+    def __init__(self, lang="eng", track_id=TRACK_ID, timescale=TIMESCALE, creation_modfication_time=None,
+                 hdlr_name=None):
+        "Filter to create an appropriate init segment."
+        MP4Filter.__init__(self, data=TTML_INIT)
+        self.lang = lang
+        self.track_id = track_id
+        self.timescale = timescale
+        self.creation_modfication_time = creation_modfication_time # Measured from 1904-01-01 in seconds
+        self.handler_name = hdlr_name
+        self.top_level_boxes_to_parse = ['moov']
+        self.composite_boxes_to_parse = ['moov', 'trak', 'mdia', 'minf', 'dinf']
+
+    def process_mvhd(self, data):
+        "Set nextTrackId and time and movie timescale."
+        output = self._insert_timing_data(data)
+        pos = len(output)
+        output += data[pos:-4]
+        output += uint32_to_str(self.track_id + 1) # next_track_ID
+        return output
+
+    def process_tkhd(self, data):
+        "Set trackID and time."
+        version = ord(data[8])
+        output = data[:12]
+        if version == 1:
+            if self.creation_modfication_time:
+                output += uint64_to_str(self.creation_modfication_time)
+                output += uint64_to_str(self.creation_modfication_time)
+            else:
+                output += data[12:28]
+            output += uint32_to_str(self.track_id)
+            output += uint32_to_str(0)
+            output += uint64_to_str(0) # duration
+            pos = 44
+        else:
+            if self.creation_modfication_time:
+                output += uint32_to_str(self.creation_modfication_time)
+                output += uint32_to_str(self.creation_modfication_time)
+            else:
+                output += data[12:20]
+            output += uint32_to_str(self.track_id)
+            output += uint32_to_str(0)
+            output += uint32_to_str(0) #duration
+            pos = 32
+        output += data[pos:]
+        return output
+
+    def process_mdhd(self, data):
+        "Set the timescale for the trak, language and time."
+
+        def get_char_bits(char):
+            "Each character in the language is smaller case and offset at 0x60."
+            return ord(char) - 96
+
+        output = self._insert_timing_data(data)
+        assert len(self.lang) == 3
+        lang = self.lang
+        lang_bits = (get_char_bits(lang[0]) << 10) + (get_char_bits(lang[1]) << 5) + get_char_bits(lang[2])
+        output += uint32_to_str(lang_bits << 16)
+        return output
+
+    def process_hdlr(self, data):
+        "Set handler name, if desired."
+        hdlr = data[16:20]
+        hdlr_name = data[32:-1] # Actually UTF-8 encoded
+        print "Found hdlr %s: %s" % (hdlr, hdlr_name)
+        if self.handler_name:
+            output = uint32_to_str(len(self.handler_name) + 33) + data[4:32] + self.handler_name + '\x00'
+            print "Wrote hdlr %s" % self.handler_name
+        else:
+            output = data
+        return output
+
+    def _insert_timing_data(self, data):
+        "Help function to insert timestamps and timescale in similar boxes."
+        version = ord(data[8])
+        output = data[:12]
+        if version == 1:
+            if self.creation_modfication_time:
+                output += uint64_to_str(self.creation_modfication_time)
+                output += uint64_to_str(self.creation_modfication_time)
+            else:
+                output += data[12:28]
+            output += uint32_to_str(self.timescale)
+            output += uint64_to_str(0) # duration
+        else:
+            if self.creation_modfication_time:
+                output += uint32_to_str(self.creation_modfication_time)
+                output += uint32_to_str(self.creation_modfication_time)
+            else:
+                output += data[12:20]
+            output += uint32_to_str(self.timescale)
+            output += uint32_to_str(0)
+        return output
+
+
+
+def create_media_segment(track_id, sequence_nr, sample_duration, tfdt_time, ttml_data):
     "Create a media segment."
     ttml_seg = TtmlMediaFilter(track_id, sequence_nr, sample_duration, tfdt_time, ttml_data)
     return ttml_seg.filter()
+
+def create_init_segment(lang="eng", track_id=TRACK_ID, timescale=TIMESCALE, creation_modfication_time=None,
+                        hdlr_name=None):
+    "Create an init segment."
+    init_seg = TtmlInitFilter(lang, track_id, timescale, creation_modfication_time, hdlr_name)
+    return init_seg.filter()
