@@ -94,19 +94,16 @@ class MP4Filter(object):
 
         if boxtype in self.composite_boxes_to_parse:
             #print "Parsing %s" % path
-            output_composite_size = 8
-            #print "Added offset %d for %s" % (file_pos, path)
             output = data[:8]
             pos = 8
             while pos < len(data):
                 child_size, child_box_type = self.check_box(data[pos:pos+8])
                 output_child_box = self.filter_box(child_box_type, data[pos:pos+child_size], file_pos+pos, path)
-                output_composite_size += len(output_child_box)
                 output += output_child_box
                 pos += child_size
-            if output_composite_size != len(data):
-                #print "Rewriting size of %s from %d to %d" % (boxtype, str_to_uint32(output[0:4]), output_composite_size)
-                output = uint32_to_str(output_composite_size) + output[4:]
+            if len(output) != len(data):
+                #print "Rewriting size of %s from %d to %d" % (boxtype, str_to_uint32(output[0:4]), len(output))
+                output = uint32_to_str(len(output)) + output[4:]
         else:
             method_name = "process_%s" % boxtype
             method = getattr(self, method_name, None)
