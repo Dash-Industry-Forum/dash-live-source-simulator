@@ -89,7 +89,7 @@ class TtmlMediaFilter(MP4Filter):
         self.tfdt_time = tfdt_time
         self.ttml_data = ttml_data
         self.top_level_boxes_to_parse = ['styp', 'moof', 'mdat', 'sidx']
-        self.composite_boxes = ['moof', 'moof.traf']
+        self.composite_boxes_to_parse = ['moof', 'traf']
 
     # pylint: disable=unused-argument, no-self-use
     def process_sidx(self, data):
