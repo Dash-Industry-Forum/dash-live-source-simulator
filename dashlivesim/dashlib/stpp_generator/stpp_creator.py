@@ -2,8 +2,37 @@
 
 Start from template (which has timescale=1000)."""
 
-from .mp4filter import MP4Filter
-from .structops import uint32_to_str, str_to_uint32, uint64_to_str
+# The copyright in this software is being made available under the BSD License,
+# included below. This software may be subject to other third party and contributor
+# rights, including patent rights, and no such rights are granted under this license.
+#
+# Copyright (c) 2015, Dash Industry Forum.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without modification,
+# are permitted provided that the following conditions are met:
+#  * Redistributions of source code must retain the above copyright notice, this
+#  list of conditions and the following disclaimer.
+#  * Redistributions in binary form must reproduce the above copyright notice,
+#  this list of conditions and the following disclaimer in the documentation and/or
+#  other materials provided with the distribution.
+#  * Neither the name of Dash Industry Forum nor the names of its
+#  contributors may be used to endorse or promote products derived from this software
+#  without specific prior written permission.
+#
+#  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS AS IS AND ANY
+#  EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+#  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+#  IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+#  INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+#  NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+#  PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+#  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+#  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+#  POSSIBILITY OF SUCH DAMAGE.
+
+from ..mp4filter import MP4Filter
+from ..structops import uint32_to_str, str_to_uint32, uint64_to_str
 
 
 TTML_MEDIA_TMPL = '\x00\x00\x00\x18stypmsdh\x00\x00\x00\x00msdhdash\x00\x00\x00`moof\x00\x00\x00\x10mfhd\x00\x00\
@@ -73,12 +102,11 @@ TTML_XML = u'''
 '''
 
 
-
-class TtmlSegmentGeneratorError(Exception):
+class StppSegmentCreatorError(Exception):
     "Error in TtmlSegmentGenerator."
 
 
-class TtmlMediaFilter(MP4Filter):
+class StppMediaFilter(MP4Filter):
     "Generate a TTML media segment with the limitation that there can only be one sample (<tt>)."
 
     def __init__(self, track_id, sequence_nr, sample_duration, tfdt_time, ttml_data):
@@ -94,7 +122,7 @@ class TtmlMediaFilter(MP4Filter):
     # pylint: disable=unused-argument, no-self-use
     def process_sidx(self, data):
         "SIDX not supported."
-        raise TtmlSegmentGeneratorError("SIDX presence not supported")
+        raise StppSegmentCreatorError("SIDX presence not supported")
 
     def process_mfhd(self, data):
         "Set sequence number."
@@ -124,7 +152,7 @@ class TtmlMediaFilter(MP4Filter):
         return uint32_to_str(size) + 'mdat' + self.ttml_data
 
 
-class TtmlInitFilter(MP4Filter):
+class StppInitFilter(MP4Filter):
     "Generate a TTML init segment from template by changing some values."
 
     def __init__(self, lang="eng", track_id=TRACK_ID, timescale=TIMESCALE, creation_modfication_time=None,
@@ -226,11 +254,11 @@ class TtmlInitFilter(MP4Filter):
 
 def create_media_segment(track_id, sequence_nr, sample_duration, tfdt_time, ttml_data):
     "Create a media segment."
-    ttml_seg = TtmlMediaFilter(track_id, sequence_nr, sample_duration, tfdt_time, ttml_data)
+    ttml_seg = StppMediaFilter(track_id, sequence_nr, sample_duration, tfdt_time, ttml_data)
     return ttml_seg.filter()
 
 def create_init_segment(lang="eng", track_id=TRACK_ID, timescale=TIMESCALE, creation_modfication_time=None,
                         hdlr_name=None):
     "Create an init segment."
-    init_seg = TtmlInitFilter(lang, track_id, timescale, creation_modfication_time, hdlr_name)
+    init_seg = StppInitFilter(lang, track_id, timescale, creation_modfication_time, hdlr_name)
     return init_seg.filter()

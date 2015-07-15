@@ -1,5 +1,3 @@
-"""Simple struct operations to pack and unpack numbers to strings."""
-
 # The copyright in this software is being made available under the BSD License,
 # included below. This software may be subject to other third party and contributor
 # rights, including patent rights, and no such rights are granted under this license.
@@ -28,29 +26,3 @@
 #  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
-
-from struct import pack, unpack
-
-def str_to_uint32(string4):
-    "4-character string to unsigned int32."
-    return unpack(">I", string4)[0]
-
-def str_to_sint32(string4):
-    "4-character string to signed int32."
-    return unpack(">i", string4)[0]
-
-def str_to_uint64(string8):
-    "8-character string to unsigned int64."
-    return unpack(">Q", string8)[0]
-
-def uint32_to_str(uint32):
-    "Unsigned int32 to string."
-    return pack(">I", uint32)
-
-def sint32_to_str(sint32):
-    "Signed int32 to string."
-    return pack(">i", sint32)
-
-def uint64_to_str(uint64):
-    "Unsigned int64 to string."
-    return pack(">Q", uint64)
