@@ -61,13 +61,14 @@ class TestSegmentModification(unittest.TestCase):
     def testTtmlSegment(self):
         testOutputFile = "sub.m4s"
         rm_outfile(testOutputFile)
-        segmentNr = 1800
+        segmentNr = 718263000
         segment = "%d.m4s" % segmentNr
         now = segmentNr * 2 + 10
         urlParts = ['livsim', 'all_1', 'testpic_stpp', 'S1', segment]
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
         d = dp.handle_request()
-        self.assertTrue(d.find('begin="01:00:00.000"'))
+        write_data_to_outfile(d, testOutputFile)
+        self.assertTrue(d.find('begin="399035:00:00.000"') > 0)
 
 class TestMpdExtraction(unittest.TestCase):
 

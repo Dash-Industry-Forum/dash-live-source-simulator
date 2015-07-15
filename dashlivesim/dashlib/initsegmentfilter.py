@@ -82,7 +82,7 @@ class InitFilter(MP4Filter):
 class InitLiveFilter(MP4Filter):
     "Process an init segment file and set the durations to 0."
 
-    # pylint: disable=too-many-branches
+    # pylint: disable=too-many-branches, no-self-use
 
     def __init__(self, file_name=None, data=None):
         MP4Filter.__init__(self, file_name, data)

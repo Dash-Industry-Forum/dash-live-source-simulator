@@ -58,13 +58,14 @@ class MediaSegmentFilter(MP4Filter):
         self.rel_path = rel_path
         self.lmsg = lmsg
         self.size_change = 0
-        self.ttml_size_offset = None # A position in output for ttml sample size (assuming a single sample)
-        self.ttml_size = None
         self.tfdt_value = None # For testing
         self.duration = None
         self.scte35_per_minute = scte35_per_minute
         self.is_ttml = is_ttml
-        self.ttml_sample_size = None
+        self.ttml_size = None
+
+        if self.is_ttml:
+            self.data = self.find_and_process_mdat(self.data)
 
     #pylint: disable=no-self-use
     def process_styp(self, data):
@@ -106,15 +107,9 @@ class MediaSegmentFilter(MP4Filter):
             pos += 4
         output = data[:pos]
         if tf_flags & 0x10:
-            if self.next_phase_data.has_key('ttml_sample_size'):
-                new_ttml_sample_size = self.next_phase_data['ttml_sample_size']
-                #print "Changed sample size from %d to %d" % (self.ttml_sample_size, new_ttml_sample_size)
-                output += uint32_to_str(new_ttml_sample_size)
-                self.ttml_sample_size = new_ttml_sample_size
-                del self.next_phase_data['ttml_sample_size']
-            else:
-                self.ttml_sample_size = str_to_uint32(data[pos:pos+4])
-                output += data[pos:pos+4]
+            old_ttml__size = str_to_uint32(data[pos:pos+4])
+            output += uint32_to_str(self.ttml_size)
+            print "Changed ttml sample size from %d to %d" % (old_ttml__size, self.ttml_size)
             pos += 4
         else:
             raise MediaSegmentFilterError("Cannot handle ttml segments if default_sample_size_offset is absent")
@@ -302,14 +297,24 @@ class MediaSegmentFilter(MP4Filter):
         #print "Made scte35 emsg %d" % len(emsg)
         return emsg
 
-    def process_mdat(self, data):
-        "Process mdat only in ttml case"
-        if not self.is_ttml or self.nr_iterations_done > 0:
-            return data
+    def find_and_process_mdat(self, data):
+        "Change the ttml part of mdat and update mdat size. Return full new data."
+        pos = 0
+        output = ""
+        while pos < len(data):
+            size = str_to_uint32(data[pos:pos+4])
+            boxtype = data[pos+4:pos+8]
+            if boxtype != 'mdat':
+                output += data[pos:pos+size]
+            else:
+                output += self.update_ttml_mdat(data[pos:pos+size])
+            pos += size
+        return output
+
+    def update_ttml_mdat(self, data):
+        "Update the "
         ttml_xml = data[8:]
         ttml_out = add_offset_in_s(ttml_xml, self.offset)
         self.ttml_size = len(ttml_out)
         out_size = self.ttml_size + 8
-        self.next_phase_data['ttml_sample_size'] = self.ttml_size
-        #print self.offset, len(ttml_xml), len(ttml_out)
         return uint32_to_str(out_size) + 'mdat' + ttml_out
