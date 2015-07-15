@@ -312,7 +312,7 @@ class MediaSegmentFilter(MP4Filter):
         return output
 
     def update_ttml_mdat(self, data):
-        "Update the "
+        "Update the ttml payload of mdat and its size."
         ttml_xml = data[8:]
         ttml_out = add_offset_in_s(ttml_xml, self.offset)
         self.ttml_size = len(ttml_out)
