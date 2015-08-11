@@ -69,6 +69,7 @@ class TestSegmentModification(unittest.TestCase):
         d = dp.handle_request()
         write_data_to_outfile(d, testOutputFile)
         self.assertTrue(d.find('begin="399035:00:00.000"') > 0)
+        self.assertTrue(d.find('eng : UTC = 2015-07-10T11:00:00Z') > 0)
 
 class TestMpdExtraction(unittest.TestCase):
 
