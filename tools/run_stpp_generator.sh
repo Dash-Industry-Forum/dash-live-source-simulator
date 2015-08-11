@@ -1,2 +1,2 @@
 export PYTHONPATH=${PYTHONPATH}:..
-python -m dashlivesim.dashlib.stpp_generator.make_stpp_segments $1
+python -m dashlivesim.dashlib.stpp_generator.make_stpp_segments $@

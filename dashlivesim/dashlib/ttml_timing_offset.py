@@ -32,7 +32,7 @@
 import re, time
 
 TIME_PATTERN_S = re.compile(r'(?P<attr>(begin|end))="(?P<hours>\d\d):(?P<minutes>\d\d):(?P<seconds>\d\d)')
-CONTENT_PATTERN_S = re.compile(r'>(?P<hours>\d\d):(?P<minutes>\d\d):(?P<seconds>\d\d)(\.\d+)?')
+CONTENT_PATTERN_S = re.compile(r'(?P<lang>\w+) : (?P<hours>\d\d):(?P<minutes>\d\d):(?P<seconds>\d\d)(\.\d+)?')
 
 def add_offset_in_s(xml_str, offset_in_s):
     "Add offset in seconds to begin and end elements in xml string."
@@ -57,10 +57,9 @@ def add_offset_in_s(xml_str, offset_in_s):
         seconds = int(matches['seconds'])
         total_seconds = seconds + 60 * minutes + 3600 * hours + offset_in_s
         time_str = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(total_seconds))
-        return '>UTC time is %s' % time_str
+        return '%s : UTC = %s' % (matches['lang'], time_str)
 
 
     xml_str = re.sub(TIME_PATTERN_S, replace, xml_str)
     xml_str = re.sub(CONTENT_PATTERN_S, replace_content, xml_str)
     return xml_str
-

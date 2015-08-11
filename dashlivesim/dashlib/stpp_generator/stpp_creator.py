@@ -81,14 +81,14 @@ TTML_XML = u'''
     </metadata>
     <styling>
       <style xml:id="s0" tts:fontStyle="normal" tts:fontFamily="sansSerif" tts:fontSize="100%" tts:lineHeight="normal"
-      tts:color="#FFFFFF" tts:wrapOption="noWrap"/>
+      tts:color="#FFFFFF" tts:wrapOption="noWrap" tts:textAlign="center" />
       <style xml:id="s1" tts:color="#00FF00" tts:backgroundColor="#000000" ebutts:linePadding="0.5c"/>
     </styling>
     <layout>
       <region xml:id="r0" tts:origin="15% 80%" tts:extent="70% 20%" tts:overflow="visible" tts:displayAlign="before"/>
     </layout>
   </head>
-  <body tts:textAlign="center" style="s0">
+  <body style="s0">
     <div region="r0">
       <p xml:id="s0" begin="00:00:00.00" end="00:00:01.00" >
         <span style="s2">The time is 00:00:00</span>
