@@ -29,17 +29,14 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-SERVER_VERSION = "1.1 + dev"
-
 VOD_CONF_DIR = "/var/www/dash-live/vod_configs"
 CONTENT_ROOT = "/var/www/dash-live/content"
-SERVER_AGENT = "DASH-IF live DASH simulator %s" % SERVER_VERSION
 
+from .. import SERVER_AGENT
 import httplib
 from os.path import splitext
 from time import time
-#pylint: disable=import-error
-from dashlib import dash_proxy
+from ..dashlib import dash_proxy
 
 # Helper for HTTP responses
 #pylint: disable=dangerous-default-value
@@ -66,22 +63,20 @@ def reply(code, resp, body='', headers={}):
     resp(status, headers.items())
     return [body]
 
-#pylint: disable=too-many-branches
-def application(environent, start_respose):
+#pylint: disable=too-many-branches, too-many-locals
+def application(environment, start_response):
     "WSGI Entrypoint"
-    # Setup variables
-    print environent
 
     #pylint: disable=too-many-locals
-    hostname = environent['HTTP_HOST']
-    url = environent['REQUEST_URI']
+    hostname = environment['HTTP_HOST']
+    url = environment['REQUEST_URI']
     path_parts = url.split('/')
     ext = splitext(path_parts[-1])[1]
     args = None
     now = time()
     range_line = None
-    if 'HTTP_RANGE' in environent:
-        range_line = environent['HTTP_RANGE']
+    if 'HTTP_RANGE' in environment:
+        range_line = environment['HTTP_RANGE']
 
     # Print debug information
     #print hostname
@@ -139,7 +134,7 @@ def application(environent, start_respose):
             else: # Bad range, drop it
                 print "mod_dash_handler: Bad range %s" % (range_line)
 
-    return reply(status, start_respose, payload_out, headers)
+    return reply(status, start_response, payload_out, headers)
 
 def get_mime_type(ext):
     "Get mime-type depending on extension."
@@ -207,4 +202,3 @@ if __name__ == '__main__':
         return application(env, resp)
 
     run_local_webserver(application_wrapper)
-

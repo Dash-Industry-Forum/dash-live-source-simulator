@@ -40,6 +40,7 @@ try:
 except ImportError:
     pass
 
+#pylint: disable=too-many-branches
 def dash_handler(req, server_agent, request_handler):
     "This is the mod_python handler."
 
@@ -67,6 +68,7 @@ def dash_handler(req, server_agent, request_handler):
             if not response["ok"]:
                 success = False
             payload_in = response["pl"]
+    #pylint: disable=broad-except
     except Exception, exc:
         success = False
         req.log_error("mod_dash_handler request error: %s" % exc)

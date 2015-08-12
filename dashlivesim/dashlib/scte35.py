@@ -33,6 +33,7 @@
 
 from . import emsg
 
+# The scheme_id_uri is a bit unsure. There is also a binary format, which may be preferred (...:2014:bin)
 SCHEME_ID_URI = "urn:scte:scte35:2013:xml"
 PID = 999
 PROFILE = "http://dashif.org/guidelines/adin/app"
