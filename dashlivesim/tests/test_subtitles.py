@@ -34,27 +34,37 @@ from ..dashlib import ttml_timing_offset
 from ..dashlib import dash_proxy
 
 TEST_STRING_1 = '< begin="01:02:03.1234" end="10:59:43:29" >'
+TEST_STRING_SEG_NR = '... Segment # 12 ...'
+
 
 class TestTtmlTimingChange(unittest.TestCase):
     "Test that TTML string is changed properly."
 
     def testNoChange(self):
         "Offset is 0 seconds."
-        outString = ttml_timing_offset.add_offset_in_s(TEST_STRING_1, 0)
+        outString = ttml_timing_offset.adjust_ttml_content(TEST_STRING_1, 0, None)
         self.assertEqual(outString, TEST_STRING_1)
 
     def testAdd1Hour(self):
         "Offset is 3600."
-        outString = ttml_timing_offset.add_offset_in_s(TEST_STRING_1, 3600)
+        outString = ttml_timing_offset.adjust_ttml_content(TEST_STRING_1, 3600, None)
         outGoal = '< begin="02:02:03.1234" end="11:59:43:29" >'
         self.assertEqual(outString, outGoal)
 
     def testWrap(self):
         "Add an offset that wraps."
-        outString = ttml_timing_offset.add_offset_in_s(TEST_STRING_1, 360050)
+        outString = ttml_timing_offset.adjust_ttml_content(TEST_STRING_1, 360050, None)
         outGoal = '< begin="101:02:53.1234" end="111:00:33:29" >'
         self.assertEqual(outString, outGoal)
 
+class TestTtmlSegmentNrChange(unittest.TestCase):
+    "Test that TTML string is changed properly."
+
+    def testSetToRightNr(self):
+        "Output Nr should be what is input."
+        outString = ttml_timing_offset.adjust_ttml_content(TEST_STRING_SEG_NR, 360050, 22)
+        outGoal = '... Segment # 22 ...'
+        self.assertEqual(outString, outGoal)
 
 class TestSegmentModification(unittest.TestCase):
 

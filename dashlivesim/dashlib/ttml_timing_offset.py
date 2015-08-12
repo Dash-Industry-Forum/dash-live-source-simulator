@@ -33,8 +33,9 @@ import re, time
 
 TIME_PATTERN_S = re.compile(r'(?P<attr>(begin|end))="(?P<hours>\d\d):(?P<minutes>\d\d):(?P<seconds>\d\d)')
 CONTENT_PATTERN_S = re.compile(r'(?P<lang>\w+) : (?P<hours>\d\d):(?P<minutes>\d\d):(?P<seconds>\d\d)(\.\d+)?')
+CONTENT_PATTERN_SEGMENT = re.compile(r'(?P<intro>Segment # )(?P<seg_nr>\d+)')
 
-def add_offset_in_s(xml_str, offset_in_s):
+def adjust_ttml_content(xml_str, offset_in_s, output_seg_nr):
     "Add offset in seconds to begin and end elements in xml string."
 
     def replace(match_obj):
@@ -59,7 +60,11 @@ def add_offset_in_s(xml_str, offset_in_s):
         time_str = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(total_seconds))
         return '%s : UTC = %s' % (matches['lang'], time_str)
 
+    def replace_segment_nr(match_obj):
+        matches = match_obj.groupdict()
+        return '%s%d' % (matches['intro'], output_seg_nr)
 
     xml_str = re.sub(TIME_PATTERN_S, replace, xml_str)
     xml_str = re.sub(CONTENT_PATTERN_S, replace_content, xml_str)
+    xml_str = re.sub(CONTENT_PATTERN_SEGMENT, replace_segment_nr, xml_str)
     return xml_str

@@ -32,7 +32,7 @@
 from . import scte35
 from .mp4filter import MP4Filter
 from .structops import str_to_uint32, uint32_to_str, str_to_uint64, uint64_to_str, str_to_sint32, sint32_to_str
-from .ttml_timing_offset import add_offset_in_s
+from .ttml_timing_offset import adjust_ttml_content
 
 KEEP_SIDX = False
 
@@ -314,7 +314,7 @@ class MediaSegmentFilter(MP4Filter):
     def update_ttml_mdat(self, data):
         "Update the ttml payload of mdat and its size."
         ttml_xml = data[8:]
-        ttml_out = add_offset_in_s(ttml_xml, self.offset)
+        ttml_out = adjust_ttml_content(ttml_xml, self.offset, self.seg_nr)
         self.ttml_size = len(ttml_out)
         out_size = self.ttml_size + 8
         return uint32_to_str(out_size) + 'mdat' + ttml_out
