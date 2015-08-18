@@ -42,13 +42,13 @@ class TestMpdProcessor(unittest.TestCase):
         mp.process({'availabilityStartTime': "1971", 'BaseURL' : "http://india/", 'minimumUpdatePeriod' : "0", 'periodOffset' : 100000},
                    [{'id' : "p0", 'startNumber' : "0", 'presentationTimeOffset' : 0},
                     {'id' : "p1", 'startNumber' : "3600", 'presentationTimeOffset' : 100000}])
-        xml = mp.getstring()
+        xml = mp.get_full_xml()
 
     def test_utc_timing_head(self):
         mp = mpdprocessor.MpdProcessor(vodMPD, False, ["head"])
         mp.process({'availabilityStartTime': "1971", 'BaseURL' : "http://india/", 'minimumUpdatePeriod' : "0", 'periodOffset' : 100000},
                     [{'id' : "p0", 'startNumber' : "0", 'presentationTimeOffset' : 0}] )
-        xml = mp.getstring()
+        xml = mp.get_full_xml()
         head_pos = xml.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:http-head:2014"')
         self.assertGreater(head_pos, 0, "UTCTiming for head method not found.")
 
@@ -56,7 +56,7 @@ class TestMpdProcessor(unittest.TestCase):
         mp = mpdprocessor.MpdProcessor(vodMPD, False, ["direct", "head"])
         mp.process({'availabilityStartTime': "1971", 'BaseURL' : "http://india/", 'minimumUpdatePeriod' : "0", 'periodOffset' : 100000},
                    [{'id' : "p0", 'startNumber' : "0", 'presentationTimeOffset' : 0}] )
-        xml = mp.getstring()
+        xml = mp.get_full_xml()
         head_pos = xml.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:http-head:2014"')
         direct_pos = xml.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:direct:2014"')
         self.assertLess(direct_pos, head_pos , "UTCTiming direct method does not come before head method.")

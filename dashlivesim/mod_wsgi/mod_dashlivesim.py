@@ -1,5 +1,5 @@
-"""Handler of DASH request for mod_dash_proxy and mod_base_proxy.
-"""
+"WSGI Module for dash-live-source-simulator"
+
 # The copyright in this software is being made available under the BSD License,
 # included below. This software may be subject to other third party and contributor
 # rights, including patent rights, and no such rights are granted under this license.
@@ -29,105 +29,127 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-HTTP_PARTIAL_CONTENT = 206
+VOD_CONF_DIR = "/var/www/dash-live/vod_configs"
+CONTENT_ROOT = "/var/www/dash-live/content"
 
+from .. import SERVER_AGENT
+import httplib
 from os.path import splitext
 from time import time
+from ..dashlib import dash_proxy
 
-try:
-    from mod_python import apache
-    import cgi
-except ImportError:
-    pass
+# Helper for HTTP responses
+#pylint: disable=dangerous-default-value
+def reply(code, resp, body='', headers={}):
+    "Create reply"
+    status = str(code) + ' ' + httplib.responses[code]
 
-#pylint: disable=too-many-branches
-def dash_handler(req, server_agent, request_handler):
-    "This is the mod_python handler."
+    # Add default headers to all requests
+    headers['Accept-Ranges'] = 'bytes'
+    headers['Pragma'] = 'no-cache'
+    headers['Cache-Control'] = 'no-cache'
+    headers['Expires'] = '-1'
+    headers['DASH-Live-Simulator'] = SERVER_AGENT
+    headers['Access-Control-Allow-Headers'] = 'origin,range,accept-encoding,referer'
+    headers['Access-Control-Allow-Methods'] = 'GET,HEAD,OPTIONS'
+    headers['Access-Control-Allow-Origin'] = '*'
+    headers['Access-Control-Expose-Headers'] = 'Server,range,Content-Length,Content-Range,Date'
 
-    url = req.parsed_uri[apache.URI_PATH]
-    path_parts = url.split("/")
+    if body:
+        headers['Content-Length'] = str(len(body))
+        if not 'Content-Type' in headers:
+            headers['Content-Type'] = 'text/plain'
+
+    resp(status, headers.items())
+    return [body]
+
+#pylint: disable=too-many-branches, too-many-locals
+def application(environment, start_response):
+    "WSGI Entrypoint"
+
+    #pylint: disable=too-many-locals
+    hostname = environment['HTTP_HOST']
+    url = environment['REQUEST_URI']
+    path_parts = url.split('/')
     ext = splitext(path_parts[-1])[1]
-    set_mime_type(req, ext)
-
-    range_line = req.headers_in.get('range')
-
+    args = None
     now = time()
+    range_line = None
+    if 'HTTP_RANGE' in environment:
+        range_line = environment['HTTP_RANGE']
+
+    # Print debug information
+    #print hostname
+    #print url
+    #print path_parts
+    #print ext
+    #print range_line
+
     success = True
-    if req.args:
-        args = cgi.parse_qs(req.args)
-        req.log_error("mod_dash_handler: %s" % args.__str__())
-    else:
-        args = {}
+    mimetype = get_mime_type(ext)
+    status = httplib.OK
+    payload_in = None
+
     try:
-        response = request_handler(req.hostname, path_parts, args, now, req)
+        response = dash_proxy.handle_request(hostname, path_parts[1:], args, VOD_CONF_DIR, CONTENT_ROOT, now, None)
         if isinstance(response, basestring):
             payload_in = response
             if not payload_in:
                 success = False
         else:
-            if not response["ok"]:
+            if not response['ok']:
                 success = False
-            payload_in = response["pl"]
+
+            payload_in = response['pl']
+
     #pylint: disable=broad-except
     except Exception, exc:
         success = False
-        req.log_error("mod_dash_handler request error: %s" % exc)
+        print "mod_dash_handler request error: %s" % exc
         payload_in = "DASH Proxy Error: %s\n URL=%s" % (exc, url)
-        req.content_type = "text/plain"
-        req.status = apache.HTTP_NOT_FOUND
 
-    set_out_headers(req, server_agent)
 
     if not success:
         if payload_in == "":
-            req.log_error("dash_proxy error: No body!")
-            payload_in = "Not found (now)"
+            print "dash_proxy error: No body!"
+            payload_in = "Now found (now)"
         elif payload_in is None:
-            req.log_error("dash_proxy: No content found")
+            print "dash_proxy: No content found"
             payload_in = "Not found (now)"
-        req.status = apache.HTTP_NOT_FOUND
-        req.content_type = "text/plain"
+
+        status = httplib.NOT_FOUND
+        mimetype = "text/plain"
 
     payload_out = payload_in
 
-    if req.status != apache.HTTP_NOT_FOUND:
+    # Setup response headers
+    headers = {'Content-Type':mimetype}
+
+    if status != httplib.NOT_FOUND:
         if range_line:
             payload_out, range_out = handle_byte_range(payload_in, range_line)
             if range_out != "": # OK
-                req.headers_out['Content-Range'] = range_out
-                req.status = HTTP_PARTIAL_CONTENT
-            else: # Bad range, drop it.
-                req.log_error("mod_dash_handler: Bad range %s" % (range_line))
+                headers['Content-Range'] = range_out
+                status = httplib.PARTIAL_CONTENT
+            else: # Bad range, drop it
+                print "mod_dash_handler: Bad range %s" % (range_line)
 
-    req.headers_out['Content-Length'] = "%d" % len(payload_out)
-    req.write(payload_out)
-    return apache.OK
+    return reply(status, start_response, payload_out, headers)
 
-def set_mime_type(req, ext):
-    "Set mime-type depending on extension."
-    req.content_type = "text/plain"
+def get_mime_type(ext):
+    "Get mime-type depending on extension."
     if ext == ".mpd":
-        req.content_type = "application/dash+xml"
+        return "application/dash+xml"
     elif ext == ".m4s":
-        req.content_type = "video/iso.segment"
+        return "video/iso.segment"
     elif ext == ".mp4":
-        req.content_type = "video/mp4"
+        return "video/mp4"
 
-def set_out_headers(req, server_agent):
-    "Set the response headers."
-    req.headers_out['Accept-Ranges'] = 'bytes'
-    req.headers_out['Pragma'] = 'no-cache'
-    req.headers_out['Cache-Control'] = 'no-cache'
-    req.headers_out['Expires'] = '-1'
-    req.headers_out['DASH-Live-Simulator'] = server_agent
-    req.headers_out['Access-Control-Allow-Headers'] = 'origin,range,accept-encoding,referer'
-    req.headers_out['Access-Control-Allow-Methods'] = 'GET,HEAD,OPTIONS'
-    req.headers_out['Access-Control-Allow-Origin'] = '*'
-    req.headers_out['Access-Control-Expose-Headers'] = 'Server,range,Content-Length,Content-Range,Date'
+    return "text/plain"
+
 
 def handle_byte_range(payload, range_line):
     """Handle byte range and return data and range-header value.
-
     If range is strange, return empty string."""
     range_parts = range_line.split("=")[-1]
     ranges = range_parts.split(",")
@@ -156,3 +178,27 @@ def handle_byte_range(payload, range_line):
     ranged_payload = payload[range_start: range_end+1]
     range_response = "bytes %d-%d/%d" % (range_start, range_end, len(payload))
     return (ranged_payload, range_response)
+
+#
+# Testing
+#
+
+def run_local_webserver(wrapper):
+    "Local webserver function"
+    host = '0.0.0.0'
+    port = 8051
+    print 'Waiting for reqeusts at "{0}:{1}"'.format(host, port)
+    httpd = make_server(host, port, wrapper)
+    httpd.serve_forever()
+
+if __name__ == '__main__':
+    from wsgiref.simple_server import make_server
+
+    def application_wrapper(env, resp):
+        "Wrapper around application, for local websever"
+        # Apache strips the inital matching '/firstpathelement' before calling the handler.
+        # Let's do the same thing to make the handler work with the test.
+        env['PATH_INFO'] = env['PATH_INFO'].replace('/firstpathelement', '')
+        return application(env, resp)
+
+    run_local_webserver(application_wrapper)

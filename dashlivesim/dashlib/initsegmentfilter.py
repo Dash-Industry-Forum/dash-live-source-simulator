@@ -37,46 +37,30 @@ class InitFilter(MP4Filter):
 
     def __init__(self, filename=None, data=None):
         MP4Filter.__init__(self, filename, data)
-        self.relevant_boxes = ['moov']
+        self.top_level_boxes_to_parse = ['moov']
+        self.composite_boxes_to_parse = ['moov', 'trak', 'mdia']
         self._track_timescale = -1
         self._track_id = None
         self._handler_type = None
 
-    def filter_box(self, boxtype, data, file_pos, path=""):
-        "Filter box or tree of boxes recursively."
-        if path == "":
-            path = boxtype
-        else:
-            path = "%s.%s" % (path, boxtype)
-        output = ""
-        if path in ("moov", "moov.trak", "moov.trak.mdia"):
-            output += data[:8]
-            pos = 8
-            while pos < len(data):
-                size, boxtype = self.check_box(data[pos:pos+8])
-                output += self.filter_box(boxtype, data[pos:pos+size], file_pos + len(output), path)
-                pos += size
-        elif path == "moov.trak.mdia.mdhd": # Find timescale
-            self._track_timescale = str_to_uint32(data[20:24])
-            #print "Found track_timescale=%d" % self.track_timescale
-            output = data
-        elif path == "moov.trak.mdia.hdlr": # Find track type
-            self._handler_type = data[16:20]
-            output = data
-        elif path == "moov.trak.tkhd": # Find trackID
-            output += self.filter_tkhd(data)
-        else:
-            output = data
-        return output
+    def process_hdlr(self, data):
+        "Find the track type."
+        self._handler_type = data[16:20]
+        return data
 
-    def filter_tkhd(self, data):
-        "Filter track header box."
+    def process_tkhd(self, data):
+        "Filter track header box and find track_id."
         assert self.track_id is None, "Multiple tracks in init file %s. Not supported." % self.filename
         version = ord(data[8])
         if version == 0:
             self._track_id = str_to_uint32(data[20:24])
         elif version == 1:
             self._track_id = str_to_uint32(data[28:32])
+        return data
+
+    def process_mdhd(self, data):
+        "Process mdhd to get track_timscale."
+        self._track_timescale = str_to_uint32(data[20:24])
         return data
 
     @property
@@ -98,59 +82,54 @@ class InitFilter(MP4Filter):
 class InitLiveFilter(MP4Filter):
     "Process an init segment file and set the durations to 0."
 
-    # pylint: disable=too-many-branches
+    # pylint: disable=too-many-branches, no-self-use
 
     def __init__(self, file_name=None, data=None):
         MP4Filter.__init__(self, file_name, data)
-        self.relevant_boxes = ['moov']
+        self.top_level_boxes_to_parse = ['moov']
+        self.composite_boxes_to_parse = ['moov', 'trak', 'mdia']
         self.movie_timescale = -1
 
-    def filter_box(self, boxtype, data, file_pos, path=""):
-        "Filter box or tree of boxes recursively."
-        if path == "":
-            path = boxtype
-        else:
-            path = "%s.%s" % (path, boxtype)
+    def process_mvhd(self, data):
+        "Set duration in mvhd."
+        version = ord(data[8])
         output = ""
-        if path in ("moov", "moov.trak", "moov.trak.mdia"):
-            output += data[:8]
-            pos = 8
-            while pos < len(data):
-                size, boxtype = self.check_box(data[pos:pos+8])
-                output += self.filter_box(boxtype, data[pos:pos+size], file_pos + len(output), path)
-                pos += size
-        elif path == "moov.mvhd": # Set movie duration
-            version = ord(data[8])
-            if version == 1:
-                self.movie_timescale = str_to_uint32(data[28:32])
-                output += data[:32]
-                output += '\x00'*8 # duration
-                output += data[40:]
-            else: # version = 0
-                self.movie_timescale = str_to_uint32(data[20:24])
-                output += data[:24]
-                output += '\x00'*4 # duration
-                output += data[28:]
-        elif path == "moov.trak.tkhd": # Set trak duration
-            version = ord(data[8])
-            if version == 1:
-                output += data[:36]
-                output += '\x00'*8 # duration
-                output += data[44:]
-            else: # version = 0
-                output += data[:28]
-                output += '\x00'*4 # duration
-                output += data[32:]
-        elif path == "moov.trak.mdia.mdhd": # Set media duration
-            version = ord(data[8])
-            if version == 1:
-                output += data[:32]
-                output += '\x00'*8 # duration
-                output += data[40:]
-            else: # version = 0
-                output += data[:24]
-                output += '\x00'*4 # duration
-                output += data[28:]
-        else:
-            output = data
+        if version == 1:
+            self.movie_timescale = str_to_uint32(data[28:32])
+            output += data[:32]
+            output += '\x00'*8 # duration
+            output += data[40:]
+        else: # version = 0
+            self.movie_timescale = str_to_uint32(data[20:24])
+            output += data[:24]
+            output += '\x00'*4 # duration
+            output += data[28:]
+        return output
+
+    def process_tkhd(self, data):
+        "Set track duration."
+        version = ord(data[8])
+        output = ""
+        if version == 1:
+            output += data[:36]
+            output += '\x00'*8 # duration
+            output += data[44:]
+        else: # version = 0
+            output += data[:28]
+            output += '\x00'*4 # duration
+            output += data[32:]
+        return output
+
+    def process_mdhd(self, data):
+        "Set media duration."
+        output = ""
+        version = ord(data[8])
+        if version == 1:
+            output += data[:32]
+            output += '\x00'*8 # duration
+            output += data[40:]
+        else: # version = 0
+            output += data[:24]
+            output += '\x00'*4 # duration
+            output += data[28:]
         return output

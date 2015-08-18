@@ -114,16 +114,16 @@ def process_manifest(filename, in_data, now, utc_timing_methods, utc_head_url):
     else:
         period_data = generate_multiperiod_data(in_data, new_data, now)
     mpmod.process(new_data, period_data)
-    return mpmod.getstring()
+    return mpmod.get_full_xml()
 
 def generate_default_period_data(in_data, new_data):
     "Generate period data for a single period starting at the same time as the session (start = PT0S)."
     start = 0
     seg_dur = in_data['segDuration']
-    startNumber = in_data['startNumber'] + start/seg_dur
+    start_number = in_data['startNumber'] + start/seg_dur
     data = {'id' : "p0", 'start' : 'PT%dS' % start, 'duration' : seg_dur,
             'presentationTimeOffset' : "%d" % new_data['presentationTimeOffset'],
-            'startNumber' : str(startNumber)}
+            'startNumber' : str(start_number)}
     return [data]
 
 def generate_multiperiod_data(in_data, new_data, now):
@@ -259,7 +259,7 @@ class DashProvider(object):
         seg_nr = int(seg_base)
         seg_start_nr = cfg.start_nr == -1 and 1 or cfg.start_nr
         if seg_nr < seg_start_nr:
-            return self.error_response("Request for segment %d before first" % (seg_nr, seg_start_nr))
+            return self.error_response("Request for segment %d before first %d" % (seg_nr, seg_start_nr))
         if len(cfg.last_segment_numbers) > 0:
             very_last_segment = cfg.last_segment_numbers[-1]
             if seg_nr > very_last_segment:
@@ -307,8 +307,9 @@ class DashProvider(object):
         media_seg_file = join(self.content_dir, cfg.content_name, rel_path, "%d%s" % (vod_nr, seg_ext))
         timescale = rep['timescale']
         scte35_per_minute = (rep['content_type'] == 'video') and cfg.scte35_per_minute or 0
+        is_ttml = rep['content_type'] == 'subtitles'
         seg_filter = MediaSegmentFilter(media_seg_file, seg_nr, cfg.seg_duration, offset_at_loop_start, lmsg, timescale,
-                                        scte35_per_minute, rel_path)
+                                        scte35_per_minute, rel_path, is_ttml)
         seg_content = seg_filter.filter()
         self.new_tfdt_value = seg_filter.get_tfdt_value()
         return seg_content

@@ -35,7 +35,7 @@ import cStringIO
 import time
 import re
 
-from dashlivesim.dashlib import scte35
+from . import scte35
 
 SET_BASEURL = True
 DASH_NAMESPACE = "{urn:mpeg:dash:schema:mpd:2011}"
@@ -47,6 +47,16 @@ def add_ns(element):
     parts = element.split('/')
     return "/".join([DASH_NAMESPACE + e for e in parts])
 
+def set_value_from_dict(element, key, data):
+    "Set attribute key of element to value data[key], if present."
+    if data.has_key(key):
+        element.set(key, str(data[key]))
+
+def set_values_from_dict(element, keys, data):
+    "Set attribute key of element to value data[key] for all keys (if present)."
+    for key in keys:
+        if data.has_key(key):
+            element.set(key, str(data[key]))
 
 
 class MpdModifierError(Exception):
@@ -71,11 +81,6 @@ class MpdProcessor(object):
         self.process_mpd(mpd, data)
         self.process_mpd_children(mpd, data, period_data)
 
-    def set_value(self, element, key, data):
-        "Set attribute key of element to value data[key], if present."
-        if data.has_key(key):
-            element.set(key, str(data[key]))
-
     def process_mpd(self, mpd, data):
         """Process the root element (MPD)"""
         assert mpd.tag == add_ns('MPD')
@@ -87,8 +92,7 @@ class MpdProcessor(object):
                 mpd.set('profiles', new_profiles)
         key_list = ['availabilityStartTime', 'availabilityEndTime', 'timeShiftBufferDepth',
                     'minimumUpdatePeriod', 'maxSegmentDuration', 'mediaPresentationDuration']
-        for key in key_list:
-            self.set_value(mpd, key, data)
+        set_values_from_dict(mpd, key_list, data)
         if mpd.attrib.has_key('mediaPresentationDuration') and not data.has_key('mediaPresentationDuration'):
             del mpd.attrib['mediaPresentationDuration']
 
@@ -165,7 +169,7 @@ class MpdProcessor(object):
 
         def create_inband_scte35stream_elem():
             "Create an InbandEventStream element for SCTE-35."
-            return self.create_descriptor_elem("InbandEventStream", scte35.SCHEME_ID_URI)
+            return self.create_descriptor_elem("InbandEventStream", scte35.SCHEME_ID_URI, value=str(scte35.PID))
 
         periods = mpd.findall(add_ns('Period'))
         for (period, pdata) in zip(periods, period_data):
@@ -220,7 +224,7 @@ class MpdProcessor(object):
             pos += 1
         return pos
 
-    def getstring(self, clean=True):
+    def get_full_xml(self, clean=True):
         "Get a string of all XML cleaned (no ns0 namespace)"
         ofh = cStringIO.StringIO()
         self.tree.write(ofh, encoding="utf-8")#, default_namespace=NAMESPACE)

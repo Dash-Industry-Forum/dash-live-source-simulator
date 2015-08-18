@@ -99,11 +99,10 @@ and multiplexed.
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-SERVER_VERSION = "1.1"
-
+from .. import SERVER_AGENT
 VOD_CONF_DIR = "/var/www/dash-live/vod_configs"
 CONTENT_ROOT = "/var/www/dash-live/content"
-SERVER_AGENT = "DASH-IF live DASH simulator %s" % SERVER_VERSION
+
 
 from .dashlive_handler import dash_handler
 from ..dashlib import dash_proxy

@@ -33,7 +33,9 @@
 
 from . import emsg
 
+# The scheme_id_uri is a bit unsure. There is also a binary format, which may be preferred (...:2014:bin)
 SCHEME_ID_URI = "urn:scte:scte35:2013:xml"
+PID = 999
 PROFILE = "http://dashif.org/guidelines/adin/app"
 
 PTS_MOD = 2**33
@@ -102,7 +104,7 @@ class Scte35Emsg(emsg.Emsg):
                                                     splice_event_cancel_indicator, out_of_network_indicator,
                                                     unique_program_id, avail_num, avails_expected,
                                                     splice_immediate_flag, pts_time, auto_return, duration)
-        emsg.Emsg.__init__(self, SCHEME_ID_URI, 1001, timescale, presentation_time_delta, duration,
+        emsg.Emsg.__init__(self, SCHEME_ID_URI, PID, timescale, presentation_time_delta, duration,
                            message_id, message_data)
 
 

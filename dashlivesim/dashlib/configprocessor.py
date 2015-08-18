@@ -185,7 +185,7 @@ class VodConfig(object):
         self.nr_segments_in_loop = 0
         self.segment_duration_s = 0
         self.default_tsbd_secs = DEFAULT_TIMESHIFT_BUFFER_DEPTH_IN_SECS
-        self.possible_media = ('video', 'audio')
+        self.possible_media = ('video', 'audio', 'subtitles')
         self.media_data = {}
 
     def read_config(self, config_file):
@@ -206,7 +206,7 @@ class VodConfig(object):
                     timescale = config.getint(media, "timescale")
                     representations = [rep.strip() for rep in reps.split(",")]
                     self.media_data[media] = {'timescale' : timescale, 'representations' : representations}
-                except ConfigParser.NoOptionError:
+                except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
                     pass
 
     #pylint: disable=dangerous-default-value
@@ -214,7 +214,7 @@ class VodConfig(object):
         "Write a config file for the analyzed content, that can then be used to serve it efficiently."
         # Note that one needs to write in reverse order
         config = ConfigParser.RawConfigParser()
-        for content_type in ('video', 'audio'):
+        for content_type in ('video', 'audio', 'subtitles'):
             media_data = data.get('media_data', self.media_data)
             if media_data.has_key(content_type):
                 config.add_section(content_type)
