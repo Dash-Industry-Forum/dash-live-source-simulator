@@ -48,6 +48,8 @@ There are thus no surprises due to network problems in the live content stream t
 * On the fly multiplexing of audio and video (for eMBMS testing, rather than DASH-IF)
 * Insertion of SCTE-35 ad signaling as emsg messages following the DASH-IF guidelines.
 * Support for client-server time-sync using UTCTiming (head and direct methods). This reduces dash.js startup time.
+* Support for choosing the startNumber in the MPD. All timing will be appropriately shifted so the content will be in sync, independent of the startNumber value.
+* Support for live subtitling in TTML and more specifically in EBU-TT-D format.
 
 Links and usage
 ---------------
@@ -233,7 +235,8 @@ Some examples of this are the modifiers:
     /periods_n/peroff_1 - similar to /periods_n but SegmentBase used for presentationTimeOffset
 
 ## Changelog
-* 1.1 - Jun 2m 2015: Added snr_ option to control startNumber in manifest. Fixed some bugs with availabilityStartTime and PTO._
+* 1.2 - Aug. 18, 2015: Added support for live subtitles in TTML format. Beyond segment renumbering, the content will also be changed. A tool for generating a sequence of such segments is also provided. Support for choosing the starNr. Added support for running using mod_wsgi and not only mod_python.
+* 1.1 - Jun. 2, 2015: Added snr_ option to control startNumber in manifest. Fixed some bugs with availabilityStartTime and PTO._
 * 1.0 - May 7, 2015: First public release. Available as http://vm2.dashif.org/livesim/
 * - Changed init segment durations to 0.
 * 0.9.9 - Apr. 29, 2015: First commit to DASH-IF/live-source-simulator Github project.
