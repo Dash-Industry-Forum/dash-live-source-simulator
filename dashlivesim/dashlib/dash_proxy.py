@@ -103,13 +103,14 @@ def process_manifest(filename, in_data, now, utc_timing_methods, utc_head_url):
                 'maxSegmentDuration' : 'PT%dS' % in_data['segDuration'],
                 'BaseURL' : '%s' % in_data['BaseURL'],
                 'periodOffset' : in_data['periodOffset'],
-                'presentationTimeOffset' : 0}
+                'presentationTimeOffset' : 0,
+                'continuous' : False}
     if in_data.has_key('availabilityEndTime'):
         new_data['availabilityEndTime'] = make_timestamp(in_data['availabilityEndTime'])
     if in_data.has_key('mediaPresentationDuration'):
         new_data['mediaPresentationDuration'] = in_data['mediaPresentationDuration']
     mpmod = mpdprocessor.MpdProcessor(filename, in_data['scte35Present'], utc_timing_methods, utc_head_url)
-    if in_data['periodsPerHour'] < 0: # Default case.
+    if in_data['cperiodsPerHour'] < 0 and in_data['periodsPerHour'] < 0: # Default case.
         period_data = generate_default_period_data(in_data, new_data)
     else:
         period_data = generate_multiperiod_data(in_data, new_data, now)
@@ -129,12 +130,32 @@ def generate_default_period_data(in_data, new_data):
 def generate_multiperiod_data(in_data, new_data, now):
     "Generate an array of period data depending on current time (now). 0 gives one period with start offset."
     #pylint: disable=too-many-locals
-    nr_periods_per_hour = min(in_data['periodsPerHour'], 60)
-    if not nr_periods_per_hour in (0, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60):
-        raise Exception("Bad nr of periods per hour %d" % nr_periods_per_hour)
+    if in_data['cperiodsPerHour'] >= 0:
+        nr_cperiods_per_hour = min(in_data['cperiodsPerHour'], 60)
+        if not nr_cperiods_per_hour in (0, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60):
+            raise Exception("Bad nr of periods per hour %d (continuous)" % nr_cperiods_per_hour)
+    if in_data['periodsPerHour'] >= 0:
+        nr_periods_per_hour = min(in_data['periodsPerHour'], 60)
+        if not nr_periods_per_hour in (0, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60):
+            raise Exception("Bad nr of periods per hour %d" % nr_periods_per_hour)
     seg_dur = in_data['segDuration']
     period_data = []
-    if nr_periods_per_hour > 0:
+    if in_data['cperiodsPerHour'] >= 0 and nr_cperiods_per_hour > 0:
+        new_data['continuous'] = True
+        period_duration = 3600/nr_cperiods_per_hour
+        minimum_update_period = "PT%dS" % (period_duration/2 - 5)
+        new_data['minimumUpdatePeriod'] = minimum_update_period
+        this_period_nr = now/period_duration
+        nr_periods_back = in_data['timeShiftBufferDepthInS']/period_duration + 1
+        start_period_nr = this_period_nr - nr_periods_back
+        last_period_nr = this_period_nr + 1
+        for period_nr in range(start_period_nr, last_period_nr+1):
+            start_time = period_nr*period_duration
+            data = {'id' : "p%d" % period_nr, 'start' : 'PT%dS' % (period_nr*period_duration),
+                    'startNumber' : "%d" % (start_time/seg_dur), 'duration' : seg_dur,
+                    'presentationTimeOffset' : period_nr*period_duration}
+            period_data.append(data)
+    elif nr_periods_per_hour > 0:
         period_duration = 3600/nr_periods_per_hour
         minimum_update_period = "PT%dS" % (period_duration/2 - 5)
         new_data['minimumUpdatePeriod'] = minimum_update_period
