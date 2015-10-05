@@ -67,7 +67,6 @@ class Config(object):
         self.tfdt32_flag = False # Restart every 3 hours make tfdt fit into 32 bits.
         self.cont = False # Continuous update of MPD AST and seg_nr.
         self.periods_per_hour = -1 # If > 0, generates that many periods per hour. If 0, only one offset period.
-        self.cperiods_per_hour = -1 # If > 0, generates that many periods per hour continuously. If 0, only one offset period.
         self.period_offset = -1 # Make one period with an offset compared to ast
         self.scte35_per_minute = 0 # Number of 10s ads per minute. Maximum 3
         self.utc_timing_methods = []
@@ -245,7 +244,7 @@ class ConfigProcessor(object):
     "Process the url and VoD config files and setup configuration."
 
     url_cfg_keys = ("start", "ast", "dur", "init", "tsbd", "mup", "modulo", "all", "tfdt", "cont",
-                    "periods", "cperiods", "peroff", "scte35", "utc", "snr")
+                    "periods", "peroff", "scte35", "utc", "snr")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -262,7 +261,6 @@ class ConfigProcessor(object):
                'BaseURL' : self.cfg.base_url,
                'startNumber' : self.cfg.availability_start_time_in_s//self.cfg.seg_duration,
                'periodsPerHour' : self.cfg.periods_per_hour,
-               'cperiodsPerHour' : self.cfg.cperiods_per_hour,
                'periodOffset' : self.cfg.period_offset,
                'publishTime' : self.cfg.publish_time}
         if self.cfg.availability_end_time:
@@ -304,8 +302,6 @@ class ConfigProcessor(object):
                 cont_update_flag = True
             elif key == "periods": # Make multiple periods
                 cfg.periods_per_hour = int(value)
-            elif key == "cperiods": # Make continuous multiple periods
-                cfg.cperiods_per_hour = int(value)
             elif key == "peroff": # Set the period offset
                 cfg.period_offset = int(value)
             elif key == "scte35": # Add SCTE-35 ad messages every minute
