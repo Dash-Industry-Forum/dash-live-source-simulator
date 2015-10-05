@@ -75,11 +75,11 @@ class MpdProcessor(object):
         self.utc_head_url = utc_head_url
         self.root = self.tree.getroot()
 
-    def process(self, data, period_data):
+    def process(self, data, period_data, continuous=False):
         "Top-level call to process the XML."
         mpd = self.root
         self.process_mpd(mpd, data)
-        self.process_mpd_children(mpd, data, period_data)
+        self.process_mpd_children(mpd, data, period_data, continuous)
 
     def process_mpd(self, mpd, data):
         """Process the root element (MPD)"""
@@ -96,7 +96,7 @@ class MpdProcessor(object):
         if mpd.attrib.has_key('mediaPresentationDuration') and not data.has_key('mediaPresentationDuration'):
             del mpd.attrib['mediaPresentationDuration']
 
-    def process_mpd_children(self, mpd, data, period_data):
+    def process_mpd_children(self, mpd, data, period_data, continuous=False):
         """Process the children of the MPD element.
 
         They should be in order ProgramInformation, UTCTiming, BaseURL, Location, Period, Metrics."""
@@ -128,7 +128,7 @@ class MpdProcessor(object):
         for i in range(1, len(period_data)):
             new_period = copy.deepcopy(period)
             mpd.insert(pos+i, new_period)
-        self.update_periods(mpd, period_data, data['periodOffset'] >= 0)
+        self.update_periods(mpd, period_data, data['periodOffset'] >= 0, continuous)
 
     def insert_baseurl(self, mpd, pos, new_baseurl):
         "Create and insert a new <BaseURL> element."
@@ -141,7 +141,7 @@ class MpdProcessor(object):
         "Modify the text of an existing BaseURL"
         baseurl_elem.text = new_baseurl
 
-    def update_periods(self, mpd, period_data, offset_at_period_level=False):
+    def update_periods(self, mpd, period_data, offset_at_period_level=False, continuous=False):
         "Update periods to provide appropriate values."
 
         def set_attribs(elem, keys, data):
@@ -172,6 +172,7 @@ class MpdProcessor(object):
             return self.create_descriptor_elem("InbandEventStream", scte35.SCHEME_ID_URI, value=str(scte35.PID))
 
         periods = mpd.findall(add_ns('Period'))
+        last_period_id = '-1'
         for (period, pdata) in zip(periods, period_data):
             set_attribs(period, ('id', 'start'), pdata)
             segmenttemplate_attribs = ['startNumber']
@@ -183,16 +184,22 @@ class MpdProcessor(object):
                     segmenttemplate_attribs.append('presentationTimeOffset')
             adaptation_sets = period.findall(add_ns('AdaptationSet'))
             for ad_set in adaptation_sets:
+                ad_pos = 0
                 content_type = ad_set.get('contentType')
                 if content_type == 'video' and self.scte35_present:
                     scte35_elem = create_inband_scte35stream_elem()
                     ad_set.insert(0, scte35_elem)
+                    ad_pos += 1
+                if continuous and last_period_id != '-1':
+                    supplementalprop_elem = self.create_descriptor_elem("SupplementalProperty", \
+                    "urn:mpeg:dash:period_continuity:2014", last_period_id)
+                    ad_set.insert(ad_pos, supplementalprop_elem)
                 seg_templates = ad_set.findall(add_ns('SegmentTemplate'))
                 for seg_template in seg_templates:
                     set_attribs(seg_template, segmenttemplate_attribs, pdata)
                     if pdata.get('startNumber') == '-1': # Default to 1
                         remove_attribs(seg_template, ['startNumber'])
-
+            last_period_id = pdata.get('id')
 
     def create_descriptor_elem(self, name, scheme_id_uri, value=None, elem_id=None):
         "Create an element of DescriptorType."
