@@ -144,6 +144,16 @@ class TestMediaSegments(unittest.TestCase):
         periodPositions = findAllIndexes("<Period", d)
         self.assertEqual(len(periodPositions), 3)
 
+    def testContinuous(self):
+        testOutputFile = "ContMultiperiod.mpd"
+        rm_outfile(testOutputFile)
+        urlParts = ['pdash', 'continuous_1', 'periods_10', 'testpic', 'Manifest.mpd']
+        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=3602)
+        d = dp.handle_request()
+        write_data_to_outfile(d, testOutputFile)
+        periodPositions = findAllIndexes("urn:mpeg:dash:period_continuity:2014", d)
+        self.assertGreater(len(periodPositions), 1)
+
     def testUtcTiming(self):
         "Test that direct and head works."
         urlParts = ['pdash', 'utc_direct-head', 'testpic', 'Manifest.mpd']
