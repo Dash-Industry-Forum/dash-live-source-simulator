@@ -44,7 +44,7 @@ class MP4Filter(object):
 
     Call filter() to get a filtered version of the file."""
 
-    # pylint: disable=no-self-use, unused-argument
+    # pylint: disable=no-self-use, unused-argument, too-many-instance-attributes
 
     def __init__(self, filename=None, data=None):
         self.filename = filename
