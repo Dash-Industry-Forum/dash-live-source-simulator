@@ -80,9 +80,9 @@ UTC_HEAD_PATH = "dash/time.txt"
 
 PUBLISH_TIME = False
 
-def handle_request(host_name, url_parts, args, vod_conf_dir, content_dir, now=None, req=None):
+def handle_request(host_name, url_parts, args, vod_conf_dir, content_dir, now=None, req=None, is_https=0):
     "Handle Apache request."
-    dash_provider = DashProvider(host_name, url_parts, args, vod_conf_dir, content_dir, now, req)
+    dash_provider = DashProvider(host_name, url_parts, args, vod_conf_dir, content_dir, now, req, is_https)
     return dash_provider.handle_request()
 
 
@@ -158,11 +158,12 @@ def generate_multiperiod_data(in_data, new_data, now):
 
 class DashProvider(object):
     "Provide DASH manifest and segments."
-    #pylint: disable=too-many-instance-attributes
+    #pylint: disable=too-many-instance-attributes,too-many-arguments
 
-    def __init__(self, host_name, url_parts, url_args, vod_conf_dir, content_dir, now=None, req=None):
-        self.base_url = "http://%s/%s/" % (host_name, url_parts[0]) # The start. Adding all parts up to content later.
-        self.utc_head_url = "http://%s/%s" % (host_name, UTC_HEAD_PATH)
+    def __init__(self, host_name, url_parts, url_args, vod_conf_dir, content_dir, now=None, req=None, is_https=0):
+        protocol = is_https and "https" or "http"
+        self.base_url = "%s://%s/%s/" % (protocol, host_name, url_parts[0]) # The start. Adding other partst later.
+        self.utc_head_url = "%s://%s/%s" % (protocol, host_name, UTC_HEAD_PATH)
         self.url_parts = url_parts[1:]
         self.url_args = url_args
         self.vod_conf_dir = vod_conf_dir

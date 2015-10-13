@@ -72,6 +72,7 @@ def application(environment, start_response):
     url = environment['REQUEST_URI']
     vod_conf_dir = environment['VOD_CONF_DIR']
     content_root = environment['CONTENT_ROOT']
+    is_https = environment.get('HTTPS', 0)
     path_parts = url.split('/')
     ext = splitext(path_parts[-1])[1]
     args = None
@@ -93,7 +94,8 @@ def application(environment, start_response):
     payload_in = None
 
     try:
-        response = dash_proxy.handle_request(hostname, path_parts[1:], args, vod_conf_dir, content_root, now, None)
+        response = dash_proxy.handle_request(hostname, path_parts[1:], args, vod_conf_dir, content_root, now, None,
+                                             is_https)
         if isinstance(response, basestring):
             payload_in = response
             if not payload_in:
@@ -189,7 +191,7 @@ def main():
     "Run stand-alone wsgi server for testing."
     from argparse import ArgumentParser
     parser = ArgumentParser()
-    parser.add_argument("-d", "--config_dir", dest="vod_vonf_dir", type=str,
+    parser.add_argument("-d", "--config_dir", dest="vod_conf_dir", type=str,
                         help="configuration root directory", required=True)
     parser.add_argument("-c", "--content_dir", dest="content_dir", type=str,
                         help="content root directory", required=True)
