@@ -5,3 +5,4 @@
 #Authors
 * @TobbeMobiTV [Torbjörn Einarsson, MobiTV]
 * @KenthMobiTV [Kenth Andersson, MobiTV]
+* @Yi [Yi Lee, Nomor]

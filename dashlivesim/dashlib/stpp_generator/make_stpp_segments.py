@@ -30,38 +30,11 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 
 import os
-from .stpp_creator import StppInitFilter, create_media_segment
+from .stpp_creator import StppInitFilter, create_media_segment, TTML_TEMPLATE
 from argparse import ArgumentParser
 from jinja2 import Template
 
-TTML_XML = u'''
-<?xml version="1.0" encoding="UTF-8"?>
-<tt xmlns:ttp="http://www.w3.org/ns/ttml#parameter" xmlns="http://www.w3.org/ns/ttml"
-    xmlns:tts="http://www.w3.org/ns/ttml#styling" xmlns:ttm="http://www.w3.org/ns/ttml#metadata"
-    xmlns:ebuttm="urn:ebu:metadata" xmlns:ebutts="urn:ebu:style"
-    xml:lang="{{lang}}" xml:space="default"
-    ttp:timeBase="media"
-    ttp:cellResolution="32 15">
-  <head>
-    <metadata>
-      <ttm:title>DASH-IF Live Simulator</ttm:title>
-      <ebuttm:documentMetadata>
-        <ebuttm:conformsToStandard>urn:ebu:distribution:2014-01</ebuttm:conformsToStandard>
-        <ebuttm:authoredFrameRate>30</ebuttm:authoredFrameRate>
-      </ebuttm:documentMetadata>
-    </metadata>
-    <styling>
-      <style xml:id="s0" tts:fontStyle="normal" tts:fontFamily="sansSerif" tts:fontSize="100%" tts:lineHeight="normal"
-      tts:color="#FFFFFF" tts:wrapOption="noWrap" tts:textAlign="center"/>
-      <style xml:id="s1" tts:color="#00FF00" tts:backgroundColor="#000000" ebutts:linePadding="0.5c"/>
-      <style xml:id="s2" tts:color="#ff0000" tts:backgroundColor="#000000" ebutts:linePadding="0.5c"/>
-    </styling>
-    <layout>
-      <region xml:id="r0" tts:origin="15% 80%" tts:extent="70% 20%" tts:overflow="visible" tts:displayAlign="before"/>
-      <region xml:id="r1" tts:origin="15% 20%" tts:extent="70% 20%" tts:overflow="visible" tts:displayAlign="before"/>
-    </layout>
-  </head>
-  <body style="s0">
+BODY_TEMPLATE = u'''
     <div region="r0">
       {% for p in paragraph %}
       <p xml:id="{{p.id}}" begin="{{p.begin}}" end="{{p.end}}" >
@@ -69,8 +42,6 @@ TTML_XML = u'''
       </p>
       {% endfor %}
     </div>
-  </body>
-</tt>
 '''
 
 """
@@ -80,6 +51,9 @@ TTML_XML = u'''
       </p>
     </div-->
 """
+
+TTML_XML = TTML_TEMPLATE.format(BODY_TEMPLATE)
+
 
 class SegmentCreator(object):
     "Creator of both init and media segments."

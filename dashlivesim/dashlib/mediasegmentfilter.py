@@ -107,7 +107,7 @@ class MediaSegmentFilter(MP4Filter):
             pos += 4
         output = data[:pos]
         if tf_flags & 0x10:
-            old_ttml__size = str_to_uint32(data[pos:pos+4])
+            #old_ttml__size = str_to_uint32(data[pos:pos+4])
             output += uint32_to_str(self.ttml_size)
             #print "Changed ttml sample size from %d to %d" % (old_ttml__size, self.ttml_size)
             pos += 4

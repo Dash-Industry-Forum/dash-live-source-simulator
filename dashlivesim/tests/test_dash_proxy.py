@@ -83,6 +83,15 @@ class TestMPDProcessing(unittest.TestCase):
             self.assertTrue(d.find('publishTime="1970-01-01T00:29:00Z"') > 0)
         self.assertTrue(d.find('availabilityEndTime="1970-01-01T00:35:00Z"') > 0)
 
+    def testHttpsBaseURL(self):
+        "Check that protocol is set to https if signalled to DashProvider."
+        urlParts = ['pdash', 'testpic', 'Manifest.mpd']
+        is_https = 1
+        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0,
+                                     is_https=is_https)
+        d = dp.handle_request()
+        self.assertTrue(d.find("<BaseURL>https://streamtest.eu/pdash/testpic/</BaseURL>") > 0)
+
 class TestInitSegmentProcessing(unittest.TestCase):
     def testInit(self):
         urlParts = ['pdash', 'testpic', 'A1', 'init.mp4']
@@ -143,6 +152,16 @@ class TestMediaSegments(unittest.TestCase):
         write_data_to_outfile(d, testOutputFile)
         periodPositions = findAllIndexes("<Period", d)
         self.assertEqual(len(periodPositions), 3)
+
+    def testContinuous(self):
+        testOutputFile = "ContMultiperiod.mpd"
+        rm_outfile(testOutputFile)
+        urlParts = ['pdash', 'continuous_1', 'periods_10', 'testpic', 'Manifest.mpd']
+        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=3602)
+        d = dp.handle_request()
+        write_data_to_outfile(d, testOutputFile)
+        periodPositions = findAllIndexes("urn:mpeg:dash:period_continuity:2014", d)
+        self.assertGreater(len(periodPositions), 1)
 
     def testUtcTiming(self):
         "Test that direct and head works."

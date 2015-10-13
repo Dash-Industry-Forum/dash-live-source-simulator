@@ -61,6 +61,7 @@ def adjust_ttml_content(xml_str, offset_in_s, output_seg_nr):
         return '%s : UTC = %s' % (matches['lang'], time_str)
 
     def replace_segment_nr(match_obj):
+        "Match and replace segment number."
         matches = match_obj.groupdict()
         return '%s%d' % (matches['intro'], output_seg_nr)
 

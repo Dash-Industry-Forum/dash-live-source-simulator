@@ -29,19 +29,19 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-VOD_CONF_DIR = "/var/www/dash-live/vod_configs"
-CONTENT_ROOT = "/var/www/dash-live/content"
+# Note that VOD_CONF_DIR and CONTENT_ROOT directories must be set in environment
+# For Apache mod_wsgi, this is done using setEnv
 
-from .. import SERVER_AGENT
+from dashlivesim import SERVER_AGENT
 import httplib
 from os.path import splitext
 from time import time
-from ..dashlib import dash_proxy
+from dashlivesim.dashlib import dash_proxy
 
 # Helper for HTTP responses
 #pylint: disable=dangerous-default-value
 def reply(code, resp, body='', headers={}):
-    "Create reply"
+    "Create reply."
     status = str(code) + ' ' + httplib.responses[code]
 
     # Add default headers to all requests
@@ -70,6 +70,9 @@ def application(environment, start_response):
     #pylint: disable=too-many-locals
     hostname = environment['HTTP_HOST']
     url = environment['REQUEST_URI']
+    vod_conf_dir = environment['VOD_CONF_DIR']
+    content_root = environment['CONTENT_ROOT']
+    is_https = environment.get('HTTPS', 0)
     path_parts = url.split('/')
     ext = splitext(path_parts[-1])[1]
     args = None
@@ -91,7 +94,8 @@ def application(environment, start_response):
     payload_in = None
 
     try:
-        response = dash_proxy.handle_request(hostname, path_parts[1:], args, VOD_CONF_DIR, CONTENT_ROOT, now, None)
+        response = dash_proxy.handle_request(hostname, path_parts[1:], args, vod_conf_dir, content_root, now, None,
+                                             is_https)
         if isinstance(response, basestring):
             payload_in = response
             if not payload_in:
@@ -180,25 +184,37 @@ def handle_byte_range(payload, range_line):
     return (ranged_payload, range_response)
 
 #
-# Testing
+# Local wsgi server for testing
 #
 
-def run_local_webserver(wrapper):
-    "Local webserver function"
-    host = '0.0.0.0'
-    port = 8051
-    print 'Waiting for reqeusts at "{0}:{1}"'.format(host, port)
-    httpd = make_server(host, port, wrapper)
-    httpd.serve_forever()
+def main():
+    "Run stand-alone wsgi server for testing."
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    parser.add_argument("-d", "--config_dir", dest="vod_conf_dir", type=str,
+                        help="configuration root directory", required=True)
+    parser.add_argument("-c", "--content_dir", dest="content_dir", type=str,
+                        help="content root directory", required=True)
+    parser.add_argument("--host", dest="host", type=str, help="IPv4 host", default="0.0.0.0")
+    parser.add_argument("--port", dest="port", type=int, help="IPv4 port", default=8059)
+    args = parser.parse_args()
 
-if __name__ == '__main__':
-    from wsgiref.simple_server import make_server
 
     def application_wrapper(env, resp):
-        "Wrapper around application, for local websever"
-        # Apache strips the inital matching '/firstpathelement' before calling the handler.
-        # Let's do the same thing to make the handler work with the test.
-        env['PATH_INFO'] = env['PATH_INFO'].replace('/firstpathelement', '')
+        "Wrapper around application for local webserver."
+        env['REQUEST_URI'] = env['PATH_INFO'] # Set REQUEST_URI from PATH_INFO
+        env['VOD_CONF_DIR'] = args.vod_conf_dir
+        env['CONTENT_ROOT'] = args.content_dir
         return application(env, resp)
 
-    run_local_webserver(application_wrapper)
+    def run_local_webserver(wrapper, host, port):
+        "Local webserver."
+        from wsgiref.simple_server import make_server
+        print 'Waiting for requests at "{0}:{1}"'.format(host, port)
+        httpd = make_server(host, port, wrapper)
+        httpd.serve_forever()
+
+    run_local_webserver(application_wrapper, args.host, args.port)
+
+if __name__ == '__main__':
+    main()

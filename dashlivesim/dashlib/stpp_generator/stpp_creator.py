@@ -63,7 +63,7 @@ sthd\x00\x00\x00\x00\x00\x00\x00$dinf\x00\x00\x00\x1cdref\x00\x00\x00\x00\x00\x0
 
 
 #EBU-TT-D sample
-TTML_XML = u'''
+TTML_TEMPLATE = u'''
 <?xml version="1.0" encoding="UTF-8"?>
 <tt xmlns:ttp="http://www.w3.org/ns/ttml#parameter" xmlns="http://www.w3.org/ns/ttml"
     xmlns:tts="http://www.w3.org/ns/ttml#styling" xmlns:ttm="http://www.w3.org/ns/ttml#metadata"
@@ -89,17 +89,23 @@ TTML_XML = u'''
     </layout>
   </head>
   <body style="s0">
+  {0}
+  </body>
+</tt>
+'''
+
+BODY_TEMPLATE = u'''
     <div region="r0">
-      <p xml:id="s0" begin="00:00:00.00" end="00:00:01.00" >
+      <p xml:id="s0" begin="00:00:00.00" end="00:00:01.00">
         <span style="s2">The time is 00:00:00</span>
       </p>
       <p xml:id="s1" begin="00:00:01.00" end="00:00:02.80">
         <span>The time is 00:00:01</span>
       </p>
     </div>
-  </body>
-</tt>
 '''
+
+TTML_XML = TTML_TEMPLATE.format(BODY_TEMPLATE)
 
 
 class StppSegmentCreatorError(Exception):
