@@ -109,7 +109,8 @@ from ..dashlib import dash_proxy
 
 def handle_request(hostname, path_parts, args, now, req):
     "Fill in parameters and call the dash_proxy."
-    return dash_proxy.handle_request(hostname, path_parts[1:], args, VOD_CONF_DIR, CONTENT_ROOT, now, req)
+    is_https = req.is_https()
+    return dash_proxy.handle_request(hostname, path_parts[1:], args, VOD_CONF_DIR, CONTENT_ROOT, now, req, is_https)
 
 def handler(req):
     "This is the mod_python handler."

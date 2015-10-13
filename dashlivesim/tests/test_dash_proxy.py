@@ -83,6 +83,15 @@ class TestMPDProcessing(unittest.TestCase):
             self.assertTrue(d.find('publishTime="1970-01-01T00:29:00Z"') > 0)
         self.assertTrue(d.find('availabilityEndTime="1970-01-01T00:35:00Z"') > 0)
 
+    def testHttpsBaseURL(self):
+        "Check that protocol is set to https if signalled to DashProvider."
+        urlParts = ['pdash', 'testpic', 'Manifest.mpd']
+        is_https = 1
+        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0,
+                                     is_https=is_https)
+        d = dp.handle_request()
+        self.assertTrue(d.find("<BaseURL>https://streamtest.eu/pdash/testpic/</BaseURL>") > 0)
+
 class TestInitSegmentProcessing(unittest.TestCase):
     def testInit(self):
         urlParts = ['pdash', 'testpic', 'A1', 'init.mp4']
