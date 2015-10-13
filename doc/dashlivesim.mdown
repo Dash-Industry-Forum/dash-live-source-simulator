@@ -6,8 +6,8 @@ Purpose
 The purpose of the DASH live simulator is to provide well-controlled live time-synced content for testing.
 
 The main link to the content is [http://vm2.dashif.org/livesim/testpic_2s/Manifest.mpd][testpic_2s_base].
-You can test it directly with Chrome (version>=38), Safari 8, IE 11 (on Windows 8.1) using the the
-[DASH-IF reference player][dashif_player].
+You can test it directly with Chrome (version>=38), Safari 8+, IE 11 (on Windows 8.1), Edge, and FireFox >=42  using
+the [DASH-IF reference player][dashif_player].
 
 It provides an infinite source that is synced with the wall clock at the source side (modulo 1 hour).
 
@@ -50,6 +50,7 @@ There are thus no surprises due to network problems in the live content stream t
 * Support for client-server time-sync using UTCTiming (head and direct methods). This reduces dash.js startup time.
 * Support for choosing the startNumber in the MPD. All timing will be appropriately shifted so the content will be in sync, independent of the startNumber value.
 * Support for live subtitling in TTML and more specifically in EBU-TT-D format.
+* Support for signalling continuous adaptationSets over period boundaries.
 
 Links and usage
 ---------------
@@ -234,7 +235,10 @@ Some examples of this are the modifiers:
     /periods_0/peroff_1 - one period but presentationTimeOffset signaled in SegmentBase at Period level
     /periods_n/peroff_1 - similar to /periods_n but SegmentBase used for presentationTimeOffset
 
+In addition, one can turn on signalling of continuous periods, but adding the flag /continuous_1/`.
+
 ## Changelog
+* 1.3 - Oct. 13, 2015: Added support for continuous periods (continuous_1) and https protocol fo`r BaseURL & UTCTiming. Moved some configuration to mod_wsgi. Also made the stand-alone wsgi server much better.
 * 1.2 - Aug. 18, 2015: Added support for live subtitles in TTML format. Beyond segment renumbering, the content will also be changed. A tool for generating a sequence of such segments is also provided. Support for choosing the starNr. Added support for running using mod_wsgi and not only mod_python.
 * 1.1 - Jun. 2, 2015: Added snr_ option to control startNumber in manifest. Fixed some bugs with availabilityStartTime and PTO._
 * 1.0 - May 7, 2015: First public release. Available as http://vm2.dashif.org/livesim/
