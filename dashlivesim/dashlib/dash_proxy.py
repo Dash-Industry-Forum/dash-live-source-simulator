@@ -63,7 +63,7 @@ For infinite content, the default is startNumber = 0, availabilityStartTime = 19
 #  POSSIBILITY OF SUCH DAMAGE.
 
 from os.path import splitext, join
-
+from math import ceil
 from .initsegmentfilter import InitLiveFilter
 from .mediasegmentfilter import MediaSegmentFilter
 from . import segmentmuxer
@@ -102,6 +102,7 @@ def process_manifest(filename, in_data, now, utc_timing_methods, utc_head_url):
                 'duration' : '%d' % in_data['segDuration'],
                 'maxSegmentDuration' : 'PT%dS' % in_data['segDuration'],
                 'BaseURL' : '%s' % in_data['BaseURL'],
+                'urls' : in_data['urls'],
                 'periodOffset' : in_data['periodOffset'],
                 'presentationTimeOffset' : 0}
     if in_data.has_key('availabilityEndTime'):
@@ -210,7 +211,37 @@ class DashProvider(object):
                 diff = self.now_float - (cfg.availability_end_time + EXTRA_TIME_AFTER_END_IN_S)
                 response = self.error_response("Request for %s after AET. %.1fs too late" % (cfg.filename, diff))
             else:
-                response = self.process_media_segment(cfg, self.now_float)
+                if len(self.url_parts) > 4: #possible baseurl info
+                    url_info = self.url_parts[-4].split("_")
+                    if url_info[0] == "baseurl":
+                        a = url_info[1]
+                        b = url_info[2]
+                        dur1 = int(a[1:])
+                        dur2 = int(b[1:])
+                        if a[0] == 'u' and b[0] == 'd': #parse server up or down information
+                            num_loop = ceil(60.0/(float(dur1+dur2)))
+                            for i in range(0, int(num_loop)):
+                                if self.now % 60 > i*(dur1+dur2)+dur1 and self.now % 60 <= (i+1)*(dur1+dur2):
+                                    print "server down time"
+                                    print self.now
+                                    print i
+                                    response = self.error_response("server down time %d" % (self.now))
+                                else:
+                                    response = self.process_media_segment(cfg, self.now_float)
+                        elif a[0] == 'd' and b[0] == 'u':
+                            num_loop = ceil(60.0/(float(dur1+dur2)))
+                            for i in range(0, int(num_loop)):
+                                if self.now % 60 > i*(dur1+dur2) and self.now % 60 <= i*(dur1+dur2)+dur1:
+                                    print "server down time"
+                                    print self.now
+                                    print i
+                                    response = self.error_response("server down time %d" % (self.now))
+                                else:
+                                    response = self.process_media_segment(cfg, self.now_float)
+                    else:
+                        response = self.process_media_segment(cfg, self.now_float)
+                else:
+                    response = self.process_media_segment(cfg, self.now_float)
         else:
             response = "Unknown file extension: %s" % cfg.ext
         return response

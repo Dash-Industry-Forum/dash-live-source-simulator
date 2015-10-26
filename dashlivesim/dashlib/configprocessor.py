@@ -68,6 +68,7 @@ class Config(object):
         self.cont = False # Continuous update of MPD AST and seg_nr.
         self.periods_per_hour = -1 # If > 0, generates that many periods per hour. If 0, only one offset period.
         self.cont_multiperiod = False # This flag should only be used when periods_per_hour is set
+        self.multi_url = [] # If not empty, give multiple URLs in the BaseURL element
         self.period_offset = -1 # Make one period with an offset compared to ast
         self.scte35_per_minute = 0 # Number of 10s ads per minute. Maximum 3
         self.utc_timing_methods = []
@@ -245,7 +246,7 @@ class ConfigProcessor(object):
     "Process the url and VoD config files and setup configuration."
 
     url_cfg_keys = ("start", "ast", "dur", "init", "tsbd", "mup", "modulo", "all", "tfdt", "cont",
-                    "periods", "continuous", "peroff", "scte35", "utc", "snr")
+                    "periods", "continuous", "baseurl", "peroff", "scte35", "utc", "snr")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -263,6 +264,7 @@ class ConfigProcessor(object):
                'startNumber' : self.cfg.availability_start_time_in_s//self.cfg.seg_duration,
                'periodsPerHour' : self.cfg.periods_per_hour,
                'continuous' : self.cfg.cont_multiperiod,
+               'urls' : self.cfg.multi_url,
                'periodOffset' : self.cfg.period_offset,
                'publishTime' : self.cfg.publish_time}
         if self.cfg.availability_end_time:
@@ -304,9 +306,11 @@ class ConfigProcessor(object):
                 cont_update_flag = True
             elif key == "periods": # Make multiple periods
                 cfg.periods_per_hour = int(value)
-            elif key == "continuous": # only valid when it's set to 1 and periods_per_hour is set
+            elif key == "continuous": # Only valid when it's set to 1 and periods_per_hour is set
                 if int(value) == 1:
                     cfg.cont_multiperiod = True
+            elif key == "baseurl": # Use multiple URLs, put all the configuration strings in multi_url
+                cfg.multi_url.append(value)
             elif key == "peroff": # Set the period offset
                 cfg.period_offset = int(value)
             elif key == "scte35": # Add SCTE-35 ad messages every minute

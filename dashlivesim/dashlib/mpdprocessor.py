@@ -115,8 +115,27 @@ class MpdProcessor(object):
                 self.modify_baseurl(next_child, data['BaseURL'])
                 pos += 1
         elif data.has_key('BaseURL') and SET_BASEURL:
-            self.insert_baseurl(mpd, pos, data['BaseURL'])
-            pos += 1
+            if data.has_key('urls') and data['urls']: # check if we have to set multiple URLs
+                url_header, url_body = data['BaseURL'].split('//')
+                url_parts = url_body.split('/')
+                i = -1
+                for part in url_parts:
+                    i += 1
+                    if part.find("_") < 0: #Not a configuration
+                        continue
+                    cfg_parts = part.split("_", 1)
+                    key, value = cfg_parts
+                    if key == "baseurl":
+                        url_parts[i] = "" #Remove all the baseurl elements
+                url_parts = filter(None, url_parts)
+                for url in data['urls']:
+                    url_parts.insert(-1, "baseurl_" + url)
+                    self.insert_baseurl(mpd, pos, url_header + "//" + "/".join(url_parts) + "/")
+                    del url_parts[-2]
+                    pos += 1
+            else:
+                self.insert_baseurl(mpd, pos, data['BaseURL'])
+                pos += 1
         children = mpd.getchildren()
         for ch_nr in range(pos, len(children)):
             if children[ch_nr].tag == add_ns("Period"):
