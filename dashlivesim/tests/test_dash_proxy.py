@@ -188,12 +188,12 @@ class TestMorePathLevels(unittest.TestCase):
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = dp.handle_request()
         write_data_to_outfile(d, testOutputFile)
-        numBaseURL = findAllIndexes("<BaseURL>", d)
-        str1 = findAllIndexes("baseurl_u40_d20", d)
-        str2 = findAllIndexes("baseurl_u40_d20", d)
-        self.assertEqual(len(numBaseURL), 2)
-        self.assertEqual(len(str1), 1)
-        self.assertEqual(len(str2), 1)
+        indexesBaseURL = findAllIndexes("<BaseURL>", d)
+        indexes1 = findAllIndexes("baseurl_u40_d20", d)
+        indexes2 = findAllIndexes("baseurl_d40_u20", d)
+        self.assertEqual(len(indexesBaseURL), 2)
+        self.assertEqual(len(indexes1), 1)
+        self.assertEqual(len(indexes2), 1)
         
     def testInit(self):
         urlParts = ['pdash', 'testpic', 'en', 'A1', 'init.mp4']
