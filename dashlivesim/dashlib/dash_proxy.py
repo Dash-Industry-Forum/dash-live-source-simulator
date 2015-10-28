@@ -163,7 +163,7 @@ class DashProvider(object):
 
     def __init__(self, host_name, url_parts, url_args, vod_conf_dir, content_dir, now=None, req=None, is_https=0):
         protocol = is_https and "https" or "http"
-        self.base_url = "%s://%s/%s/" % (protocol, host_name, url_parts[0]) # The start. Adding other partst later.
+        self.base_url = "%s://%s/%s/" % (protocol, host_name, url_parts[0]) # The start. Adding other parts later.
         self.utc_head_url = "%s://%s/%s" % (protocol, host_name, UTC_HEAD_PATH)
         self.url_parts = url_parts[1:]
         self.url_args = url_args
@@ -211,32 +211,24 @@ class DashProvider(object):
                 diff = self.now_float - (cfg.availability_end_time + EXTRA_TIME_AFTER_END_IN_S)
                 response = self.error_response("Request for %s after AET. %.1fs too late" % (cfg.filename, diff))
             else:
-                if  len(cfg.multi_url) == 1:#baseurl info
-                    url_info = cfg.multi_url[0].split("_")
-                    a = url_info[0]
-                    b = url_info[1]
+                response = self.process_media_segment(cfg, self.now_float)
+                if len(cfg.multi_url) == 1: # There is one specific baseURL with losses specified
+                    a,b = cfg.multi_url[0].split("_")
                     dur1 = int(a[1:])
                     dur2 = int(b[1:])
+                    total_dur = dur1 + dur2
+                    num_loop = int(ceil(60.0/(float(total_dur))))
+                    now_mod_60 = self.now % 60
                     if a[0] == 'u' and b[0] == 'd': #parse server up or down information
-                        num_loop = ceil(60.0/(float(dur1+dur2)))
-                        for i in range(0, int(num_loop)):
-                            if self.now % 60 > i*(dur1+dur2)+dur1 and self.now % 60 <= (i+1)*(dur1+dur2):
-                                response = self.error_response("server down time %d" % (self.now))
+                        for i in range(num_loop):
+                            if i*total_dur + dur1 < now_mod_60 <= (i+1)*total_dur:
+                                response = self.error_response("BaseURL server down at %d" % (self.now))
                                 break
-                            else:
-                                response = self.process_media_segment(cfg, self.now_float)
                     elif a[0] == 'd' and b[0] == 'u':
-                        num_loop = ceil(60.0/(float(dur1+dur2)))
-                        for i in range(0, int(num_loop)):
-                            if self.now % 60 > i*(dur1+dur2) and self.now % 60 <= i*(dur1+dur2)+dur1:
-                                response = self.error_response("server down time %d" % (self.now))
+                        for i in range(num_loop):
+                            if i*(total_dur) < now_mod_60 <= i*(total_dur)+dur1:
+                                response = self.error_response("BaseURL server down at %d" % (self.now))
                                 break
-                            else:
-                                response = self.process_media_segment(cfg, self.now_float)
-                    else:
-                        response = self.process_media_segment(cfg, self.now_float)
-                else:
-                    response = self.process_media_segment(cfg, self.now_float)
         else:
             response = "Unknown file extension: %s" % cfg.ext
         return response

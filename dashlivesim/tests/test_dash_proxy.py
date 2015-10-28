@@ -31,6 +31,7 @@ import unittest, sys
 
 from dash_test_util import *
 from ..dashlib import dash_proxy
+from ..dashlib import mpdprocessor
 
 def findAllIndexes(needle, haystack):
     """Find the index for the beginning of each occurrence of ``needle`` in ``haystack``. Overlaps are allowed."""
@@ -44,7 +45,11 @@ def findAllIndexes(needle, haystack):
 class TestMPDProcessing(unittest.TestCase):
     "Test of MPD parsing"
 
+    def setUp(self):
+        mpdprocessor.SET_BASEURL = False
+
     def testMPDhandling(self):
+        mpdprocessor.SET_BASEURL = True
         urlParts = ['pdash', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = dp.handle_request()
@@ -85,6 +90,7 @@ class TestMPDProcessing(unittest.TestCase):
 
     def testHttpsBaseURL(self):
         "Check that protocol is set to https if signalled to DashProvider."
+        mpdprocessor.SET_BASEURL = True
         urlParts = ['pdash', 'testpic', 'Manifest.mpd']
         is_https = 1
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0,
@@ -176,25 +182,12 @@ class TestMorePathLevels(unittest.TestCase):
     "Test when representations are further down in"
 
     def testMPDGet(self):
+        mpdprocessor.SET_BASEURL = True
         urlParts = ['pdash', 'testpic', 'Manifest2l.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = dp.handle_request()
         self.assertGreater(d.find("<BaseURL>http://streamtest.eu/pdash/testpic/</BaseURL>"), 0)
 
-    def testMultiURL(self):
-        testOutputFile = "MultiURL.mpd"
-        rm_outfile(testOutputFile)
-        urlParts = ['pdash', 'baseurl_u40_d20', 'baseurl_d40_u20', 'testpic', 'Manifest.mpd']
-        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
-        d = dp.handle_request()
-        write_data_to_outfile(d, testOutputFile)
-        indexesBaseURL = findAllIndexes("<BaseURL>", d)
-        indexes1 = findAllIndexes("baseurl_u40_d20", d)
-        indexes2 = findAllIndexes("baseurl_d40_u20", d)
-        self.assertEqual(len(indexesBaseURL), 2)
-        self.assertEqual(len(indexes1), 1)
-        self.assertEqual(len(indexes2), 1)
-        
     def testInit(self):
         urlParts = ['pdash', 'testpic', 'en', 'A1', 'init.mp4']
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
