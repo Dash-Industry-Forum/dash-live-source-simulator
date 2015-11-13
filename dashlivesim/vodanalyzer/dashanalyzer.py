@@ -62,10 +62,10 @@ class DashAnalyzer(object):
         self.mpd_filpath = mpd_filepath
         path_parts = mpd_filepath.split('/')
         print path_parts
+        self.baseName = 'content'
         if len(path_parts) >= 2:
-            self.config_filename = '%s.cfg' % path_parts[-2]
-        else:
-            self.config_filename = 'content.cfg'
+            self.baseName = path_parts[-2]
+        self.config_filename = self.baseName + ".cfg"
         self.base_path = os.path.split(mpd_filepath)[0]
         self.verbose = verbose
         self.as_data = {} # List of adaptation sets (one for each media)
@@ -136,7 +136,7 @@ class DashAnalyzer(object):
         numbers.sort()
         for i in range(1,len(numbers)):
             if numbers[i] != numbers[i-1] + 1:
-                raise DashAnalyzerError("%s segment missing between %d and %d" % rep_id, numbers[i], numbers[i-1])
+                raise DashAnalyzerError("%s segment missing between %d and %d" % (rep_id, numbers[i-1], numbers[i]))
         print "Found %s segments %d - %d" % (rep_id, numbers[0] , numbers[-1])
         rep_data['firstNumber'] = numbers[0]
         rep_data['lastNumber'] = numbers[-1]
@@ -146,6 +146,10 @@ class DashAnalyzer(object):
         lastGoodSegments = []
         segDuration = None
         print "Checking all the media segment durations for deviations."
+
+        def writeSegTiming(ofh, firstSegmentInRepeat, firstStartTimeInRepeat, duration, repeatCount):
+            ofh.write("%d %d %d %d\n" % (firstSegmentInRepeat, firstStartTimeInRepeat,
+                                         duration, repeatCount))
 
         for content_type in self.as_data.keys():
             as_data = self.as_data[content_type]
@@ -158,52 +162,68 @@ class DashAnalyzer(object):
                 assert self.segDuration == adaptation_set.duration
 
             track_timescale = as_data['track_timescale']
-            for rep_data in as_data['reps']:
-                rep_id = rep_data['id']
-                rep_data['endNr'] =  None
-                rep_data['startTick'] = None
-                rep_data['endTick'] = None
-                if self.firstSegmentInLoop >= 0:
-                    assert rep_data['firstNumber'] == self.firstSegmentInLoop
-                else:
-                    self.firstSegmentInLoop = rep_data['firstNumber']
-                if self.mpdSegStartNr >= 0:
-                    assert adaptation_set.start_number == self.mpdSegStartNr
-                else:
-                    self.mpdSegStartNr = adaptation_set.start_number
-                segTicks = self.segDuration*track_timescale
-                maxDiffInTicks = int(track_timescale*0.1) # Max 100ms
-                segNr = rep_data['firstNumber']
-                while (True):
-                    segmentPath = rep_data['absMediaPath'] % segNr
-                    if not os.path.exists(segmentPath):
+            with open("%s_%s.dat" % (self.baseName, content_type), "wb") as ofh:
+                for (rep_nr, rep_data) in enumerate(as_data['reps']):
+                    rep_id = rep_data['id']
+                    rep_data['endNr'] =  None
+                    rep_data['startTick'] = None
+                    rep_data['endTick'] = None
+                    if self.firstSegmentInLoop >= 0:
+                        assert rep_data['firstNumber'] == self.firstSegmentInLoop
+                    else:
+                        self.firstSegmentInLoop = rep_data['firstNumber']
+                    if self.mpdSegStartNr >= 0:
+                        assert adaptation_set.start_number == self.mpdSegStartNr
+                    else:
+                        self.mpdSegStartNr = adaptation_set.start_number
+                    segTicks = self.segDuration*track_timescale
+                    maxDiffInTicks = int(track_timescale*0.1) # Max 100ms
+                    segNr = rep_data['firstNumber']
+                    repeatCount = -1
+                    firstSegmentInRepeat = -1
+                    firstStartTimeInRepeat = -1
+                    lastDuration = 0
+                    while (True):
+                        segmentPath = rep_data['absMediaPath'] % segNr
+                        if not os.path.exists(segmentPath):
+                            if self.verbose:
+                                print "\nLast good %s segment is %d, endTime=%.3fs, totalTime=%.3fs" % (
+                                    rep_id, rep_data['endNr'], rep_data['endTime'],
+                                    rep_data['endTime']-rep_data['startTime'])
+                            break
+                        msf = mediasegmentfilter.MediaSegmentFilter(segmentPath)
+                        msf.filter()
+                        tfdt = msf.get_tfdt_value()
+                        duration = msf.get_duration()
+                        if duration == lastDuration:
+                            repeatCount += 1
+                        else:
+                            if lastDuration != 0 and rep_nr == 0:
+                                writeSegTiming(ofh, firstSegmentInRepeat, firstStartTimeInRepeat, duration, repeatCount)
+                            repeatCount = 0
+                            lastDuration = duration
+                            firstSegmentInRepeat = segNr
+                            firstStartTimeInRepeat = tfdt
+                        if rep_data['startTick'] is None:
+                            rep_data['startTick'] = tfdt
+                            rep_data['startTime'] = rep_data['startTick']/float(track_timescale)
+                            print "First %s segment is %d starting at time %.3fs" % (rep_id, segNr,
+                                                                                     rep_data['startTime'])
+                        # Check that there is not too much drift. We want to end with at most maxDiffInTicks
+                        endTick = tfdt + duration
+                        idealTicks = (segNr - rep_data['firstNumber'] + 1)*segTicks + rep_data['startTick']
+                        absDiffInTicks = abs(idealTicks - endTick)
+                        if absDiffInTicks < maxDiffInTicks:
+                            # This is a good wrap point
+                            rep_data['endTick'] = tfdt + duration
+                            rep_data['endTime'] = rep_data['endTick']/float(track_timescale)
+                            rep_data['endNr'] = segNr
+                        segNr += 1
                         if self.verbose:
-                            print "\nLast good %s segment is %d, endTime=%.3fs, totalTime=%.3fs" % (
-                                rep_id, rep_data['endNr'], rep_data['endTime'],
-                                rep_data['endTime']-rep_data['startTime'])
-                        break
-                    msf = mediasegmentfilter.MediaSegmentFilter(segmentPath)
-                    msf.filter()
-                    tfdt = msf.get_tfdt_value()
-                    duration = msf.get_duration()
-                    if rep_data['startTick'] is None:
-                        rep_data['startTick'] = tfdt
-                        rep_data['startTime'] = rep_data['startTick']/float(track_timescale)
-                        print "First %s segment is %d starting at time %.3fs" % (rep_id, segNr,
-                                                                                 rep_data['startTime'])
-                    # Check that there is not too much drift. We want to end with at most maxDiffInTicks
-                    endTick = tfdt + duration
-                    idealTicks = (segNr - rep_data['firstNumber'] + 1)*segTicks + rep_data['startTick']
-                    absDiffInTicks = abs(idealTicks - endTick)
-                    if absDiffInTicks < maxDiffInTicks:
-                        # This is a good wrap point
-                        rep_data['endTick'] = tfdt + duration
-                        rep_data['endTime'] = rep_data['endTick']/float(track_timescale)
-                        rep_data['endNr'] = segNr
-                    segNr += 1
-                    if self.verbose:
-                        sys.stdout.write(".")
-                lastGoodSegments.append(rep_data['endNr'])
+                            sys.stdout.write(".")
+                    if rep_nr == 0:
+                        writeSegTiming(ofh, firstSegmentInRepeat, firstStartTimeInRepeat, duration, repeatCount)
+                    lastGoodSegments.append(rep_data['endNr'])
         self.lastSegmentInLoop = min(lastGoodSegments)
         self.nrSegmentsInLoop = self.lastSegmentInLoop-self.firstSegmentInLoop+1
         self.loopTime = self.nrSegmentsInLoop*self.segDuration
