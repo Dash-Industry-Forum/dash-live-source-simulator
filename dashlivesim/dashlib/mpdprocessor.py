@@ -68,18 +68,21 @@ class MpdProcessor(object):
     "Process a VoD MPD. Analyzer and convert it to a live (dynamic) session."
     # pylint: disable=no-self-use, too-many-locals
 
-    def __init__(self, infile, scte35_present, utc_timing_methods, utc_head_url=""):
+    def __init__(self, infile, mpd_proc_cfg):
         self.tree = ElementTree.parse(infile)
-        self.scte35_present = scte35_present
-        self.utc_timing_methods = utc_timing_methods
-        self.utc_head_url = utc_head_url
+        self.scte35_present = mpd_proc_cfg['scte35Present']
+        self.utc_timing_methods = mpd_proc_cfg['utc_timing_methods']
+        self.utc_head_url = mpd_proc_cfg['utc_head_url']
+        self.continuous = mpd_proc_cfg['continuous']
+        self.segtimeline = mpd_proc_cfg['segtimeline']
+
         self.root = self.tree.getroot()
 
-    def process(self, data, period_data, continuous=False, seg_timeline=False):
+    def process(self, data, period_data):
         "Top-level call to process the XML."
         mpd = self.root
         self.process_mpd(mpd, data)
-        self.process_mpd_children(mpd, data, period_data, continuous, seg_timeline)
+        self.process_mpd_children(mpd, data, period_data)
 
     def process_mpd(self, mpd, data):
         """Process the root element (MPD)"""
@@ -96,7 +99,7 @@ class MpdProcessor(object):
         if mpd.attrib.has_key('mediaPresentationDuration') and not data.has_key('mediaPresentationDuration'):
             del mpd.attrib['mediaPresentationDuration']
 
-    def process_mpd_children(self, mpd, data, period_data, continuous=False, seg_timeline=False):
+    def process_mpd_children(self, mpd, data, period_data):
         """Process the children of the MPD element.
 
         They should be in order ProgramInformation, UTCTiming, BaseURL, Location, Period, Metrics."""
@@ -147,7 +150,7 @@ class MpdProcessor(object):
         for i in range(1, len(period_data)):
             new_period = copy.deepcopy(period)
             mpd.insert(pos+i, new_period)
-        self.update_periods(mpd, period_data, data['periodOffset'] >= 0, continuous, seg_timeline)
+        self.update_periods(mpd, period_data, data['periodOffset'] >= 0)
 
     def insert_baseurl(self, mpd, pos, new_baseurl):
         "Create and insert a new <BaseURL> element."
@@ -160,7 +163,7 @@ class MpdProcessor(object):
         "Modify the text of an existing BaseURL"
         baseurl_elem.text = new_baseurl
 
-    def update_periods(self, mpd, period_data, offset_at_period_level=False, continuous=False, seg_timeline=False):
+    def update_periods(self, mpd, period_data, offset_at_period_level=False):
         "Update periods to provide appropriate values."
 
         def set_attribs(elem, keys, data):
@@ -228,7 +231,7 @@ class MpdProcessor(object):
                     scte35_elem = create_inband_scte35stream_elem()
                     ad_set.insert(0, scte35_elem)
                     ad_pos += 1
-                if continuous and last_period_id != '-1':
+                if self.continuous and last_period_id != '-1':
                     supplementalprop_elem = self.create_descriptor_elem("SupplementalProperty", \
                     "urn:mpeg:dash:period_continuity:2014", last_period_id)
                     ad_set.insert(ad_pos, supplementalprop_elem)
@@ -238,7 +241,7 @@ class MpdProcessor(object):
                     if pdata.get('startNumber') == '-1': # Default to 1
                         remove_attribs(seg_template, ['startNumber'])
 
-                    if seg_timeline:
+                    if self.segtimeline:
                         # add SegmentTimeline block in SegmentTemplate with timescale and window.
                         create_segment_timeline(seg_template, 0)
             last_period_id = pdata.get('id')
