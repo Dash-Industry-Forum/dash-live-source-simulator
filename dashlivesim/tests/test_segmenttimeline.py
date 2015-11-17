@@ -38,7 +38,7 @@ class TestMPDWithSegmentTimeline(unittest.TestCase):
 
     def setUp(self):
         urlParts = ['livesim', 'segtimeline_1', 'testpic', 'Manifest.mpd']
-        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
+        dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=8000)
         self.d = dp.handle_request()
 
     def testThatNumberTemplateFeaturesAreAbsent(self):
@@ -48,12 +48,39 @@ class TestMPDWithSegmentTimeline(unittest.TestCase):
         self.assertTrue(self.d.find("startNumber") == -1) # There should be no startNumber in the MPD
         self.assertTrue(self.d.find("duration") == -1) # There should be no duration in the segmentTemplate
         self.assertTrue(self.d.find("$Number$") == -1) # There should be no $Number$ in template
-        #self.assertTrue(self.d.find("maxSegmentDuration") == -1) # There should be no maxSegmentDuration in MPD
+        self.assertTrue(self.d.find("maxSegmentDuration") == -1) # There should be no maxSegmentDuration in MPD
 
     def testThatSegmentTimeLineDataIsPresent(self):
         testOutputFile = "segtimeline.mpd"
         rm_outfile(testOutputFile)
         write_data_to_outfile(self.d, testOutputFile)
         self.assertTrue(self.d.find("$Time$") > 0) # There should be no startNumber in the MPD
+
+class TestMediaSegments(unittest.TestCase):
+    "Test that media segments are served properly."
+
+    def setUp(self):
+        self.seg_nr = 349
+        self.timescale = 32000
+        self.duration = 6
+        self.seg_time = self.seg_nr * self.duration * self.timescale
+        self.now = (self.seg_nr+2)*self.duration
+
+    def testThatTimeLookupWorks(self):
+        urlParts = ['livesim', 'segtimeline_1', 'testpic', 'A1', 't%d.m4s' % self.seg_time]
+        dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
+        d = dp.handle_request()
+        self.assertTrue(isinstance(d, basestring), "A segment is returned")
+
+    def testThatTimeSegmentIsSameAsNumber(self):
+        urlParts = ['livesim', 'segtimeline_1', 'testpic', 'A1', 't%d.m4s' % self.seg_time]
+        dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
+        time_seg = dp.handle_request()
+        urlParts = ['livesim', 'segtimeline_1', 'testpic', 'A1', '%d.m4s' % self.seg_nr]
+        dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
+        nr_seg = dp.handle_request()
+        self.assertEqual(time_seg, nr_seg)
+
+
 
 

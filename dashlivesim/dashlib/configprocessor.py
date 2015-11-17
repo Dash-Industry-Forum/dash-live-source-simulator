@@ -79,12 +79,17 @@ class Config(object):
         self.rel_path = None
         self.filename = None
         self.reps = None # An array of representations with id, content_type, timescale (only > 1 if muxed)
+        self.media_data = None  # A dictionary with timescales and paths to segment durations
         self.ext = None # File extension
         self.seg_duration = None
         self.vod_first_segment_in_loop = None
         self.vod_nr_segments_in_loop = 0
         self.vod_default_tsbd_secs = 0
         self.publish_time = None
+
+    def __str__(self):
+        return "\nConfig:\n" + "\n".join(["%s=%s" % (k, v) for (k, v) in self.__dict__.items()
+                                          if not k.startswith("_")])
 
     def update_with_filedata(self, url_parts, url_pos):
         "Find the content_name, file_name, and representations (if muxed as signalled by MUX_DIVIDER)."
@@ -106,12 +111,14 @@ class Config(object):
                 rep_data = {'id' : rep, 'content_type' : content_type, 'timescale' :timescale}
                 self.reps.append(rep_data)
 
+
     def update_with_vodcfg(self, vod_cfg):
         "Update config with data from VoD content."
         if self.timeshift_buffer_depth_in_s is None:
             self.timeshift_buffer_depth_in_s = vod_cfg.default_tsbd_secs
         self.vod_first_segment_in_loop = vod_cfg.first_segment_in_loop
         self.vod_nr_segments_in_loop = vod_cfg.nr_segments_in_loop
+        self.media_data = vod_cfg.media_data
 
     def update_for_tfdt32(self, now_int):
         "Set MPD values for 32-bit tfdt (reset session every 3 hours)."
@@ -268,7 +275,8 @@ class ConfigProcessor(object):
                'segtimeline' : self.cfg.seg_timeline,
                'urls' : self.cfg.multi_url,
                'periodOffset' : self.cfg.period_offset,
-               'publishTime' : self.cfg.publish_time}
+               'publishTime' : self.cfg.publish_time,
+               'mediaData' : self.cfg.media_data}
         if self.cfg.availability_end_time:
             mpd['availabilityEndTime'] = self.cfg.availability_end_time
         return mpd

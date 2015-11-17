@@ -34,6 +34,7 @@ from xml.etree import ElementTree
 import cStringIO
 import time
 import re
+from .timeformatconversions import seconds_to_iso_duration
 
 from . import scte35
 
@@ -66,16 +67,17 @@ class MpdModifierError(Exception):
 
 class MpdProcessor(object):
     "Process a VoD MPD. Analyzer and convert it to a live (dynamic) session."
-    # pylint: disable=no-self-use, too-many-locals
+    # pylint: disable=no-self-use, too-many-locals, too-many-instance-attributes
 
-    def __init__(self, infile, mpd_proc_cfg):
+    def __init__(self, infile, mpd_proc_cfg, cfg=None):
         self.tree = ElementTree.parse(infile)
         self.scte35_present = mpd_proc_cfg['scte35Present']
         self.utc_timing_methods = mpd_proc_cfg['utc_timing_methods']
         self.utc_head_url = mpd_proc_cfg['utc_head_url']
         self.continuous = mpd_proc_cfg['continuous']
         self.segtimeline = mpd_proc_cfg['segtimeline']
-
+        self.mpd_proc_cfg = mpd_proc_cfg
+        self.cfg = cfg
         self.root = self.tree.getroot()
 
     def process(self, data, period_data):
@@ -98,7 +100,12 @@ class MpdProcessor(object):
         set_values_from_dict(mpd, key_list, data)
         if mpd.attrib.has_key('mediaPresentationDuration') and not data.has_key('mediaPresentationDuration'):
             del mpd.attrib['mediaPresentationDuration']
+        if self.segtimeline:
+            if mpd.attrib.has_key('maxSegmentDuration'):
+                del mpd.attrib['maxSegmentDuration']
+            mpd.set('minimumUpdatePeriod', seconds_to_iso_duration(self.cfg.seg_duration))
 
+    #pylint: disable = too-many-branches
     def process_mpd_children(self, mpd, data, period_data):
         """Process the children of the MPD element.
 
@@ -127,7 +134,7 @@ class MpdProcessor(object):
                     if part.find("_") < 0: #Not a configuration
                         continue
                     cfg_parts = part.split("_", 1)
-                    key, value = cfg_parts
+                    key, _ = cfg_parts
                     if key == "baseurl":
                         url_parts[i] = "" #Remove all the baseurl elements
                 url_parts = filter(None, url_parts)
@@ -163,6 +170,7 @@ class MpdProcessor(object):
         "Modify the text of an existing BaseURL"
         baseurl_elem.text = new_baseurl
 
+    #pylint: disable = too-many-statements
     def update_periods(self, mpd, period_data, offset_at_period_level=False):
         "Update periods to provide appropriate values."
 
@@ -193,24 +201,42 @@ class MpdProcessor(object):
             "Create an InbandEventStream element for SCTE-35."
             return self.create_descriptor_elem("InbandEventStream", scte35.SCHEME_ID_URI, value=str(scte35.PID))
 
-        def create_segment_timeline(seg_template, pos):
+        def create_segment_timeline(seg_template, content_type, pos):
             "Create and insert a new <SegmentTimeline> element and S entries for interval [now-tsbd, now]."
+            #print self.cfg
             remove_attribs(seg_template, ['duration'])
             remove_attribs(seg_template, ['startNumber'])
-            seg_template.set('timescale', "90000") # Should be read from media config
+            timescale = self.cfg.media_data[content_type]['timescale']
+            seg_template.set('timescale', str(timescale))
             media_template = seg_template.attrib['media']
-            media_template= media_template.replace('$Number$', 't$Time$')
+            media_template = media_template.replace('$Number$', 't$Time$')
             seg_template.set('media', media_template)
             seg_timeline = ElementTree.Element(add_ns('SegmentTimeline'))
             seg_timeline.tail = "\n"
             seg_template.insert(pos, seg_timeline)
-            for i in range(1):
+            now = self.mpd_proc_cfg['now']
+            tsbd = self.cfg.timeshift_buffer_depth_in_s
+            seg_duration = self.cfg.seg_duration
+            #print now, tsbd, content_type, self.cfg.media_data[content_type], self.cfg.seg_duration,\
+                #self.cfg.seg_duration*self.cfg.vod_nr_segments_in_loop
+            last_seg_nr = now//seg_duration
+            first_seg_nr = last_seg_nr - tsbd//seg_duration - 1
+            #print "%s segments %d-%d" %(content_type, first_seg_nr, last_seg_nr)
+            repeat = True
+            if repeat:
                 s_elem = ElementTree.Element(add_ns('S'))
-                s_elem.set("t", "0")
-                s_elem.set("d", "180000")
-                s_elem.set("r", "-1")
+                s_elem.set("t", str(timescale*first_seg_nr*seg_duration))
+                s_elem.set("d", str(timescale*seg_duration))
+                s_elem.set("r", str(last_seg_nr-first_seg_nr))
                 s_elem.tail = "\n"
                 seg_template.insert = seg_timeline.insert(0, s_elem)
+            else:
+                for snr in range(last_seg_nr, first_seg_nr-1, -1):
+                    s_elem = ElementTree.Element(add_ns('S'))
+                    s_elem.set("t", str(timescale*snr*seg_duration))
+                    s_elem.set("d", str(timescale*seg_duration))
+                    s_elem.tail = "\n"
+                    seg_template.insert = seg_timeline.insert(0, s_elem)
 
         periods = mpd.findall(add_ns('Period'))
         last_period_id = '-1'
@@ -243,7 +269,7 @@ class MpdProcessor(object):
 
                     if self.segtimeline:
                         # add SegmentTimeline block in SegmentTemplate with timescale and window.
-                        create_segment_timeline(seg_template, 0)
+                        create_segment_timeline(seg_template, content_type, 0)
             last_period_id = pdata.get('id')
 
     def create_descriptor_elem(self, name, scheme_id_uri, value=None, elem_id=None):

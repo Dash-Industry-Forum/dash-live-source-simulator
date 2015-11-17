@@ -237,7 +237,7 @@ class DashProvider(object):
                         'utc_timing_methods' : cfg.utc_timing_methods,
                         'utc_head_url' : self.utc_head_url,
                         'now' : now}
-        mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg)
+        mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg)
         if mpd_data['periodsPerHour'] < 0: # Default case.
             period_data = generate_default_period_data(mpd_data)
         else:
@@ -268,10 +268,26 @@ class DashProvider(object):
 
         Assumes that segment_ast = (seg_nr+1-startNumber)*seg_dur."""
         #pylint: disable=too-many-locals
+
+        def get_timescale(cfg):
+            "Get timescale for the current representation."
+            timescale = None
+            curr_rep_id = cfg.rel_path
+            for rep in cfg.reps:
+                if rep['id'] == curr_rep_id:
+                    timescale = rep['timescale']
+                    break
+            return timescale
+
         seg_dur = cfg.seg_duration
         seg_name = cfg.filename
         seg_base, seg_ext = splitext(seg_name)
-        seg_nr = int(seg_base)
+        timescale = get_timescale(cfg)
+        if seg_base[0] == 't':
+            #TODO. Make a more accurate test here that the timestamp is a correct one
+            seg_nr = int(round(float(seg_base[1:])/seg_dur/timescale))
+        else:
+            seg_nr = int(seg_base)
         seg_start_nr = cfg.start_nr == -1 and 1 or cfg.start_nr
         if seg_nr < seg_start_nr:
             return self.error_response("Request for segment %d before first %d" % (seg_nr, seg_start_nr))
