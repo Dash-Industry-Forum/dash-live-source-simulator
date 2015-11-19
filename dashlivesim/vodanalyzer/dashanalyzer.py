@@ -34,6 +34,7 @@ import sys
 import os
 import time
 import re
+from struct import pack
 from ..dashlib import configprocessor
 
 from ..dashlib import initsegmentfilter, mediasegmentfilter
@@ -61,11 +62,10 @@ class DashAnalyzer(object):
     def __init__(self, mpd_filepath, verbose=1):
         self.mpd_filpath = mpd_filepath
         path_parts = mpd_filepath.split('/')
-        print path_parts
-        self.baseName = 'content'
+        self.base_name = 'content'
         if len(path_parts) >= 2:
-            self.baseName = path_parts[-2]
-        self.config_filename = self.baseName + ".cfg"
+            self.base_name = path_parts[-2]
+        self.config_filename = self.base_name + ".cfg"
         self.base_path = os.path.split(mpd_filepath)[0]
         self.verbose = verbose
         self.as_data = {} # List of adaptation sets (one for each media)
@@ -144,25 +144,27 @@ class DashAnalyzer(object):
     def checkAndUpdateMediaData(self):
         """Check all segments for good values and return startTimes and total duration."""
         lastGoodSegments = []
-        segDuration = None
+        seg_duration = None
         print "Checking all the media segment durations for deviations."
 
         def writeSegTiming(ofh, firstSegmentInRepeat, firstStartTimeInRepeat, duration, repeatCount):
-            ofh.write("%d %d %d %d\n" % (firstSegmentInRepeat, firstStartTimeInRepeat,
-                                         duration, repeatCount))
+            data = pack(configprocessor.SEGTIMEFORMAT, firstSegmentInRepeat, repeatCount,
+                        firstStartTimeInRepeat, duration)
+            ofh.write(data)
 
         for content_type in self.as_data.keys():
             as_data = self.as_data[content_type]
+            as_data['datFile'] = "%s_%s.dat" % (self.base_name, content_type)
             adaptation_set = as_data['as']
             print "Checking %s with timescale %d" % (content_type, as_data['track_timescale'])
             if self.segDuration is None:
-                segDuration = adaptation_set.duration
-                self.segDuration = segDuration
+                self.segDuration = adaptation_set.duration
             else:
                 assert self.segDuration == adaptation_set.duration
 
             track_timescale = as_data['track_timescale']
-            with open("%s_%s.dat" % (self.baseName, content_type), "wb") as ofh:
+
+            with open(as_data['datFile'], "wb") as ofh:
                 for (rep_nr, rep_data) in enumerate(as_data['reps']):
                     rep_id = rep_data['id']
                     rep_data['endNr'] =  None
@@ -223,7 +225,8 @@ class DashAnalyzer(object):
                             sys.stdout.write(".")
                     if rep_nr == 0:
                         writeSegTiming(ofh, firstSegmentInRepeat, firstStartTimeInRepeat, duration, repeatCount)
-                    lastGoodSegments.append(rep_data['endNr'])
+                        lastGoodSegments.append(rep_data['endNr'])
+                        as_data['totalTicks'] = rep_data['endTick'] - rep_data['startTick']
         self.lastSegmentInLoop = min(lastGoodSegments)
         self.nrSegmentsInLoop = self.lastSegmentInLoop-self.firstSegmentInLoop+1
         self.loopTime = self.nrSegmentsInLoop*self.segDuration
@@ -233,16 +236,17 @@ class DashAnalyzer(object):
 
     def write_config(self, config_file):
         "Write a config file for the analyzed content, that can then be used to serve it efficiently."
-        cfg_data = {'version' : '1.0', 'first_segment_in_loop' : self.firstSegmentInLoop,
+        cfg_data = {'version' : '1.1', 'first_segment_in_loop' : self.firstSegmentInLoop,
                     'nr_segments_in_loop' : self.nrSegmentsInLoop, 'segment_duration_s' : self.segDuration}
         media_data = {}
         for content_type in ('video', 'audio'):
             if self.as_data.has_key(content_type):
                 mdata = self.as_data[content_type]
                 media_data[content_type] = {'representations' : [rep['id'] for rep in mdata['reps']],
-                                            'timescale' : mdata['track_timescale']}
+                                            'timescale' : mdata['track_timescale'],
+                                            'totalDuration' : mdata['totalTicks'],
+                                            'datFile' : mdata['datFile']}
         cfg_data['media_data'] = media_data
-        print cfg_data
         vod_cfg = configprocessor.VodConfig()
         vod_cfg.write_config(config_file, cfg_data)
 

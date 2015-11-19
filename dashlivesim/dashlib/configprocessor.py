@@ -40,6 +40,8 @@ DEFAULT_SHORT_MINIMUM_UPDATE_PERIOD_IN_S = 10
 
 MUX_DIVIDER = "__" # Multiplexed representations can be written as A__V
 
+SEGTIMEFORMAT = 'HHII' # Format for segment durations and repeatcount (nr, repeat, start, duration)
+
 
 class ConfigProcessorError(Exception):
     "Generic error for DASH ConfigProcessor."
@@ -190,7 +192,7 @@ class VodConfig(object):
     "Configuration of the actual content."
 
     def __init__(self):
-        self.good_version = "1.0"
+        self.good_versions = ("1.0", "1.1")
         self.first_segment_in_loop = None
         self.nr_segments_in_loop = 0
         self.segment_duration_s = 0
@@ -204,8 +206,9 @@ class VodConfig(object):
         with open(config_file, 'rb') as cfg_file:
             config.readfp(cfg_file)
             version = config.get('General', 'version')
-            if version != self.good_version:
-                raise ConfigProcessorError("Bad config file version: %s (should be %s)" % (version, self.good_version))
+            if version not in self.good_versions:
+                raise ConfigProcessorError("Bad config file version: %s (should be in %s)" % (version,
+                                                                                              self.good_versions))
             self.first_segment_in_loop = config.getint("Setup", "first_segment_in_loop")
             self.segment_duration_s = config.getint("Setup", "segment_duration_s")
             self.nr_segments_in_loop = config.getint("Setup", "nr_segments_in_loop")
@@ -216,6 +219,9 @@ class VodConfig(object):
                     timescale = config.getint(media, "timescale")
                     representations = [rep.strip() for rep in reps.split(",")]
                     self.media_data[media] = {'timescale' : timescale, 'representations' : representations}
+                    if version == "1.1":
+                        self.media_data[media]['total_duration'] = config.getint(media, "total_duration")
+                        self.media_data[media]['dat_file'] = config.get(media, 'dat_file')
                 except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
                     pass
 
@@ -224,6 +230,13 @@ class VodConfig(object):
         "Write a config file for the analyzed content, that can then be used to serve it efficiently."
         # Note that one needs to write in reverse order
         config = ConfigParser.RawConfigParser()
+        config.add_section('General')
+        config.set('General', 'version', '1.1')
+        config.add_section('Setup')
+        config.set('Setup', 'default_tsbd_secs', data.get('default_tsbd_secs', self.default_tsbd_secs))
+        config.set('Setup', 'segment_duration_s', data.get('segment_duration_s', self.segment_duration_s))
+        config.set('Setup', 'nr_segments_in_loop', data.get('nr_segments_in_loop', self.nr_segments_in_loop))
+        config.set('Setup', 'first_segment_in_loop', data.get('first_segment_in_loop', self.first_segment_in_loop))
         for content_type in ('video', 'audio', 'subtitles'):
             media_data = data.get('media_data', self.media_data)
             if media_data.has_key(content_type):
@@ -231,13 +244,8 @@ class VodConfig(object):
                 mdata = media_data[content_type]
                 config.set(content_type, 'representations', ','.join(mdata['representations']))
                 config.set(content_type, 'timescale', mdata['timescale'])
-        config.add_section('Setup')
-        config.set('Setup', 'default_tsbd_secs', data.get('default_tsbd_secs', self.default_tsbd_secs))
-        config.set('Setup', 'segment_duration_s', data.get('segment_duration_s', self.segment_duration_s))
-        config.set('Setup', 'nr_segments_in_loop', data.get('nr_segments_in_loop', self.nr_segments_in_loop))
-        config.set('Setup', 'first_segment_in_loop', data.get('first_segment_in_loop', self.first_segment_in_loop))
-        config.add_section('General')
-        config.set('General', 'version', '1.0')
+                config.set(content_type, 'total_duration', mdata['totalDuration'])
+                config.set(content_type, 'dat_file', mdata['datFile'])
         with open(config_file, 'wb') as cfg_file:
             config.write(cfg_file)
 
