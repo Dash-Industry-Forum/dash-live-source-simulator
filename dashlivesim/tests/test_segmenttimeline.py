@@ -61,7 +61,7 @@ class TestMediaSegments(unittest.TestCase):
 
     def setUp(self):
         self.seg_nr = 349
-        self.timescale = 32000
+        self.timescale = 48000
         self.duration = 6
         self.seg_time = self.seg_nr * self.duration * self.timescale
         self.now = (self.seg_nr+2)*self.duration
@@ -79,6 +79,7 @@ class TestMediaSegments(unittest.TestCase):
         urlParts = ['livesim', 'segtimeline_1', 'testpic', 'A1', '%d.m4s' % self.seg_nr]
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
         nr_seg = dp.handle_request()
+        self.assertEqual(len(time_seg), len(nr_seg))
         self.assertEqual(time_seg, nr_seg)
 
 
