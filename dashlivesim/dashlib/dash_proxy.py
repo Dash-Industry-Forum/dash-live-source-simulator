@@ -94,25 +94,32 @@ class DashSegmentNotAvailableError(DashProxyError):
 
 def generate_default_period_data(mpd_data):
     "Generate period data for a single period starting at the same time as the session (start = PT0S)."
-    start = 0
-    seg_dur = mpd_data['segDuration']
-    start_number = mpd_data['startNumber'] + start/seg_dur
-    data = {'id' : "p0", 'start' : 'PT%dS' % start, 'duration' : seg_dur,
-            'presentationTimeOffset' : "%d" % mpd_data['presentationTimeOffset'],
-            'startNumber' : str(start_number)}
-    return [data]
 
-def generate_multiperiod_data(mpd_data, now):
+
+def generate_period_data(mpd_data, now):
     """Generate an array of period data depending on current time (now). 0 gives one period with start offset.
 
     mpd_data is changed (minimumUpdatePeriod)."""
     #pylint: disable=too-many-locals
+
     nr_periods_per_hour = min(mpd_data['periodsPerHour'], 60)
-    if not nr_periods_per_hour in (0, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60):
+    if not nr_periods_per_hour in (-1, 0, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60):
         raise Exception("Bad nr of periods per hour %d" % nr_periods_per_hour)
+
     seg_dur = mpd_data['segDuration']
     period_data = []
-    if nr_periods_per_hour > 0:
+    if nr_periods_per_hour == -1: # Just one period starting at at time start relative AST
+        start = 0
+        start_number = mpd_data['startNumber'] + start/seg_dur
+        data = {'id' : "p0", 'start' : 'PT%dS' % start, 'startNumber' : str(start_number),
+                'duration' : seg_dur, 'presentationTimeOffset' : "%d" % mpd_data['presentationTimeOffset']}
+        period_data.append(data)
+    elif nr_periods_per_hour == 0: # nrPeriodsPerHour == 0, make one old period but starting 1000h after epoch
+        start = 3600*1000
+        data = {'id' : "p0", 'start' : 'PT%dS' % start, 'startNumber' : "%d" % (start/seg_dur),
+                'duration' : seg_dur, 'presentationTimeOffset' : "%d" % start}
+        period_data.append(data)
+    else: #  nr_periods_per_hour > 0
         period_duration = 3600/nr_periods_per_hour
         minimum_update_period = "PT%dS" % (period_duration/2 - 5)
         mpd_data['minimumUpdatePeriod'] = minimum_update_period
@@ -126,11 +133,6 @@ def generate_multiperiod_data(mpd_data, now):
                     'startNumber' : "%d" % (start_time/seg_dur), 'duration' : seg_dur,
                     'presentationTimeOffset' : period_nr*period_duration}
             period_data.append(data)
-    else: # nrPeriodsPerHour == 0, make one old period but starting 1000h after epoch
-        start = 3600*1000
-        data = {'id' : "p0", 'start' : 'PT%dS' % start, 'startNumber' : "%d" % (start/seg_dur),
-                'duration' : seg_dur, 'presentationTimeOffset' : "%d" % start}
-        period_data.append(data)
     return period_data
 
 
@@ -149,7 +151,6 @@ class DashProvider(object):
         self.now_float = now # float
         self.now = int(now)
         self.req = req
-        self.cfg = None
         self.new_tfdt_value = None
 
     def handle_request(self):
@@ -238,10 +239,7 @@ class DashProvider(object):
                         'utc_head_url' : self.utc_head_url,
                         'now' : now}
         mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg)
-        if mpd_data['periodsPerHour'] < 0: # Default case.
-            period_data = generate_default_period_data(mpd_data)
-        else:
-            period_data = generate_multiperiod_data(mpd_data, now)
+        period_data = generate_period_data(mpd_data, now)
         mpmod.process(mpd_data, period_data)
         return mpmod.get_full_xml()
 

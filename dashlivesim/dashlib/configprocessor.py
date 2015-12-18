@@ -31,6 +31,7 @@
 
 import ConfigParser
 from os.path import join, splitext
+from collections import namedtuple
 from .moduloperiod import ModuloPeriod
 
 DEFAULT_AVAILABILITY_STARTTIME_IN_S = 0 # Jan 1 1970 00:00 UTC
@@ -41,6 +42,7 @@ DEFAULT_SHORT_MINIMUM_UPDATE_PERIOD_IN_S = 10
 MUX_DIVIDER = "__" # Multiplexed representations can be written as A__V
 
 SEGTIMEFORMAT = 'HHII' # Format for segment durations and repeatcount (nr, repeat, start, duration)
+SegTimeEntry = namedtuple('SegTimeEntry', ['start_nr', 'repeats', 'start_time', 'duration'])
 
 
 class ConfigProcessorError(Exception):
@@ -55,7 +57,7 @@ class Config(object):
     "Holds config from both url parts and config file for content."
     #pylint: disable=too-many-instance-attributes
 
-    def __init__(self, base_url=None):
+    def __init__(self, vod_cfg_dir, base_url=None):
 
         self.availability_start_time_in_s = DEFAULT_AVAILABILITY_STARTTIME_IN_S
         self.all_segments_available_flag = ALL_MEDIA_SEGMENTS_AVAILABLE
@@ -88,6 +90,7 @@ class Config(object):
         self.vod_nr_segments_in_loop = 0
         self.vod_default_tsbd_secs = 0
         self.publish_time = None
+        self.vod_cfg_dir = vod_cfg_dir
 
     def __str__(self):
         return "\nConfig:\n" + "\n".join(["%s=%s" % (k, v) for (k, v) in self.__dict__.items()
@@ -121,6 +124,7 @@ class Config(object):
         self.vod_first_segment_in_loop = vod_cfg.first_segment_in_loop
         self.vod_nr_segments_in_loop = vod_cfg.nr_segments_in_loop
         self.media_data = vod_cfg.media_data
+        self.seg_duration = vod_cfg.segment_duration_s
 
     def update_for_tfdt32(self, now_int):
         "Set MPD values for 32-bit tfdt (reset session every 3 hours)."
@@ -266,7 +270,7 @@ class ConfigProcessor(object):
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
-        self.cfg = Config(base_url)
+        self.cfg = Config(vod_cfg_dir, base_url)
 
     def getconfig(self):
         "Get the config object."
@@ -350,7 +354,6 @@ class ConfigProcessor(object):
         vod_cfg.read_config(vod_cfg_file)
         cfg.update_with_reps(vod_cfg, url_parts, url_pos)
         cfg.update_with_vodcfg(vod_cfg)
-        cfg.seg_duration = vod_cfg.segment_duration_s
 
         if start_time is not None:
             if modulo_period is not None:

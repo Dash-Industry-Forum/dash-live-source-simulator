@@ -30,11 +30,15 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 
 import copy
+import bisect
 from xml.etree import ElementTree
 import cStringIO
 import time
 import re
+import os
+from struct import unpack
 from .timeformatconversions import seconds_to_iso_duration
+from .configprocessor import SEGTIMEFORMAT, SegTimeEntry
 
 from . import scte35
 
@@ -103,7 +107,7 @@ class MpdProcessor(object):
         if self.segtimeline:
             if mpd.attrib.has_key('maxSegmentDuration'):
                 del mpd.attrib['maxSegmentDuration']
-            mpd.set('minimumUpdatePeriod', seconds_to_iso_duration(self.cfg.seg_duration))
+            mpd.set('minimumUpdatePeriod', "0")
 
     #pylint: disable = too-many-branches
     def process_mpd_children(self, mpd, data, period_data):
@@ -204,9 +208,10 @@ class MpdProcessor(object):
         def create_segment_timeline(seg_template, content_type, pos):
             "Create and insert a new <SegmentTimeline> element and S entries for interval [now-tsbd, now]."
             #print self.cfg
+            media_data = self.cfg.media_data[content_type]
             remove_attribs(seg_template, ['duration'])
             remove_attribs(seg_template, ['startNumber'])
-            timescale = self.cfg.media_data[content_type]['timescale']
+            timescale = media_data['timescale']
             seg_template.set('timescale', str(timescale))
             media_template = seg_template.attrib['media']
             media_template = media_template.replace('$Number$', 't$Time$')
@@ -216,27 +221,93 @@ class MpdProcessor(object):
             seg_template.insert(pos, seg_timeline)
             now = self.mpd_proc_cfg['now']
             tsbd = self.cfg.timeshift_buffer_depth_in_s
-            seg_duration = self.cfg.seg_duration
-            #print now, tsbd, content_type, self.cfg.media_data[content_type], self.cfg.seg_duration,\
-                #self.cfg.seg_duration*self.cfg.vod_nr_segments_in_loop
-            last_seg_nr = now//seg_duration
-            first_seg_nr = last_seg_nr - tsbd//seg_duration - 1
-            #print "%s segments %d-%d" %(content_type, first_seg_nr, last_seg_nr)
-            repeat = True
-            if repeat:
+            print "Now = %d" % now
+
+            #Interval start = max(now-timeshift_buffer_depth_in_s, period_start)
+            #Interval end = min(now, period_end)
+
+            start = (now - tsbd)*timescale
+            end = now*timescale
+
+            # The start segment is the latest one that starts before or at start
+            # The end segment is the latest one that ends before now.
+
+            dat_file = media_data['dat_file']
+            dat_file_path = os.path.join(self.cfg.vod_cfg_dir, dat_file)
+            segtimedata = [] # Tuples corresponding to SegTimeEntry
+            with open(dat_file_path, "rb") as ifh:
+                data = ifh.read(12)
+                while data:
+                    ste = SegTimeEntry(*unpack(SEGTIMEFORMAT, data))
+                    segtimedata.append(ste)
+                    data = ifh.read(12)
+
+            interval_starts = [std[2] for std in segtimedata]
+
+            def find_latest_before(act_time, interval_starts, segtimedata):
+                wrap_offset = 0 # AST
+                wrap_duration = 3600*timescale # MPD VOD duration
+                nr_wraps = (act_time - wrap_offset) // wrap_duration
+                wrap_start_time = wrap_offset + nr_wraps * wrap_duration
+                wrap_end_time = wrap_start_time + wrap_duration
+                rel_offset = act_time - wrap_start_time
+                if not 0 <= rel_offset < wrap_end_time:
+                    print "VERY STRANGE relative offset = %d (%d)" % (rel_offset, wrap_start_time + wrap_duration)
+                index = bisect.bisect(interval_starts, rel_offset) - 1
+                segment_data = segtimedata[index]
+                print "index = %d %d %d %r %d" % (index, act_time, len(segtimedata), segment_data, nr_wraps)
+                seg_end_time = segment_data.start_time + segment_data.duration*(segment_data.repeats+1)
+                if seg_end_time > act_time:
+                    print "NOW WE MUST GO BACK ONE STEP"
+                    if index > 0:
+                        index -= 1
+                    else:
+                        nr_wraps -= 1
+                        if (nr_wraps < 0):
+                            return None
+                        raise Exception("Cannot handle this yet")
+                repeats = 0
+                accumulated_end_time = segment_data.start_time + segment_data.duration
+                while accumulated_end_time < rel_offset:
+                    accumulated_end_time += segment_data.duration
+                    repeats += 1
+                print "Repeats %d %d" % (repeats, segment_data.repeats)
+                return (index, repeats, nr_wraps)
+
+            result = find_latest_before(end, interval_starts, segtimedata)
+            if result is None:
+                return
+            (end_index, end_repeats, end_wraps) = result
+            (start_index, start_repeats, start_wraps) = find_latest_before(start, interval_starts, segtimedata)
+            print end_index, end_repeats, end_wraps
+
+            def generate_S(start_time, duration, repeat):
                 s_elem = ElementTree.Element(add_ns('S'))
-                s_elem.set("t", str(timescale*first_seg_nr*seg_duration))
-                s_elem.set("d", str(timescale*seg_duration))
-                s_elem.set("r", str(last_seg_nr-first_seg_nr))
+                if start_time is not None:
+                    s_elem.set("t", str(start_time))
+                s_elem.set("d", str(duration))
+                if repeat > 0:
+                    s_elem.set('r', str(repeat))
                 s_elem.tail = "\n"
                 seg_template.insert = seg_timeline.insert(0, s_elem)
-            else:
-                for snr in range(last_seg_nr, first_seg_nr-1, -1):
-                    s_elem = ElementTree.Element(add_ns('S'))
-                    s_elem.set("t", str(timescale*snr*seg_duration))
-                    s_elem.set("d", str(timescale*seg_duration))
-                    s_elem.tail = "\n"
-                    seg_template.insert = seg_timeline.insert(0, s_elem)
+
+            repeat_index = end_index
+            nr_wraps = end_wraps
+            while repeat_index != start_index or nr_wraps != start_wraps:
+                seg_data = segtimedata[repeat_index]
+                if repeat_index == end_index:
+                    generate_S(None, seg_data.duration, end_repeats)
+                else:
+                    generate_S(None, seg_data.duration, seg_data.repeats)
+                repeat_index -= 1
+                if repeat_index < 0:
+                    nr_wraps -= 1
+                    repeat_index = len(segtimedata) - 1
+                end_repeats = segtimedata[repeat_index].repeats
+            # Now at first entry corresponding to start_index and start_wraps
+            seg_data = segtimedata[start_index]
+            generate_S(seg_data.start_time + (start_repeats*seg_data.duration) + nr_wraps*3600*timescale,
+                        seg_data.duration, end_repeats - start_repeats)
 
         periods = mpd.findall(add_ns('Period'))
         last_period_id = '-1'
