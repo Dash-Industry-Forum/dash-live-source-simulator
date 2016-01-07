@@ -21,10 +21,11 @@ class TestMultipleBaseUrls(unittest.TestCase):
     "Test of redundant baseURLs with failing availability. Note that BASEURL must be set."
 
     def setUp(self):
+        self.oldBaseUrlState = mpdprocessor.SET_BASEURL
         mpdprocessor.SET_BASEURL = True
 
     def tearDown(self):
-        mpdprocessor.SET_BASEURL = False
+        mpdprocessor.SET_BASEURL = self.oldBaseUrlState
 
     def testMpdGeneration(self):
         testOutputFile = "MultiURL.mpd"

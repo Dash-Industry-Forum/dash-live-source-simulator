@@ -46,7 +46,11 @@ class TestMPDProcessing(unittest.TestCase):
     "Test of MPD parsing"
 
     def setUp(self):
+        self.oldBaseUrlState = mpdprocessor.SET_BASEURL
         mpdprocessor.SET_BASEURL = False
+
+    def tearDown(self):
+        mpdprocessor.SET_BASEURL = self.oldBaseUrlState
 
     def testMPDhandling(self):
         mpdprocessor.SET_BASEURL = True
@@ -180,6 +184,13 @@ class TestMediaSegments(unittest.TestCase):
 
 class TestMorePathLevels(unittest.TestCase):
     "Test when representations are further down in"
+
+    def setUp(self):
+        self.oldBaseUrlState = mpdprocessor.SET_BASEURL
+        mpdprocessor.SET_BASEURL = False
+
+    def tearDown(self):
+        mpdprocessor.SET_BASEURL = self.oldBaseUrlState
 
     def testMPDGet(self):
         mpdprocessor.SET_BASEURL = True
