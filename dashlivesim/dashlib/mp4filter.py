@@ -87,6 +87,12 @@ class MP4Filter(object):
 
     def filter_box(self, boxtype, data, file_pos, path=""):
         "Filter box or tree of boxes recursively."
+
+        if boxtype == "moof":
+            self.moof_start = file_pos
+        elif boxtype == "mdat":
+            self.mdat_start = file_pos
+
         if path == "":
             path = boxtype
         else:
