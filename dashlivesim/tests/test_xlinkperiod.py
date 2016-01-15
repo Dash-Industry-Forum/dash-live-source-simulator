@@ -45,19 +45,21 @@ class TestXlinkPeriod(unittest.TestCase):
 
     def testMpdPeriodReplaced(self):
         " Check whether appropriate periods have been replaced by in .mpd file"
-        nr_period_per_hour = 2
-        nr_xlink_periods_per_hour = 2
-        urlParts = ['livesim', 'periods_%s' %nr_period_per_hour, 'xlink_%s' %nr_xlink_periods_per_hour, 'testpic_2s', 'Manifest.mpd']
-        dp = dash_proxy.DashProvider("10.4.247.98", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10000)
-        d = dp.handle_request()
-        period_id_all = findall('Period id="([^"]*)"', d)
-        # Find all period ids in the .mpd file returned.
-        # We will check whether the correct periods have been xlinked here.
-        one_xlinks_for_how_many_periods =  nr_period_per_hour/nr_xlink_periods_per_hour
-        period_id_xlinks = [int(x[1:]) % one_xlinks_for_how_many_periods for x in period_id_all]
-        # All the period ids.
-        # If there were any periods, that were not supposed to be there,
-        # then one of the elements in period_id_xlinks would be zero.
-        result = 0
-        result = reduce(mul, period_id_xlinks, 1)
-        self.assertTrue(result != 0)
+        collectresult = 1
+        for k in [1, 2, 5, 10]:
+            nr_period_per_hour = 10
+            nr_xlink_periods_per_hour = k
+            urlParts = ['livesim', 'periods_%s' %nr_period_per_hour, 'xlink_%s' %nr_xlink_periods_per_hour, 'testpic_2s', 'Manifest.mpd']
+            dp = dash_proxy.DashProvider("10.4.247.98", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10000)
+            d = dp.handle_request()
+            period_id_all = findall('Period id="([^"]*)"', d)
+            # Find all period ids in the .mpd file returned.
+            # We will check whether the correct periods have been xlinked here.
+            one_xlinks_for_how_many_periods =  nr_period_per_hour/nr_xlink_periods_per_hour
+            period_id_xlinks = [int(x[1:]) % one_xlinks_for_how_many_periods for x in period_id_all]
+            # All the period ids.
+            # If there were any periods, that were not supposed to be there,
+            # then one of the elements in period_id_xlinks would be zero.
+            result = reduce(mul, period_id_xlinks, 1)
+            collectresult = result * collectresult
+        self.assertTrue(collectresult != 0)
