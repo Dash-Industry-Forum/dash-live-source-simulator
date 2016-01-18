@@ -234,6 +234,7 @@ class DashProvider(object):
         mpd_proc_cfg = {'scte35Present' : (cfg.scte35_per_minute > 0),
                         'continuous' : in_data['continuous'],
                         'segtimeline' : in_data['segtimeline'],
+                        'compress_s_element' : in_data['compress_s_element'],
                         'utc_timing_methods' : cfg.utc_timing_methods,
                         'utc_head_url' : self.utc_head_url,
                         'now' : now}

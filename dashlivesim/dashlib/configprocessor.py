@@ -71,6 +71,7 @@ class Config(object):
         self.periods_per_hour = -1 # If > 0, generates that many periods per hour. If 0, only one offset period.
         self.cont_multiperiod = False # This flag should only be used when periods_per_hour is set
         self.seg_timeline = False # This flag is only true when there is /segtimeline_1/ in the URL
+        self.s_compress = False # This flag is only true when there is /r_1/ in the URL
         self.multi_url = [] # If not empty, give multiple URLs in the BaseURL element
         self.period_offset = -1 # Make one period with an offset compared to ast
         self.scte35_per_minute = 0 # Number of 10s ads per minute. Maximum 3
@@ -262,7 +263,7 @@ class ConfigProcessor(object):
     "Process the url and VoD config files and setup configuration."
 
     url_cfg_keys = ("start", "ast", "dur", "init", "tsbd", "mup", "modulo", "all", "tfdt", "cont",
-                    "periods", "continuous", "segtimeline", "baseurl", "peroff", "scte35", "utc", "snr")
+                    "periods", "continuous", "segtimeline", "r", "baseurl", "peroff", "scte35", "utc", "snr")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -281,6 +282,7 @@ class ConfigProcessor(object):
                'periodsPerHour' : self.cfg.periods_per_hour,
                'continuous' : self.cfg.cont_multiperiod,
                'segtimeline' : self.cfg.seg_timeline,
+               'compress_s_element' : self.cfg.s_compress,
                'urls' : self.cfg.multi_url,
                'periodOffset' : self.cfg.period_offset,
                'publishTime' : self.cfg.publish_time,
@@ -330,6 +332,9 @@ class ConfigProcessor(object):
             elif key == "segtimeline": # Only valid when it's set to 1
                 if int(value) == 1:
                     cfg.seg_timeline = True
+            elif key == "r": # Only valid when it's set to 1
+                if int(value) == 1:
+                    cfg.s_compress = True
             elif key == "baseurl": # Use multiple URLs, put all the configuration strings in multi_url
                 cfg.multi_url.append(value)
             elif key == "peroff": # Set the period offset
