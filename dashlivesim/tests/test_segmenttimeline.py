@@ -82,6 +82,17 @@ class TestMediaSegments(unittest.TestCase):
         self.assertEqual(len(time_seg), len(nr_seg))
         self.assertEqual(time_seg, nr_seg)
 
+class TestMPDWithSegmentTimelineCompressedS(unittest.TestCase):
+    "Test that the MPD looks correct when segtimeline_1 and r_1 are defined."
 
+    def setUp(self):
+        urlParts = ['livesim', 'segtimeline_1', 'r_1', 'testpic', 'Manifest.mpd']
+        dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=8000)
+        self.d = dp.handle_request()
 
+    def testThatSElementIsCompressed(self):
+        testOutputFile = "segtimeline_s_compress.mpd"
+        rm_outfile(testOutputFile)
+        write_data_to_outfile(self.d, testOutputFile)
+        self.assertEqual(self.d.count('r="-1"'), 2)
 

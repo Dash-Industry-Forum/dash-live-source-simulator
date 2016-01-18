@@ -76,6 +76,7 @@ class MpdProcessor(object):
         self.utc_head_url = mpd_proc_cfg['utc_head_url']
         self.continuous = mpd_proc_cfg['continuous']
         self.segtimeline = mpd_proc_cfg['segtimeline']
+        self.compress_s_element = mpd_proc_cfg['compress_s_element']
         self.mpd_proc_cfg = mpd_proc_cfg
         self.cfg = cfg
         self.root = self.tree.getroot()
@@ -222,21 +223,32 @@ class MpdProcessor(object):
             last_seg_nr = now//seg_duration
             first_seg_nr = last_seg_nr - tsbd//seg_duration - 1
             #print "%s segments %d-%d" %(content_type, first_seg_nr, last_seg_nr)
-            repeat = True
+            repeat = False
             if repeat:
                 s_elem = ElementTree.Element(add_ns('S'))
                 s_elem.set("t", str(timescale*first_seg_nr*seg_duration))
                 s_elem.set("d", str(timescale*seg_duration))
                 s_elem.set("r", str(last_seg_nr-first_seg_nr))
                 s_elem.tail = "\n"
-                seg_template.insert = seg_timeline.insert(0, s_elem)
+                seg_timeline.insert(0, s_elem)
             else:
                 for snr in range(last_seg_nr, first_seg_nr-1, -1):
                     s_elem = ElementTree.Element(add_ns('S'))
                     s_elem.set("t", str(timescale*snr*seg_duration))
                     s_elem.set("d", str(timescale*seg_duration))
                     s_elem.tail = "\n"
-                    seg_template.insert = seg_timeline.insert(0, s_elem)
+                    seg_timeline.insert(0, s_elem)
+
+                # compress s_elem when /s_1/ is present in the URL
+                if self.compress_s_element:
+                    while len(seg_timeline) > 1:
+                        s_elem = seg_timeline[-1]
+                        s_comp = seg_timeline[-2]
+                        if int(s_elem.attrib.get('d')) == int(s_comp.attrib.get('d')):
+                            seg_timeline.remove(s_elem)
+                            s_comp.set("r", str(-1))
+                        else:
+                            break
 
         periods = mpd.findall(add_ns('Period'))
         last_period_id = '-1'
