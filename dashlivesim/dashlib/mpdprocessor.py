@@ -37,7 +37,6 @@ import time
 import re
 import os
 from struct import unpack
-from .timeformatconversions import seconds_to_iso_duration
 from .configprocessor import SEGTIMEFORMAT, SegTimeEntry
 
 from . import scte35
@@ -71,7 +70,7 @@ class MpdModifierError(Exception):
 
 class MpdProcessor(object):
     "Process a VoD MPD. Analyzer and convert it to a live (dynamic) session."
-    # pylint: disable=no-self-use, too-many-locals, too-many-instance-attributes
+    #pylint: disable=no-self-use, too-many-locals, too-many-instance-attributes
 
     def __init__(self, infile, mpd_proc_cfg, cfg=None):
         self.tree = ElementTree.parse(infile)
@@ -207,7 +206,6 @@ class MpdProcessor(object):
 
         def create_segment_timeline(seg_template, content_type, pos):
             "Create and insert a new <SegmentTimeline> element and S entries for interval [now-tsbd, now]."
-            #print self.cfg
             media_data = self.cfg.media_data[content_type]
             remove_attribs(seg_template, ['duration'])
             remove_attribs(seg_template, ['startNumber'])
@@ -217,17 +215,20 @@ class MpdProcessor(object):
             media_template = media_template.replace('$Number$', 't$Time$')
             seg_template.set('media', media_template)
             seg_timeline = ElementTree.Element(add_ns('SegmentTimeline'))
+            seg_timeline.text = "\n"
             seg_timeline.tail = "\n"
             seg_template.insert(pos, seg_timeline)
             now = self.mpd_proc_cfg['now']
             tsbd = self.cfg.timeshift_buffer_depth_in_s
-            print "Now = %d" % now
 
             #Interval start = max(now-timeshift_buffer_depth_in_s, period_start)
             #Interval end = min(now, period_end)
 
             start = (now - tsbd)*timescale
             end = now*timescale
+
+            wrap_duration = 3600*timescale
+            wrap_offset = 0*timescale #AST
 
             # The start segment is the latest one that starts before or at start
             # The end segment is the latest one that ends before now.
@@ -244,44 +245,63 @@ class MpdProcessor(object):
 
             interval_starts = [std[2] for std in segtimedata]
 
-            def find_latest_before(act_time, interval_starts, segtimedata):
-                wrap_offset = 0 # AST
-                wrap_duration = 3600*timescale # MPD VOD duration
+            def get_seg_starttime(nr_wraps, seg_data, repeats):
+                "Get the segment starttime given repeats."
+                return wrap_offset + nr_wraps*wrap_duration + seg_data.start_time + repeats*seg_data.duration
+
+            def find_latest_starting_before(act_time):
+                "Fint the latest segment starting before act_time."
                 nr_wraps = (act_time - wrap_offset) // wrap_duration
+                if nr_wraps < 0:
+                    return # This is before AST
                 wrap_start_time = wrap_offset + nr_wraps * wrap_duration
-                wrap_end_time = wrap_start_time + wrap_duration
-                rel_offset = act_time - wrap_start_time
-                if not 0 <= rel_offset < wrap_end_time:
-                    print "VERY STRANGE relative offset = %d (%d)" % (rel_offset, wrap_start_time + wrap_duration)
-                index = bisect.bisect(interval_starts, rel_offset) - 1
-                segment_data = segtimedata[index]
-                print "index = %d %d %d %r %d" % (index, act_time, len(segtimedata), segment_data, nr_wraps)
-                seg_end_time = segment_data.start_time + segment_data.duration*(segment_data.repeats+1)
-                if seg_end_time > act_time:
-                    print "NOW WE MUST GO BACK ONE STEP"
-                    if index > 0:
-                        index -= 1
-                    else:
-                        nr_wraps -= 1
-                        if (nr_wraps < 0):
-                            return None
-                        raise Exception("Cannot handle this yet")
+                rel_time = act_time - wrap_start_time
+                index = bisect.bisect(interval_starts, rel_time) - 1
+                seg_data = segtimedata[index]
                 repeats = 0
-                accumulated_end_time = segment_data.start_time + segment_data.duration
-                while accumulated_end_time < rel_offset:
-                    accumulated_end_time += segment_data.duration
+                accumulated_end_time = seg_data.start_time + seg_data.duration
+                while accumulated_end_time < rel_time:
+                    accumulated_end_time += seg_data.duration
                     repeats += 1
-                print "Repeats %d %d" % (repeats, segment_data.repeats)
                 return (index, repeats, nr_wraps)
 
-            result = find_latest_before(end, interval_starts, segtimedata)
+            def find_repeats_ending_before(act_time, index, nr_wraps):
+                "Find the repeats given values of act_time, index, nr_wrapts."
+                wrap_start_time = wrap_offset + nr_wraps * wrap_duration
+                seg_data = segtimedata[index]
+                rel_time = act_time - wrap_start_time
+                repeats = 0
+                accumulated_end_time = seg_data.start_time + seg_data.duration
+                while True:
+                    accumulated_end_time += seg_data.duration
+                    if accumulated_end_time > rel_time:
+                        break
+                    repeats += 1
+                    if repeats > seg_data.repeats:
+                        print "Inconsistent table of segment durations. repeats = %d" % repeats
+                        return
+                return repeats
+
+            result = find_latest_starting_before(end)
             if result is None:
                 return
             (end_index, end_repeats, end_wraps) = result
-            (start_index, start_repeats, start_wraps) = find_latest_before(start, interval_starts, segtimedata)
-            print end_index, end_repeats, end_wraps
+            if end_repeats > 0:
+                end_repeats -= 1  # Just move one segment back in the repeat
+            elif end_index > 0:
+                end_index -= 1
+                end_repeats = find_repeats_ending_before(end, end_index, end_wraps)
+            else:
+                end_wraps -= 1
+                if end_wraps < 0:
+                    return
+                end_index = len(segtimedata) - 1
+                end_repeats = find_repeats_ending_before(end, end_index, end_wraps)
 
-            def generate_S(start_time, duration, repeat):
+            (start_index, start_repeats, start_wraps) = find_latest_starting_before(start)
+
+            def generate_s_elem(start_time, duration, repeat):
+                "Generate the S elements for the SegmentTimeline."
                 s_elem = ElementTree.Element(add_ns('S'))
                 if start_time is not None:
                     s_elem.set("t", str(start_time))
@@ -296,9 +316,9 @@ class MpdProcessor(object):
             while repeat_index != start_index or nr_wraps != start_wraps:
                 seg_data = segtimedata[repeat_index]
                 if repeat_index == end_index:
-                    generate_S(None, seg_data.duration, end_repeats)
+                    generate_s_elem(None, seg_data.duration, end_repeats)
                 else:
-                    generate_S(None, seg_data.duration, seg_data.repeats)
+                    generate_s_elem(None, seg_data.duration, seg_data.repeats)
                 repeat_index -= 1
                 if repeat_index < 0:
                     nr_wraps -= 1
@@ -306,8 +326,8 @@ class MpdProcessor(object):
                 end_repeats = segtimedata[repeat_index].repeats
             # Now at first entry corresponding to start_index and start_wraps
             seg_data = segtimedata[start_index]
-            generate_S(seg_data.start_time + (start_repeats*seg_data.duration) + nr_wraps*3600*timescale,
-                        seg_data.duration, end_repeats - start_repeats)
+            generate_s_elem(get_seg_starttime(nr_wraps, seg_data, start_repeats), seg_data.duration,
+                            end_repeats - start_repeats)
 
         periods = mpd.findall(add_ns('Period'))
         last_period_id = '-1'
