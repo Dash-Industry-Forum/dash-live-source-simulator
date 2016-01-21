@@ -38,6 +38,7 @@ import re
 import os
 from struct import unpack
 from .configprocessor import SEGTIMEFORMAT, SegTimeEntry
+from .timeformatconversions import make_timestamp
 
 from . import scte35
 
@@ -103,10 +104,13 @@ class MpdProcessor(object):
         set_values_from_dict(mpd, key_list, data)
         if mpd.attrib.has_key('mediaPresentationDuration') and not data.has_key('mediaPresentationDuration'):
             del mpd.attrib['mediaPresentationDuration']
+        mpd.set('publishTime', make_timestamp(self.mpd_proc_cfg['now'])) #TODO Correlate time with change in MPD
+        mpd.set('id', 'Config part of url maybe?')
         if self.segtimeline:
             if mpd.attrib.has_key('maxSegmentDuration'):
                 del mpd.attrib['maxSegmentDuration']
-            mpd.set('minimumUpdatePeriod', "0")
+            mpd.set('minimumUpdatePeriod', "PT0S")
+
 
     #pylint: disable = too-many-branches
     def process_mpd_children(self, mpd, data, period_data):
