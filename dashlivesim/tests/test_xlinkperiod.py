@@ -38,10 +38,11 @@ from ..dashlib import mpdprocessor
 class TestXlinkPeriod(unittest.TestCase):
 
     def setUp(self):
+        self.old_set_baseurl = mpdprocessor.SET_BASEURL
         mpdprocessor.SET_BASEURL = True
 
     def tearDown(self):
-        mpdprocessor.SET_BASEURL = True
+        mpdprocessor.SET_BASEURL = self.old_set_baseurl
 
     def testMpdPeriodReplaced(self):
         " Check whether appropriate periods have been replaced by in .mpd file"
