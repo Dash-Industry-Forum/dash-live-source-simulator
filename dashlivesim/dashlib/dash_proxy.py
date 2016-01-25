@@ -95,54 +95,35 @@ class DashSegmentNotAvailableError(DashProxyError):
     "Segment not available."
 
 
-def process_manifest(filename, in_data, now, utc_timing_methods, utc_head_url):
-    "Process the manifest and provide a changed one."
-    new_data = {'publishTime' : '%s' % make_timestamp(in_data['publishTime']),
-                'availabilityStartTime' : '%s' % make_timestamp(in_data['availability_start_time_in_s']),
-                'timeShiftBufferDepth' : '%s' % in_data['timeShiftBufferDepth'],
-                'minimumUpdatePeriod' : '%s' % in_data['minimumUpdatePeriod'],
-                'duration' : '%d' % in_data['segDuration'],
-                'maxSegmentDuration' : 'PT%dS' % in_data['segDuration'],
-                'BaseURL' : '%s' % in_data['BaseURL'],
-                'urls' : in_data['urls'],
-                'periodOffset' : in_data['periodOffset'],
-                'presentationTimeOffset' : 0}
-    if in_data.has_key('availabilityEndTime'):
-        new_data['availabilityEndTime'] = make_timestamp(in_data['availabilityEndTime'])
-    if in_data.has_key('mediaPresentationDuration'):
-        new_data['mediaPresentationDuration'] = in_data['mediaPresentationDuration']
-    mpmod = mpdprocessor.MpdProcessor(filename, in_data['scte35Present'], utc_timing_methods, utc_head_url)
-    if in_data['periodsPerHour'] < 0: # Default case.
-        period_data = generate_default_period_data(in_data, new_data)
-    else:
-        period_data = generate_multiperiod_data(in_data, new_data, now)
-    mpmod.process(new_data, period_data, in_data['continuous'])
-    return mpmod.get_full_xml()
+def generate_period_data(mpd_data, now):
+    """Generate an array of period data depending on current time (now). 0 gives one period with start offset.
 
-def generate_default_period_data(in_data, new_data):
-    "Generate period data for a single period starting at the same time as the session (start = PT0S)."
-    start = 0
-    seg_dur = in_data['segDuration']
-    start_number = in_data['startNumber'] + start/seg_dur
-    data = {'id' : "p0", 'start' : 'PT%dS' % start, 'duration' : seg_dur,
-            'presentationTimeOffset' : "%d" % new_data['presentationTimeOffset'],
-            'startNumber' : str(start_number)}
-    return [data]
+    mpd_data is changed (minimumUpdatePeriod)."""
+    #pylint: disable=too-many-locals
 
-def generate_multiperiod_data(in_data, new_data, now):
-    " Generate an array of period data depending on current time (now). 0 gives one period with start offset."
-    # pylint: disable=too-many-locals
-    nr_periods_per_hour = min(in_data['periodsPerHour'], 60)
-    if nr_periods_per_hour not in (0, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60):
+    nr_periods_per_hour = min(mpd_data['periodsPerHour'], 60)
+    if not nr_periods_per_hour in (-1, 0, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60):
         raise Exception("Bad nr of periods per hour %d" % nr_periods_per_hour)
-    seg_dur = in_data['segDuration']
+
+    seg_dur = mpd_data['segDuration']
     period_data = []
-    if nr_periods_per_hour > 0:
+    if nr_periods_per_hour == -1: # Just one period starting at at time start relative AST
+        start = 0
+        start_number = mpd_data['startNumber'] + start/seg_dur
+        data = {'id' : "p0", 'start' : 'PT%dS' % start, 'startNumber' : str(start_number),
+                'duration' : seg_dur, 'presentationTimeOffset' : "%d" % mpd_data['presentationTimeOffset']}
+        period_data.append(data)
+    elif nr_periods_per_hour == 0: # nrPeriodsPerHour == 0, make one old period but starting 1000h after epoch
+        start = 3600*1000
+        data = {'id' : "p0", 'start' : 'PT%dS' % start, 'startNumber' : "%d" % (start/seg_dur),
+                'duration' : seg_dur, 'presentationTimeOffset' : "%d" % start}
+        period_data.append(data)
+    else: #  nr_periods_per_hour > 0
         period_duration = 3600/nr_periods_per_hour
         minimum_update_period = "PT%dS" % (period_duration/2 - 5)
-        new_data['minimumUpdatePeriod'] = minimum_update_period
+        mpd_data['minimumUpdatePeriod'] = minimum_update_period
         this_period_nr = now/period_duration
-        nr_periods_back = in_data['timeShiftBufferDepthInS']/period_duration + 1
+        nr_periods_back = mpd_data['timeShiftBufferDepthInS']/period_duration + 1
         start_period_nr = this_period_nr - nr_periods_back
         last_period_nr = this_period_nr + 1
         for period_nr in range(start_period_nr, last_period_nr+1):
@@ -151,11 +132,6 @@ def generate_multiperiod_data(in_data, new_data, now):
                     'startNumber' : "%d" % (start_time/seg_dur), 'duration' : seg_dur,
                     'presentationTimeOffset' : period_nr*period_duration}
             period_data.append(data)
-    else: # nrPeriodsPerHour == 0, make one old period but starting 1000h after epoch
-        start = 3600*1000
-        data = {'id' : "p0", 'start' : 'PT%dS' % start, 'startNumber' : "%d" % (start/seg_dur),
-                'duration' : seg_dur, 'presentationTimeOffset' : "%d" % start}
-        period_data.append(data)
     return period_data
 
 def generate_response_with_xlink(response, cfg, filename, nr_periods_per_hour, nr_xlink_periods_per_hour):
@@ -165,6 +141,7 @@ def generate_response_with_xlink(response, cfg, filename, nr_periods_per_hour, n
     # corresponding periods at that place.
     # 2. When the xlink period is accessed, it extracts the corresponding period from .mpd file this function generates,
     # adds some information and returns the appropriate .xml document to the java client.
+    # pylint: disable=too-many-locals, too-many-statements
     if cfg == ".mpd":
         period_id_all = findall('Period id="([^"]*)"', response)
         # Find all period ids in the response file.
@@ -214,7 +191,6 @@ class DashProvider(object):
         self.now_float = now # float
         self.now = int(now)
         self.req = req
-        self.cfg = None
         self.new_tfdt_value = None
 
     def handle_request(self):
@@ -227,6 +203,7 @@ class DashProvider(object):
             self.req.log_error("dash_proxy: [%s] %s" % ("/".join(self.url_parts[-3:]), msg))
         return {'ok' : False, 'pl' : msg + "\n"}
 
+    #pylint:disable = too-many-locals, too-many-branches
     def parse_url(self):
         "Parse the absolute URL that is received in mod_python."
         cfg_processor = ConfigProcessor(self.vod_conf_dir, self.base_url)
@@ -274,18 +251,18 @@ class DashProvider(object):
             else:
                 response = self.process_media_segment(cfg, self.now_float)
                 if len(cfg.multi_url) == 1: # There is one specific baseURL with losses specified
-                    a, b = cfg.multi_url[0].split("_")
-                    dur1 = int(a[1:])
-                    dur2 = int(b[1:])
+                    a_var, b_var = cfg.multi_url[0].split("_")
+                    dur1 = int(a_var[1:])
+                    dur2 = int(b_var[1:])
                     total_dur = dur1 + dur2
                     num_loop = int(ceil(60.0/(float(total_dur))))
                     now_mod_60 = self.now % 60
-                    if a[0] == 'u' and b[0] == 'd': #parse server up or down information
+                    if a_var[0] == 'u' and b_var[0] == 'd': #parse server up or down information
                         for i in range(num_loop):
                             if i*total_dur + dur1 < now_mod_60 <= (i+1)*total_dur:
                                 response = self.error_response("BaseURL server down at %d" % (self.now))
                                 break
-                    elif a[0] == 'd' and b[0] == 'u':
+                    elif a_var[0] == 'd' and b_var[0] == 'u':
                         for i in range(num_loop):
                             if i*(total_dur) < now_mod_60 <= i*(total_dur)+dur1:
                                 response = self.error_response("BaseURL server down at %d" % (self.now))
@@ -295,20 +272,35 @@ class DashProvider(object):
         return response
 
     #pylint: disable=no-self-use
-    def generate_dynamic_mpd(self, cfg, mpd_filename, mpd_input_data, now):
+    def generate_dynamic_mpd(self, cfg, mpd_filename, in_data, now):
         "Generate the dynamic MPD."
+        mpd_data = in_data.copy()
         if cfg.minimum_update_period_in_s is not None:
-            mpd_input_data['minimumUpdatePeriod'] = seconds_to_iso_duration(cfg.minimum_update_period_in_s)
+            mpd_data['minimumUpdatePeriod'] = seconds_to_iso_duration(cfg.minimum_update_period_in_s)
         else:
-            mpd_input_data['minimumUpdatePeriod'] = DEFAULT_MINIMUM_UPDATE_PERIOD
+            mpd_data['minimumUpdatePeriod'] = DEFAULT_MINIMUM_UPDATE_PERIOD
         if cfg.media_presentation_duration is not None:
-            mpd_input_data['mediaPresentationDuration'] = seconds_to_iso_duration(cfg.media_presentation_duration)
-        mpd_input_data['timeShiftBufferDepth'] = seconds_to_iso_duration(cfg.timeshift_buffer_depth_in_s)
-        mpd_input_data['timeShiftBufferDepthInS'] = cfg.timeshift_buffer_depth_in_s
-        mpd_input_data['scte35Present'] = (cfg.scte35_per_minute > 0)
-        mpd_input_data['startNumber'] = cfg.start_nr
-        mpd = process_manifest(mpd_filename, mpd_input_data, now, cfg.utc_timing_methods, self.utc_head_url)
-        return mpd
+            mpd_data['mediaPresentationDuration'] = seconds_to_iso_duration(cfg.media_presentation_duration)
+        mpd_data['timeShiftBufferDepth'] = seconds_to_iso_duration(cfg.timeshift_buffer_depth_in_s)
+        mpd_data['timeShiftBufferDepthInS'] = cfg.timeshift_buffer_depth_in_s
+        mpd_data['startNumber'] = cfg.start_nr
+        mpd_data['publishTime'] = '%s' % make_timestamp(in_data['publishTime'])
+        mpd_data['availabilityStartTime'] = '%s' % make_timestamp(in_data['availability_start_time_in_s'])
+        mpd_data['duration'] = '%d' % in_data['segDuration']
+        mpd_data['maxSegmentDuration'] = 'PT%dS' % in_data['segDuration']
+        mpd_data['presentationTimeOffset'] = 0
+        if in_data.has_key('availabilityEndTime'):
+            mpd_data['availabilityEndTime'] = make_timestamp(in_data['availabilityEndTime'])
+        mpd_proc_cfg = {'scte35Present' : (cfg.scte35_per_minute > 0),
+                        'continuous' : in_data['continuous'],
+                        'segtimeline' : in_data['segtimeline'],
+                        'utc_timing_methods' : cfg.utc_timing_methods,
+                        'utc_head_url' : self.utc_head_url,
+                        'now' : now}
+        mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg)
+        period_data = generate_period_data(mpd_data, now)
+        mpmod.process(mpd_data, period_data)
+        return mpmod.get_full_xml()
 
     def process_init_segment(self, cfg):
         "Read non-multiplexed or create muxed init segments."
@@ -333,10 +325,26 @@ class DashProvider(object):
 
         Assumes that segment_ast = (seg_nr+1-startNumber)*seg_dur."""
         #pylint: disable=too-many-locals
+
+        def get_timescale(cfg):
+            "Get timescale for the current representation."
+            timescale = None
+            curr_rep_id = cfg.rel_path
+            for rep in cfg.reps:
+                if rep['id'] == curr_rep_id:
+                    timescale = rep['timescale']
+                    break
+            return timescale
+
         seg_dur = cfg.seg_duration
         seg_name = cfg.filename
         seg_base, seg_ext = splitext(seg_name)
-        seg_nr = int(seg_base)
+        timescale = get_timescale(cfg)
+        if seg_base[0] == 't':
+            #TODO. Make a more accurate test here that the timestamp is a correct one
+            seg_nr = int(round(float(seg_base[1:])/seg_dur/timescale))
+        else:
+            seg_nr = int(seg_base)
         seg_start_nr = cfg.start_nr == -1 and 1 or cfg.start_nr
         if seg_nr < seg_start_nr:
             return self.error_response("Request for segment %d before first %d" % (seg_nr, seg_start_nr))

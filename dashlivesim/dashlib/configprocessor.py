@@ -31,6 +31,7 @@
 
 import ConfigParser
 from os.path import join, splitext
+from collections import namedtuple
 from .moduloperiod import ModuloPeriod
 
 DEFAULT_AVAILABILITY_STARTTIME_IN_S = 0 # Jan 1 1970 00:00 UTC
@@ -39,6 +40,9 @@ DEFAULT_TIMESHIFT_BUFFER_DEPTH_IN_SECS = 300
 DEFAULT_SHORT_MINIMUM_UPDATE_PERIOD_IN_S = 10
 
 MUX_DIVIDER = "__" # Multiplexed representations can be written as A__V
+
+SEGTIMEFORMAT = 'HHII' # Format for segment durations and repeatcount (nr, repeat, start, duration)
+SegTimeEntry = namedtuple('SegTimeEntry', ['start_nr', 'repeats', 'start_time', 'duration'])
 
 
 class ConfigProcessorError(Exception):
@@ -53,7 +57,7 @@ class Config(object):
     "Holds config from both url parts and config file for content."
     #pylint: disable=too-many-instance-attributes
 
-    def __init__(self, base_url=None):
+    def __init__(self, vod_cfg_dir, base_url=None):
 
         self.availability_start_time_in_s = DEFAULT_AVAILABILITY_STARTTIME_IN_S
         self.all_segments_available_flag = ALL_MEDIA_SEGMENTS_AVAILABLE
@@ -69,6 +73,7 @@ class Config(object):
         self.periods_per_hour = -1 # If > 0, generates that many periods per hour. If 0, only one offset period.
         self.xlink_periods_per_hour = -1 # Number of periods per hour that are accessed via xlink.
         self.cont_multiperiod = False # This flag should only be used when periods_per_hour is set
+        self.seg_timeline = False # This flag is only true when there is /segtimeline_1/ in the URL
         self.multi_url = [] # If not empty, give multiple URLs in the BaseURL element
         self.period_offset = -1 # Make one period with an offset compared to ast
         self.scte35_per_minute = 0 # Number of 10s ads per minute. Maximum 3
@@ -79,12 +84,18 @@ class Config(object):
         self.rel_path = None
         self.filename = None
         self.reps = None # An array of representations with id, content_type, timescale (only > 1 if muxed)
+        self.media_data = None  # A dictionary with timescales and paths to segment durations
         self.ext = None # File extension
         self.seg_duration = None
         self.vod_first_segment_in_loop = None
         self.vod_nr_segments_in_loop = 0
         self.vod_default_tsbd_secs = 0
         self.publish_time = None
+        self.vod_cfg_dir = vod_cfg_dir
+
+    def __str__(self):
+        return "\nConfig:\n" + "\n".join(["%s=%s" % (k, v) for (k, v) in self.__dict__.items()
+                                          if not k.startswith("_")])
 
     def update_with_filedata(self, url_parts, url_pos):
         "Find the content_name, file_name, and representations (if muxed as signalled by MUX_DIVIDER)."
@@ -106,12 +117,15 @@ class Config(object):
                 rep_data = {'id' : rep, 'content_type' : content_type, 'timescale' :timescale}
                 self.reps.append(rep_data)
 
+
     def update_with_vodcfg(self, vod_cfg):
         "Update config with data from VoD content."
         if self.timeshift_buffer_depth_in_s is None:
             self.timeshift_buffer_depth_in_s = vod_cfg.default_tsbd_secs
         self.vod_first_segment_in_loop = vod_cfg.first_segment_in_loop
         self.vod_nr_segments_in_loop = vod_cfg.nr_segments_in_loop
+        self.media_data = vod_cfg.media_data
+        self.seg_duration = vod_cfg.segment_duration_s
 
     def update_for_tfdt32(self, now_int):
         "Set MPD values for 32-bit tfdt (reset session every 3 hours)."
@@ -183,7 +197,7 @@ class VodConfig(object):
     "Configuration of the actual content."
 
     def __init__(self):
-        self.good_version = "1.0"
+        self.good_versions = ("1.0", "1.1")
         self.first_segment_in_loop = None
         self.nr_segments_in_loop = 0
         self.segment_duration_s = 0
@@ -197,8 +211,9 @@ class VodConfig(object):
         with open(config_file, 'rb') as cfg_file:
             config.readfp(cfg_file)
             version = config.get('General', 'version')
-            if version != self.good_version:
-                raise ConfigProcessorError("Bad config file version: %s (should be %s)" % (version, self.good_version))
+            if version not in self.good_versions:
+                raise ConfigProcessorError("Bad config file version: %s (should be in %s)" % (version,
+                                                                                              self.good_versions))
             self.first_segment_in_loop = config.getint("Setup", "first_segment_in_loop")
             self.segment_duration_s = config.getint("Setup", "segment_duration_s")
             self.nr_segments_in_loop = config.getint("Setup", "nr_segments_in_loop")
@@ -209,6 +224,9 @@ class VodConfig(object):
                     timescale = config.getint(media, "timescale")
                     representations = [rep.strip() for rep in reps.split(",")]
                     self.media_data[media] = {'timescale' : timescale, 'representations' : representations}
+                    if version == "1.1":
+                        self.media_data[media]['total_duration'] = config.getint(media, "total_duration")
+                        self.media_data[media]['dat_file'] = config.get(media, 'dat_file')
                 except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
                     pass
 
@@ -217,6 +235,13 @@ class VodConfig(object):
         "Write a config file for the analyzed content, that can then be used to serve it efficiently."
         # Note that one needs to write in reverse order
         config = ConfigParser.RawConfigParser()
+        config.add_section('General')
+        config.set('General', 'version', '1.1')
+        config.add_section('Setup')
+        config.set('Setup', 'default_tsbd_secs', data.get('default_tsbd_secs', self.default_tsbd_secs))
+        config.set('Setup', 'segment_duration_s', data.get('segment_duration_s', self.segment_duration_s))
+        config.set('Setup', 'nr_segments_in_loop', data.get('nr_segments_in_loop', self.nr_segments_in_loop))
+        config.set('Setup', 'first_segment_in_loop', data.get('first_segment_in_loop', self.first_segment_in_loop))
         for content_type in ('video', 'audio', 'subtitles'):
             media_data = data.get('media_data', self.media_data)
             if media_data.has_key(content_type):
@@ -224,13 +249,8 @@ class VodConfig(object):
                 mdata = media_data[content_type]
                 config.set(content_type, 'representations', ','.join(mdata['representations']))
                 config.set(content_type, 'timescale', mdata['timescale'])
-        config.add_section('Setup')
-        config.set('Setup', 'default_tsbd_secs', data.get('default_tsbd_secs', self.default_tsbd_secs))
-        config.set('Setup', 'segment_duration_s', data.get('segment_duration_s', self.segment_duration_s))
-        config.set('Setup', 'nr_segments_in_loop', data.get('nr_segments_in_loop', self.nr_segments_in_loop))
-        config.set('Setup', 'first_segment_in_loop', data.get('first_segment_in_loop', self.first_segment_in_loop))
-        config.add_section('General')
-        config.set('General', 'version', '1.0')
+                config.set(content_type, 'total_duration', mdata['totalDuration'])
+                config.set(content_type, 'dat_file', mdata['datFile'])
         with open(config_file, 'wb') as cfg_file:
             config.write(cfg_file)
 
@@ -247,11 +267,11 @@ class ConfigProcessor(object):
     "Process the url and VoD config files and setup configuration."
 
     url_cfg_keys = ("start", "ast", "dur", "init", "tsbd", "mup", "modulo", "all", "tfdt", "cont",
-                    "periods", "xlink", "continuous", "baseurl", "peroff", "scte35", "utc", "snr")
+                    "periods", "xlink", "continuous", "segtimeline", "baseurl", "peroff", "scte35", "utc", "snr")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
-        self.cfg = Config(base_url)
+        self.cfg = Config(vod_cfg_dir, base_url)
 
     def getconfig(self):
         "Get the config object."
@@ -266,9 +286,11 @@ class ConfigProcessor(object):
                'periodsPerHour' : self.cfg.periods_per_hour,
                'xlinkPeriodsPerHour' : self.cfg.xlink_periods_per_hour,
                'continuous' : self.cfg.cont_multiperiod,
+               'segtimeline' : self.cfg.seg_timeline,
                'urls' : self.cfg.multi_url,
                'periodOffset' : self.cfg.period_offset,
-               'publishTime' : self.cfg.publish_time}
+               'publishTime' : self.cfg.publish_time,
+               'mediaData' : self.cfg.media_data}
         if self.cfg.availability_end_time:
             mpd['availabilityEndTime'] = self.cfg.availability_end_time
         return mpd
@@ -313,6 +335,9 @@ class ConfigProcessor(object):
             elif key == "continuous": # Only valid when it's set to 1 and periods_per_hour is set
                 if int(value) == 1:
                     cfg.cont_multiperiod = True
+            elif key == "segtimeline": # Only valid when it's set to 1
+                if int(value) == 1:
+                    cfg.seg_timeline = True
             elif key == "baseurl": # Use multiple URLs, put all the configuration strings in multi_url
                 cfg.multi_url.append(value)
             elif key == "peroff": # Set the period offset
@@ -333,7 +358,6 @@ class ConfigProcessor(object):
         vod_cfg.read_config(vod_cfg_file)
         cfg.update_with_reps(vod_cfg, url_parts, url_pos)
         cfg.update_with_vodcfg(vod_cfg)
-        cfg.seg_duration = vod_cfg.segment_duration_s
 
         if start_time is not None:
             if modulo_period is not None:

@@ -37,15 +37,20 @@ vodMPD = join(CONTENT_ROOT, "testpic", "Manifest.mpd")
 class TestMpdProcessor(unittest.TestCase):
     "Test of MPD parsing and writing"
 
+    def setUp(self):
+        self.cfg = {'scte35Present' : False, 'utc_timing_methods' : [], 'utc_head_url' : "",
+                    'continuous' : False, 'segtimeline' : False, 'now' : 100000}
+
     def test_mpd_in_out(self):
-        mp = mpdprocessor.MpdProcessor(vodMPD, False, "")
+        mp = mpdprocessor.MpdProcessor(vodMPD, self.cfg)
         mp.process({'availabilityStartTime': "1971", 'BaseURL' : "http://india/", 'minimumUpdatePeriod' : "0", 'periodOffset' : 100000},
                    [{'id' : "p0", 'startNumber' : "0", 'presentationTimeOffset' : 0},
                     {'id' : "p1", 'startNumber' : "3600", 'presentationTimeOffset' : 100000}])
         xml = mp.get_full_xml()
 
     def test_utc_timing_head(self):
-        mp = mpdprocessor.MpdProcessor(vodMPD, False, ["head"])
+        self.cfg['utc_timing_methods'] = ["head"]
+        mp = mpdprocessor.MpdProcessor(vodMPD, self.cfg)
         mp.process({'availabilityStartTime': "1971", 'BaseURL' : "http://india/", 'minimumUpdatePeriod' : "0", 'periodOffset' : 100000},
                     [{'id' : "p0", 'startNumber' : "0", 'presentationTimeOffset' : 0}] )
         xml = mp.get_full_xml()
@@ -53,7 +58,8 @@ class TestMpdProcessor(unittest.TestCase):
         self.assertGreater(head_pos, 0, "UTCTiming for head method not found.")
 
     def test_utc_timing_direct_and_head(self):
-        mp = mpdprocessor.MpdProcessor(vodMPD, False, ["direct", "head"])
+        self.cfg['utc_timing_methods'] = ["direct", "head"]
+        mp = mpdprocessor.MpdProcessor(vodMPD, self.cfg)
         mp.process({'availabilityStartTime': "1971", 'BaseURL' : "http://india/", 'minimumUpdatePeriod' : "0", 'periodOffset' : 100000},
                    [{'id' : "p0", 'startNumber' : "0", 'presentationTimeOffset' : 0}] )
         xml = mp.get_full_xml()
