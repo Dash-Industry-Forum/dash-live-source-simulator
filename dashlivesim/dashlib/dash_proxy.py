@@ -64,12 +64,14 @@ For infinite content, the default is startNumber = 0, availabilityStartTime = 19
 
 from os.path import splitext, join
 from math import ceil
+from re import findall
 from .initsegmentfilter import InitLiveFilter
 from .mediasegmentfilter import MediaSegmentFilter
 from . import segmentmuxer
 from . import mpdprocessor
 from .timeformatconversions import make_timestamp, seconds_to_iso_duration
 from .configprocessor import ConfigProcessor
+
 
 SECS_IN_DAY = 24*3600
 DEFAULT_MINIMUM_UPDATE_PERIOD = "P100Y"
@@ -128,10 +130,10 @@ def generate_default_period_data(in_data, new_data):
     return [data]
 
 def generate_multiperiod_data(in_data, new_data, now):
-    "Generate an array of period data depending on current time (now). 0 gives one period with start offset."
-    #pylint: disable=too-many-locals
+    " Generate an array of period data depending on current time (now). 0 gives one period with start offset."
+    # pylint: disable=too-many-locals
     nr_periods_per_hour = min(in_data['periodsPerHour'], 60)
-    if not nr_periods_per_hour in (0, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60):
+    if nr_periods_per_hour not in (0, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60):
         raise Exception("Bad nr of periods per hour %d" % nr_periods_per_hour)
     seg_dur = in_data['segDuration']
     period_data = []
@@ -156,6 +158,46 @@ def generate_multiperiod_data(in_data, new_data, now):
         period_data.append(data)
     return period_data
 
+def generate_response_with_xlink(response, cfg, filename, nr_periods_per_hour, nr_xlink_periods_per_hour):
+    "Convert the normally created response into a response which has xlinks"
+    # This functions has two functionality : 1.For MPD and 2.For PERIOD.
+    # 1. When the normally created .mpd file is fed to this function, it removes periods and inserts xlink for the
+    # corresponding periods at that place.
+    # 2. When the xlink period is accessed, it extracts the corresponding period from .mpd file this function generates,
+    # adds some information and returns the appropriate .xml document to the java client.
+    if cfg == ".mpd":
+        period_id_all = findall('Period id="([^"]*)"', response)
+        # Find all period ids in the response file.
+        one_xlinks_for_how_many_periods = nr_periods_per_hour/nr_xlink_periods_per_hour
+        period_id_xlinks = [x for x in period_id_all if int(x[1:]) % one_xlinks_for_how_many_periods == 0]
+        # Periods that will be replaced with links.
+        base_url = findall('<BaseURL>([^"]*)</BaseURL>', response)
+        for period_id in period_id_xlinks:
+            # Start replacing only if this condition is met.
+            start_pos_period = response.find(period_id)-12
+            # Find the position in the string file of the period that has be replaced
+            end_pos_period = response.find("</Period>", start_pos_period)+9
+            # End position of the corresponding period.
+            original_period = response[start_pos_period:end_pos_period]
+            xlink_period = '<Period xlink:href="%s%s+%s.period" xlink:actuate="onLoad" ' \
+                           'xmlns:xlink="http://www.w3.org/1999/xlink"></Period>' %(base_url[0], filename, period_id)
+            response = response.replace(original_period, xlink_period)
+    else:
+        # This will be done when ".period" file is being requested
+        # Start manipulating the original period so that it looks like .period in the static xlink file.
+        filename = filename.split('+')[1]
+        # Second part of string has the period id.
+        start_pos_xmlns = response.find("xmlns=")
+        end_pos_xmlns = response.find('"', start_pos_xmlns+7)+1
+        start_pos_period = response.find(filename[:-7])-12
+        # Find the position in the string file of the period that has be replaced.
+        end_pos_period = response.find("</Period>", start_pos_period)+9
+        # End position of the corresponding period.
+        original_period = response[start_pos_period:end_pos_period]
+        original_period = original_period.replace('">', '" ' + response[start_pos_xmlns:end_pos_xmlns] + '>', 1)
+        xml_intro = '<?xml version="1.0" encoding="utf-8"?>\n'
+        response = xml_intro + original_period
+    return response
 
 class DashProvider(object):
     "Provide DASH manifest and segments."
@@ -163,7 +205,7 @@ class DashProvider(object):
 
     def __init__(self, host_name, url_parts, url_args, vod_conf_dir, content_dir, now=None, req=None, is_https=0):
         protocol = is_https and "https" or "http"
-        self.base_url = "%s://%s/%s/" % (protocol, host_name, url_parts[0]) # The start. Adding other parts later.
+        self.base_url = "%s://%s/%s/" % (protocol, host_name, url_parts[0])  # The start. Adding other parts later.
         self.utc_head_url = "%s://%s/%s" % (protocol, host_name, UTC_HEAD_PATH)
         self.url_parts = url_parts[1:]
         self.url_args = url_args
@@ -190,10 +232,29 @@ class DashProvider(object):
         cfg_processor = ConfigProcessor(self.vod_conf_dir, self.base_url)
         cfg_processor.process_url(self.url_parts, self.now)
         cfg = cfg_processor.getconfig()
-        if cfg.ext == ".mpd":
-            mpd_filename = "%s/%s/%s" % (self.content_dir, cfg.content_name, cfg.filename)
+        if cfg.ext == ".mpd" or cfg.ext == ".period":
+            if cfg.ext == ".period":
+                mpd_filename = "%s/%s/%s" % (self.content_dir, cfg.content_name, cfg.filename.split('+')[0])
+                # Get the first part of the string only, which is the .manifest file name.
+            else:
+                mpd_filename = "%s/%s/%s" % (self.content_dir, cfg.content_name, cfg.filename)
             mpd_input_data = cfg_processor.get_mpd_data()
             response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, self.now)
+            nr_xlink_periods_per_hour = min(mpd_input_data['xlinkPeriodsPerHour'], 60)
+            if nr_xlink_periods_per_hour > 0:
+                # -1 is the default value, which means no xlink are created.
+                nr_periods_per_hour = min(mpd_input_data['periodsPerHour'], 60)
+                # See exception description for explanation.
+                one_xlinks_for_how_many_periods = float(nr_periods_per_hour)/nr_xlink_periods_per_hour
+                if nr_periods_per_hour == -1:
+                    response = self.error_response("Xlinks can only be created for a multiperiod service.")
+                elif one_xlinks_for_how_many_periods != int(one_xlinks_for_how_many_periods):
+                    # The same kind of exception that was applied for periods.
+                    response = self.error_response("(Number of periods per hour/ Number of xlinks per hour) "
+                                                   "should be an integer.")
+                else:
+                    response = generate_response_with_xlink(response, cfg.ext, cfg.filename, nr_periods_per_hour,
+                                                            nr_xlink_periods_per_hour)
         elif cfg.ext == ".mp4":
             if self.now < cfg.availability_start_time_in_s - cfg.init_seg_avail_offset:
                 diff = (cfg.availability_start_time_in_s - cfg.init_seg_avail_offset) - self.now_float
@@ -213,7 +274,7 @@ class DashProvider(object):
             else:
                 response = self.process_media_segment(cfg, self.now_float)
                 if len(cfg.multi_url) == 1: # There is one specific baseURL with losses specified
-                    a,b = cfg.multi_url[0].split("_")
+                    a, b = cfg.multi_url[0].split("_")
                     dur1 = int(a[1:])
                     dur2 = int(b[1:])
                     total_dur = dur1 + dur2
