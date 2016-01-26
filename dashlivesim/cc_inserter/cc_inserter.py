@@ -98,7 +98,8 @@ class CCInsertFilter(MP4Filter):
         self.scc_map = []
 
     def process_trun(self, data):
-        """Process trun function"""
+        """Process trun box."""
+        # pylint: disable=too-many-locals,too-many-branches,too-many-statements
         output = data[:16]
 
         flags = str_to_uint32(data[8:12]) & 0xffffff
@@ -183,7 +184,7 @@ class CCInsertFilter(MP4Filter):
         return output
 
     def process_mdat(self, data):
-        """process mdat function"""
+        """Process mdat box."""
         #print "processing mdat"
         pos = 0
         offset = self.trun_offset - (self.mdat_start - self.moof_start)
@@ -215,7 +216,7 @@ class CCInsertFilter(MP4Filter):
         return struct.pack('>I', len(output)) + output[4:]
 
     def get_scc_data(self, start_time, end_time):
-        """This function returns the scc data for a specified time period"""
+        """Return scc data for a specified time period"""
         result = []
         for i in self.scc_data:
             if i['start_time'] >= start_time and i['start_time'] < end_time:
@@ -225,11 +226,11 @@ class CCInsertFilter(MP4Filter):
 
 ## Utility functions
 def make_time_stamp(tim):
-    """Takes a time on seconds and makes a timestamp in ISO format"""
+    """Maske timestamp in ISO format from UTC time in seconds."""
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(tim))
 
 def make_duration_from_seconds(nr_seconds):
-    """Takes a time in seconds and creates a PTxS string"""
+    """Create ISO duration as PTxS string from seconds."""
     return "PT%dS" % nr_seconds
 
 def transform_time(tim):
@@ -261,7 +262,7 @@ def transform_time_to_ms(tim):
     return newtime
 
 def convert_time(tim):
-    """Converts time (in format hh:mm:ss:fn or hh:mm:ss:ms) into miliseconds"""
+    """Convert time (in format hh:mm:ss:fn or hh:mm:ss:ms) into miliseconds"""
     return transform_time_to_ms(transform_time(tim)) / 1000.0
 
 def chunks(data, num):
@@ -299,7 +300,8 @@ def get_segment_range(rep_data):
 ## CC Inserter class, does all the heavy lifting
 class CCInserter(object):
     """This class does all the work, it takes an mpd-file, an scc-file and an output
-        path, an processes the segments pointed to by the mpd"""
+        path, an processes the segments pointed to by the mpd."""
+    # pylint: disable=too-many-instance-attributes
 
     def __init__(self, mpd_filepath, scc_filepath, out_path, verbose=1):
         self.mpd_filepath = mpd_filepath
@@ -377,6 +379,7 @@ class CCInserter(object):
 
     def check_and_update_media_data(self):
         """Check all segments for good values and return startTimes and total duration."""
+        # pylint: disable=too-many-locals,too-many-branches,too-many-statements
         #lastGoodSegments = []
         seg_duration = None
         print "Checking all the media segment durations for deviations."
@@ -469,6 +472,7 @@ class CCInserter(object):
 ## Scc parser class
 class SCCParser(object):
     """Parser for scc files, that returns an array with time and scc data objects"""
+    # pylint: disable=too-few-public-methods
     def __init__(self, scc_path, timescale):
         self.scc_path = scc_path
         self.timescale = timescale
