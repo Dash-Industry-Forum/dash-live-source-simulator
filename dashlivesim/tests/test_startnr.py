@@ -29,19 +29,9 @@
 
 import unittest, sys
 
-from dash_test_util import *
 from ..dashlib import dash_proxy
 
 from dash_test_util import *
-
-def findAllIndexes(needle, haystack):
-    """Find the index for the beginning of each occurrence of ``needle`` in ``haystack``. Overlaps are allowed."""
-    indexes = []
-    last_index = haystack.find(needle)
-    while -1 != last_index:
-        indexes.append(last_index)
-        last_index = haystack.find(needle, last_index + 1)
-    return indexes
 
 class TestMpdChange(unittest.TestCase):
     "Test that MPD gets startNr changed in an appropriate way"

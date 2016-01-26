@@ -40,7 +40,7 @@ class TestInitParsing(unittest.TestCase):
         self.f.filter()
 
     def testTrackTimeScale(self):
-        self.assertEqual(self.f.track_timescale, 32000)
+        self.assertEqual(self.f.track_timescale, 48000)
 
     def testTrackHdlrType(self):
         self.assertEqual(self.f.handler_type, 'soun')

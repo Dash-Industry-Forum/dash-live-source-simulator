@@ -49,3 +49,12 @@ def write_data_to_outfile(data, filename):
     ofh = open(join(OUT_DIR, filename), "wb")
     ofh.write(data)
     ofh.close()
+
+def findAllIndexes(needle, haystack):
+    """Find the index for the beginning of each occurrence of ``needle`` in ``haystack``. Overlaps are allowed."""
+    indexes = []
+    last_index = haystack.find(needle)
+    while -1 != last_index:
+        indexes.append(last_index)
+        last_index = haystack.find(needle, last_index + 1)
+    return indexes
