@@ -390,6 +390,12 @@ class MpdProcessor(object):
             elif utc_method == "head":
                 time_elem = self.create_descriptor_elem('UTCTiming', 'urn:mpeg:dash:utc:http-head:2014',
                                                         self.utc_head_url)
+            elif utc_method == "ntp":
+                time_elem = self.create_descriptor_elem('UTCTiming', 'urn:mpeg:dash:utc:ntp:2014',
+                                                        '1.de.pool.ntp.org')
+            elif utc_method == "sntp":
+                time_elem = self.create_descriptor_elem('UTCTiming', 'urn:mpeg:dash:utc:sntp:2014',
+                                                        'time.kfki.hu')
             else: #Unknown or un-implemented UTCTiming method
                 raise MpdModifierError("Unknown UTCTiming method: %s" % utc_method)
             mpd.insert(pos, time_elem)
