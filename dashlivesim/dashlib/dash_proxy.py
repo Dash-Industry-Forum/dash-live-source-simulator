@@ -176,19 +176,19 @@ def generate_response_with_xlink(response, cfg, filename, nr_periods_per_hour, n
                 counter += 1
                 original_period = response[start_pos_period:end_pos_period]
                 if insert_ad == 4:
-                    xlink_period = '<Period xlink:href="http://10.4.247.98/server/dash264/TestCases/5c/nomor/invalid' \
+                    xlink_period = '<Period xlink:href="http://vm1.dashif.org/dynamicxlink/invalid' \
                                    'url.php" xlink:actuate="onLoad" xmlns:xlink="http://www.w3.org/1999/xlink">' \
                                    '</Period>'
                 elif insert_ad == 3:
-                    xlink_period = '<Period xlink:href="http://10.4.247.98/server/dash264/TestCases/5c/nomor/ad.php' \
+                    xlink_period = '<Period xlink:href="http://vm1.dashif.org/dynamicxlink/ad.php' \
                                    '?id=6_ad_twoperiods_withremote" xlink:actuate="onLoad" xmlns:xlink="http://www.' \
                                    'w3.org/1999/xlink"></Period>'
                 elif insert_ad == 2:
-                    xlink_period = '<Period xlink:href="http://10.4.247.98/server/dash264/TestCases/5c/nomor/ad.php' \
+                    xlink_period = '<Period xlink:href="http://vm1.dashif.org/dynamicxlink/ad.php' \
                                    '?id=6_ad_twoperiods" xlink:actuate="onLoad" xmlns:xlink="http://www.w3.org/1999/' \
                                    'xlink"></Period>'
                 elif insert_ad == 1 or insert_ad == 5:
-                    xlink_period = '<Period xlink:href="http://10.4.247.98/server/dash264/TestCases/5c/nomor/ad.php?' \
+                    xlink_period = '<Period xlink:href="http://vm1.dashif.org/dynamicxlink/ad.php?' \
                                    'id=6_ad" xlink:actuate="onLoad" xmlns:xlink="http://www.w3.org/1999/xlink">' \
                                    '</Period>'
                 else:
