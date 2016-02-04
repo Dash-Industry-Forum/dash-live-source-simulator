@@ -44,6 +44,8 @@ from . import scte35
 
 SET_BASEURL = True
 DASH_NAMESPACE = "{urn:mpeg:dash:schema:mpd:2011}"
+UTC_TIMING_NTP_SERVER = '1.de.pool.ntp.org'
+UTC_TIMING_SNTP_SERVER = 'time.kfki.hu'
 
 RE_NAMESPACE_TAG = re.compile(r"({.*})?(.*)")
 
@@ -392,10 +394,10 @@ class MpdProcessor(object):
                                                         self.utc_head_url)
             elif utc_method == "ntp":
                 time_elem = self.create_descriptor_elem('UTCTiming', 'urn:mpeg:dash:utc:ntp:2014',
-                                                        '1.de.pool.ntp.org')
+                                                        UTC_TIMING_NTP_SERVER)
             elif utc_method == "sntp":
                 time_elem = self.create_descriptor_elem('UTCTiming', 'urn:mpeg:dash:utc:sntp:2014',
-                                                        'time.kfki.hu')
+                                                        UTC_TIMING_SNTP_SERVER)
             else: #Unknown or un-implemented UTCTiming method
                 raise MpdModifierError("Unknown UTCTiming method: %s" % utc_method)
             mpd.insert(pos, time_elem)
