@@ -131,6 +131,25 @@ def generate_period_data(mpd_data, now):
             data = {'id' : "p%d" % period_nr, 'start' : 'PT%dS' % (period_nr*period_duration),
                     'startNumber' : "%d" % (start_time/seg_dur), 'duration' : seg_dur,
                     'presentationTimeOffset' : period_nr*period_duration}
+            if mpd_data['etpPeriodsPerHour'] > 0:
+                # Check whether the early terminated feature is enabled or not.
+                # If yes, then proceed.
+                nr_etp_periods_per_hour = min(mpd_data['etpPeriodsPerHour'], 60)
+                # Limit the maximum value to 60, same as done for the period.
+                fraction_nr_periods_to_nr_etp = float(nr_periods_per_hour)/nr_etp_periods_per_hour
+                if fraction_nr_periods_to_nr_etp != int(fraction_nr_periods_to_nr_etp):
+                    raise Exception("(Number of periods per hour/ Number of etp periods per hour) "
+                                    "should be an integer.")
+                etp_duration = mpd_data['etpDuration']
+                if etp_duration == -1:
+                    etp_duration = period_duration / 2
+                    # Default value
+                    # If no etpDuration is specified, then we take a default values, i.e, half of period duration.
+                if etp_duration > period_duration:
+                    raise Exception("Duration of the early terminated period should be less that the duration of a "
+                                    "regular period")
+                if period_nr % fraction_nr_periods_to_nr_etp == 0:
+                    data['etpDuration'] = etp_duration
             period_data.append(data)
     return period_data
 
