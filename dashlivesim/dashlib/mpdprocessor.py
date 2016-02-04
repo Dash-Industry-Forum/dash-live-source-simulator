@@ -336,6 +336,8 @@ class MpdProcessor(object):
         last_period_id = '-1'
         for (period, pdata) in zip(periods, period_data):
             set_attribs(period, ('id', 'start'), pdata)
+            if pdata.has_key('etpDuration'):
+                period.set('duration', "PT%dS" % pdata['etpDuration'])
             segmenttemplate_attribs = ['startNumber']
             pto = pdata['presentationTimeOffset']
             if pto:
