@@ -40,10 +40,11 @@ import xml.etree.ElementTree as ET
 class TestXlinkPeriod(unittest.TestCase):
 
     def setUp(self):
+        self.old_set_baseurl_value = mpdprocessor.SET_BASEURL
         mpdprocessor.SET_BASEURL = True
 
     def tearDown(self):
-        mpdprocessor.SET_BASEURL = True
+        mpdprocessor.SET_BASEURL = self.old_set_baseurl_value
 
     def testMpdPeriodReplaced(self):
         " Check whether appropriate periods have been replaced by in .mpd file"
