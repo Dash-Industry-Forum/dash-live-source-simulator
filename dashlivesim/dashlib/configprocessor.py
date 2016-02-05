@@ -72,6 +72,8 @@ class Config(object):
         self.cont = False # Continuous update of MPD AST and seg_nr.
         self.periods_per_hour = -1 # If > 0, generates that many periods per hour. If 0, only one offset period.
         self.xlink_periods_per_hour = -1 # Number of periods per hour that are accessed via xlink.
+        self.etp_periods_per_hour = -1 # Number of periods per hour that are accessed via xlink.
+        self.etp_duration = -1 # Duration of the early-terminated period.
         self.cont_multiperiod = False # This flag should only be used when periods_per_hour is set
         self.seg_timeline = False # This flag is only true when there is /segtimeline_1/ in the URL
         self.multi_url = [] # If not empty, give multiple URLs in the BaseURL element
@@ -267,7 +269,7 @@ class ConfigProcessor(object):
     "Process the url and VoD config files and setup configuration."
 
     url_cfg_keys = ("start", "ast", "dur", "init", "tsbd", "mup", "modulo", "all", "tfdt", "cont",
-                    "periods", "xlink", "continuous", "segtimeline", "baseurl", "peroff", "scte35", "utc", "snr")
+                    "periods", "xlink", "etp", "etpDuration", "continuous", "segtimeline", "baseurl", "peroff", "scte35", "utc", "snr")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -285,6 +287,8 @@ class ConfigProcessor(object):
                'startNumber' : self.cfg.availability_start_time_in_s//self.cfg.seg_duration,
                'periodsPerHour' : self.cfg.periods_per_hour,
                'xlinkPeriodsPerHour' : self.cfg.xlink_periods_per_hour,
+               'etpPeriodsPerHour' : self.cfg.etp_periods_per_hour,
+               'etpDuration' : self.cfg.etp_duration,
                'continuous' : self.cfg.cont_multiperiod,
                'segtimeline' : self.cfg.seg_timeline,
                'urls' : self.cfg.multi_url,
@@ -332,6 +336,10 @@ class ConfigProcessor(object):
                 cfg.periods_per_hour = int(value)
             elif key == "xlink": # Make periods access via xlink.
                 cfg.xlink_periods_per_hour = int(value)
+            elif key == "etp": # Make periods access via xlink.
+                cfg.etp_periods_per_hour = int(value)
+            elif key == "etpDuration": # Add a presentation duration for multiple periods
+                cfg.etp_duration = int(value)
             elif key == "continuous": # Only valid when it's set to 1 and periods_per_hour is set
                 if int(value) == 1:
                     cfg.cont_multiperiod = True
