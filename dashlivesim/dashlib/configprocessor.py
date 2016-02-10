@@ -74,6 +74,7 @@ class Config(object):
         self.xlink_periods_per_hour = -1 # Number of periods per hour that are accessed via xlink.
         self.etp_periods_per_hour = -1 # Number of periods per hour that are accessed via xlink.
         self.etp_duration = -1 # Duration of the early-terminated period.
+        self.insert_ad = -1 # Number of periods per hour that are accessed via xlink.
         self.cont_multiperiod = False # This flag should only be used when periods_per_hour is set
         self.seg_timeline = False # This flag is only true when there is /segtimeline_1/ in the URL
         self.multi_url = [] # If not empty, give multiple URLs in the BaseURL element
@@ -269,7 +270,7 @@ class ConfigProcessor(object):
     "Process the url and VoD config files and setup configuration."
 
     url_cfg_keys = ("start", "ast", "dur", "init", "tsbd", "mup", "modulo", "all", "tfdt", "cont",
-                    "periods", "xlink", "etp", "etpDuration", "continuous", "segtimeline", "baseurl", "peroff", "scte35", "utc", "snr")
+                    "periods", "xlink", "etp", "etpDuration", "insertad", "continuous", "segtimeline", "baseurl", "peroff", "scte35", "utc", "snr")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -289,6 +290,7 @@ class ConfigProcessor(object):
                'xlinkPeriodsPerHour' : self.cfg.xlink_periods_per_hour,
                'etpPeriodsPerHour' : self.cfg.etp_periods_per_hour,
                'etpDuration' : self.cfg.etp_duration,
+               'insertAd' : self.cfg.insert_ad,
                'continuous' : self.cfg.cont_multiperiod,
                'segtimeline' : self.cfg.seg_timeline,
                'urls' : self.cfg.multi_url,
@@ -311,7 +313,7 @@ class ConfigProcessor(object):
         url_pos = 0
         for part in url_parts: # Should be listed in self.configParts to make sure it works.
             cfg_parts = part.split("_", 1)
-            if not cfg_parts[0] in self.url_cfg_keys: #Must handle content like testpic_2s
+            if cfg_parts[0] not in self.url_cfg_keys: #Must handle content like testpic_2s
                 break
             key, value = cfg_parts
             if key == "start" or key == "ast": # Change availability start time in s.
@@ -340,6 +342,8 @@ class ConfigProcessor(object):
                 cfg.etp_periods_per_hour = int(value)
             elif key == "etpDuration": # Add a presentation duration for multiple periods
                 cfg.etp_duration = int(value)
+            elif key == "insertad": # Make periods access via xlink.
+                cfg.insert_ad = int(value)
             elif key == "continuous": # Only valid when it's set to 1 and periods_per_hour is set
                 if int(value) == 1:
                     cfg.cont_multiperiod = True
