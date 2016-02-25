@@ -97,8 +97,8 @@ class DashSegmentNotAvailableError(DashProxyError):
     "Segment not available."
 
 
-def generate_period_data(mpd_data, now):
-    """Generate an array of period data depending on current time (now). 0 gives one period with start offset.
+def generate_period_data(mpd_data, now, cfg):
+    """Generate an array of period data depending on current time (now) and tsbd. 0 gives one period with start=1000h.
 
     mpd_data is changed (minimumUpdatePeriod)."""
     # pylint: disable=too-many-locals
@@ -117,27 +117,32 @@ def generate_period_data(mpd_data, now):
         start = 0
         start_number = mpd_data['startNumber'] + start / seg_dur
         data = {'id': "p0", 'start': 'PT%dS' % start, 'startNumber': str(start_number),
-                'duration': seg_dur, 'presentationTimeOffset': "%d" % mpd_data['presentationTimeOffset']}
+                'duration': seg_dur, 'presentationTimeOffset': "%d" % mpd_data['presentationTimeOffset'],
+                'start_s' : start}
         period_data.append(data)
-    elif nr_periods_per_hour == 0:  # nrPeriodsPerHour == 0, make one old period but starting 1000h after epoch
+    elif nr_periods_per_hour == 0:  # nrPeriodsPerHour == 0, make one old period but starting 1000h after AST
         start = 3600 * 1000
         data = {'id': "p0", 'start': 'PT%dS' % start, 'startNumber': "%d" % (start / seg_dur),
-                'duration': seg_dur, 'presentationTimeOffset': "%d" % start}
+                'duration': seg_dur, 'presentationTimeOffset': "%d" % start, 'start_s' : start}
         period_data.append(data)
     else:  # nr_periods_per_hour > 0
-        period_duration = 3600 / nr_periods_per_hour
-        minimum_update_period = "PT%dS" % (period_duration / 2 - 5)
+        period_duration = 3600 // nr_periods_per_hour
+        minimum_update_period_s = (period_duration // 2 - 5)
+        if cfg.seg_timeline:
+            minimum_update_period_s = cfg.seg_duration
+        minimum_update_period = "PT%dS" % minimum_update_period_s
         mpd_data['minimumUpdatePeriod'] = minimum_update_period
-        this_period_nr = now / period_duration
-        nr_periods_back = mpd_data['timeShiftBufferDepthInS'] / period_duration + 1
-        start_period_nr = this_period_nr - nr_periods_back
-        last_period_nr = this_period_nr + 1
+        this_period_nr = now // period_duration
+        last_period_nr = (now + minimum_update_period_s) // period_duration
+        this_period_start = this_period_nr * period_duration
+        first_period_nr = (now - mpd_data['timeShiftBufferDepthInS'] - seg_dur) // period_duration
         counter = 0
-        for period_nr in range(start_period_nr, last_period_nr+1):
-            start_time = period_nr*period_duration
-            data = {'id' : "p%d" % period_nr, 'start' : 'PT%dS' % (period_nr*period_duration),
+        for period_nr in range(first_period_nr, last_period_nr+1):
+            start_time = period_nr * period_duration
+            data = {'id' : "p%d" % period_nr, 'start' : 'PT%dS' % start_time,
                     'startNumber' : "%d" % (start_time/seg_dur), 'duration' : seg_dur,
-                    'presentationTimeOffset' : period_nr*period_duration}
+                    'presentationTimeOffset' : period_nr*period_duration,
+                    'start_s' : start_time}
             if mpd_data['etpPeriodsPerHour'] > 0:
                 # Check whether the early terminated feature is enabled or not.
                 # If yes, then proceed.
@@ -157,11 +162,17 @@ def generate_period_data(mpd_data, now):
                                     "regular period")
                 if period_nr % fraction_nr_periods_to_nr_etp == 0:
                     data['etpDuration'] = etp_duration
+                    data['period_duration_s'] = etp_duration
             period_data.append(data)
             if ad_frequency > 0 and ((period_nr % ad_frequency) == 0) and counter > 0:
                 period_data[counter - 1]['periodDuration'] = 'PT%dS' % period_duration
+                period_data[counter - 1]['period_duration_s'] = period_duration
             counter = counter + 1
             # print period_data
+        for i, pdata in enumerate(period_data):
+            if i != len(period_data) - 1: # not last periodDuration
+                if not pdata.has_key('period_duration_s'):
+                    pdata['period_duration_s'] = period_duration
     return period_data
 
 
@@ -273,7 +284,7 @@ class DashProvider(object):
         self.new_tfdt_value = None
 
     def handle_request(self):
-        "Handle the Apache request."
+        "Handle the HTTP request."
         return self.parse_url()
 
     def error_response(self, msg):
@@ -377,7 +388,7 @@ class DashProvider(object):
                         'utc_head_url': self.utc_head_url,
                         'now': now}
         mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg)
-        period_data = generate_period_data(mpd_data, now)
+        period_data = generate_period_data(mpd_data, now, cfg)
         mpmod.process(mpd_data, period_data)
         return mpmod.get_full_xml()
 

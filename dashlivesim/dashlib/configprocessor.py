@@ -95,10 +95,12 @@ class Config(object):
         self.vod_default_tsbd_secs = 0
         self.publish_time = None
         self.vod_cfg_dir = vod_cfg_dir
+        self.vod_wrap_seconds = None
 
     def __str__(self):
-        return "\nConfig:\n" + "\n".join(["%s=%s" % (k, v) for (k, v) in self.__dict__.items()
-                                          if not k.startswith("_")])
+        lines = ["%s=%s" % (k, v) for (k, v) in self.__dict__.items() if not k.startswith("_")]
+        lines.sort()
+        return "<Config>:\n" + "\n".join(lines)
 
     def update_with_filedata(self, url_parts, url_pos):
         "Find the content_name, file_name, and representations (if muxed as signalled by MUX_DIVIDER)."
@@ -129,6 +131,7 @@ class Config(object):
         self.vod_nr_segments_in_loop = vod_cfg.nr_segments_in_loop
         self.media_data = vod_cfg.media_data
         self.seg_duration = vod_cfg.segment_duration_s
+        self.vod_wrap_seconds = vod_cfg.segment_duration_s * vod_cfg.nr_segments_in_loop
 
     def update_for_tfdt32(self, now_int):
         "Set MPD values for 32-bit tfdt (reset session every 3 hours)."

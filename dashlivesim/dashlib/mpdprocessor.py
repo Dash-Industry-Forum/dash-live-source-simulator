@@ -30,29 +30,21 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 
 import copy
-import bisect
 from xml.etree import ElementTree
 import cStringIO
 import time
-import re
-import os
-from struct import unpack
-from .configprocessor import SEGTIMEFORMAT, SegTimeEntry
-from .timeformatconversions import make_timestamp
 
-from . import scte35
+from timeformatconversions import make_timestamp
+import scte35
+from segtimeline import SegmentTimeLineGenerator
+from dash_namespace import add_ns
 
 SET_BASEURL = True
-DASH_NAMESPACE = "{urn:mpeg:dash:schema:mpd:2011}"
+
 UTC_TIMING_NTP_SERVER = '1.de.pool.ntp.org'
 UTC_TIMING_SNTP_SERVER = 'time.kfki.hu'
 
-RE_NAMESPACE_TAG = re.compile(r"({.*})?(.*)")
 
-def add_ns(element):
-    "Add DASH namespace to element or to path."
-    parts = element.split('/')
-    return "/".join([DASH_NAMESPACE + e for e in parts])
 
 def set_value_from_dict(element, key, data):
     "Set attribute key of element to value data[key], if present."
@@ -72,7 +64,7 @@ class MpdModifierError(Exception):
 
 
 class MpdProcessor(object):
-    "Process a VoD MPD. Analyzer and convert it to a live (dynamic) session."
+    "Process a VoD MPD. Analyze and convert it to a live (dynamic) session."
     #pylint: disable=no-self-use, too-many-locals, too-many-instance-attributes
 
     def __init__(self, infile, mpd_proc_cfg, cfg=None):
@@ -85,10 +77,12 @@ class MpdProcessor(object):
         self.mpd_proc_cfg = mpd_proc_cfg
         self.cfg = cfg
         self.root = self.tree.getroot()
+        self.availability_start_time_in_s = None
 
     def process(self, data, period_data):
         "Top-level call to process the XML."
         mpd = self.root
+        self.availability_start_time_in_s = data['availability_start_time_in_s']
         self.process_mpd(mpd, data)
         self.process_mpd_children(mpd, data, period_data)
 
@@ -210,130 +204,11 @@ class MpdProcessor(object):
             "Create an InbandEventStream element for SCTE-35."
             return self.create_descriptor_elem("InbandEventStream", scte35.SCHEME_ID_URI, value=str(scte35.PID))
 
-        def create_segment_timeline(seg_template, content_type, pos):
-            "Create and insert a new <SegmentTimeline> element and S entries for interval [now-tsbd, now]."
-            media_data = self.cfg.media_data[content_type]
-            remove_attribs(seg_template, ['duration'])
-            remove_attribs(seg_template, ['startNumber'])
-            timescale = media_data['timescale']
-            seg_template.set('timescale', str(timescale))
-            media_template = seg_template.attrib['media']
-            media_template = media_template.replace('$Number$', 't$Time$')
-            seg_template.set('media', media_template)
-            seg_timeline = ElementTree.Element(add_ns('SegmentTimeline'))
-            seg_timeline.text = "\n"
-            seg_timeline.tail = "\n"
-            seg_template.insert(pos, seg_timeline)
-            now = self.mpd_proc_cfg['now']
-            tsbd = self.cfg.timeshift_buffer_depth_in_s
-
-            #Interval start = max(now-timeshift_buffer_depth_in_s, period_start)
-            #Interval end = min(now, period_end)
-
-            start = (now - tsbd)*timescale
-            end = now*timescale
-
-            wrap_duration = 3600*timescale
-            wrap_offset = 0*timescale #AST
-
-            # The start segment is the latest one that starts before or at start
-            # The end segment is the latest one that ends before now.
-
-            dat_file = media_data['dat_file']
-            dat_file_path = os.path.join(self.cfg.vod_cfg_dir, dat_file)
-            segtimedata = [] # Tuples corresponding to SegTimeEntry
-            with open(dat_file_path, "rb") as ifh:
-                data = ifh.read(12)
-                while data:
-                    ste = SegTimeEntry(*unpack(SEGTIMEFORMAT, data))
-                    segtimedata.append(ste)
-                    data = ifh.read(12)
-
-            interval_starts = [std[2] for std in segtimedata]
-
-            def get_seg_starttime(nr_wraps, seg_data, repeats):
-                "Get the segment starttime given repeats."
-                return wrap_offset + nr_wraps*wrap_duration + seg_data.start_time + repeats*seg_data.duration
-
-            def find_latest_starting_before(act_time):
-                "Fint the latest segment starting before act_time."
-                nr_wraps = (act_time - wrap_offset) // wrap_duration
-                if nr_wraps < 0:
-                    return (None, None, None)# This is before AST
-                wrap_start_time = wrap_offset + nr_wraps * wrap_duration
-                rel_time = act_time - wrap_start_time
-                index = bisect.bisect(interval_starts, rel_time) - 1
-                seg_data = segtimedata[index]
-                repeats = 0
-                accumulated_end_time = seg_data.start_time + seg_data.duration
-                while accumulated_end_time < rel_time:
-                    accumulated_end_time += seg_data.duration
-                    repeats += 1
-                return (index, repeats, nr_wraps)
-
-            def find_repeats_ending_before(act_time, index, nr_wraps):
-                "Find the repeats given values of act_time, index, nr_wrapts."
-                wrap_start_time = wrap_offset + nr_wraps * wrap_duration
-                seg_data = segtimedata[index]
-                rel_time = act_time - wrap_start_time
-                repeats = 0
-                accumulated_end_time = seg_data.start_time + seg_data.duration
-                while True:
-                    accumulated_end_time += seg_data.duration
-                    if accumulated_end_time > rel_time:
-                        break
-                    repeats += 1
-                    if repeats > seg_data.repeats:
-                        print "Inconsistent table of segment durations. repeats = %d" % repeats
-                        return
-                return repeats
-
-            (end_index, end_repeats, end_wraps) = find_latest_starting_before(end)
-            if end_index is None:
-                return
-            if end_repeats > 0:
-                end_repeats -= 1  # Just move one segment back in the repeat
-            elif end_index > 0:
-                end_index -= 1
-                end_repeats = find_repeats_ending_before(end, end_index, end_wraps)
-            else:
-                end_wraps -= 1
-                if end_wraps < 0:
-                    return
-                end_index = len(segtimedata) - 1
-                end_repeats = find_repeats_ending_before(end, end_index, end_wraps)
-
-            (start_index, start_repeats, start_wraps) = find_latest_starting_before(start)
-
-            def generate_s_elem(start_time, duration, repeat):
-                "Generate the S elements for the SegmentTimeline."
-                s_elem = ElementTree.Element(add_ns('S'))
-                if start_time is not None:
-                    s_elem.set("t", str(start_time))
-                s_elem.set("d", str(duration))
-                if repeat > 0:
-                    s_elem.set('r', str(repeat))
-                s_elem.tail = "\n"
-                seg_template.insert = seg_timeline.insert(0, s_elem)
-
-            repeat_index = end_index
-            nr_wraps = end_wraps
-            while repeat_index != start_index or nr_wraps != start_wraps:
-                seg_data = segtimedata[repeat_index]
-                if repeat_index == end_index:
-                    generate_s_elem(None, seg_data.duration, end_repeats)
-                else:
-                    generate_s_elem(None, seg_data.duration, seg_data.repeats)
-                repeat_index -= 1
-                if repeat_index < 0:
-                    nr_wraps -= 1
-                    repeat_index = len(segtimedata) - 1
-                end_repeats = segtimedata[repeat_index].repeats
-            # Now at first entry corresponding to start_index and start_wraps
-            seg_data = segtimedata[start_index]
-            generate_s_elem(get_seg_starttime(nr_wraps, seg_data, start_repeats), seg_data.duration,
-                            end_repeats - start_repeats)
-
+        if self.segtimeline:
+            segtimeline_generators = {}
+            for content_type in ('video', 'audio'):
+                segtimeline_generators[content_type] = SegmentTimeLineGenerator(self.cfg.media_data[content_type],
+                                                                                self.cfg)
         periods = mpd.findall(add_ns('Period'))
         last_period_id = '-1'
         for (period, pdata) in zip(periods, period_data):
@@ -364,12 +239,30 @@ class MpdProcessor(object):
                 seg_templates = ad_set.findall(add_ns('SegmentTemplate'))
                 for seg_template in seg_templates:
                     set_attribs(seg_template, segmenttemplate_attribs, pdata)
-                    if pdata.get('startNumber') == '-1': # Default to 1
+                    if pdata.get('startNumber') == '-1' or self.segtimeline: # Default to 1
                         remove_attribs(seg_template, ['startNumber'])
 
                     if self.segtimeline:
                         # add SegmentTimeline block in SegmentTemplate with timescale and window.
-                        create_segment_timeline(seg_template, content_type, 0)
+                        now = self.mpd_proc_cfg['now']
+                        tsbd = self.cfg.timeshift_buffer_depth_in_s
+                        ast = self.cfg.availability_start_time_in_s
+                        start_time = max(ast + pdata['start_s'], now - tsbd)
+                        if pdata.has_key('period_duration_s'):
+                            end_time = min(ast + pdata['start_s'] + pdata['period_duration_s'], now)
+                        else:
+                            end_time = now
+                        start_time -= self.cfg.availability_start_time_in_s
+                        end_time -= self.cfg.availability_start_time_in_s
+                        seg_timeline = segtimeline_generators[content_type].create_segtimeline(start_time, end_time)
+                        remove_attribs(seg_template, ['duration'])
+                        remove_attribs(seg_template, ['startNumber'])
+                        seg_template.set('timescale', str(self.cfg.media_data[content_type]['timescale']))
+                        media_template = seg_template.attrib['media']
+                        media_template = media_template.replace('$Number$', 't$Time$')
+                        seg_template.set('media', media_template)
+                        seg_template.text = "\n"
+                        seg_template.insert(0, seg_timeline)
             last_period_id = pdata.get('id')
 
     def create_descriptor_elem(self, name, scheme_id_uri, value=None, elem_id=None):

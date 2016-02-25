@@ -28,12 +28,11 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 
 import unittest
-import re
 from xml.etree import ElementTree
 
 from dash_test_util import *
-from ..dashlib import dash_proxy
-from ..dashlib import mpdprocessor
+from dashlivesim.dashlib import dash_proxy
+from dashlivesim.dashlib import mpdprocessor
 
 NAMESPACE = 'urn:mpeg:dash:schema:mpd:2011'
 
@@ -133,6 +132,27 @@ class TestMPDWithSegmentTimeline(unittest.TestCase):
             start_time_plus_duration = (first_start + duration) / timescale
             self.assertLess(start_time, self.now - self.tsbd)
             self.assertGreater(start_time_plus_duration, self.now - self.tsbd)
+
+
+class TestMultiPeriodSegmentTimeline(unittest.TestCase):
+    "Test that the MPD looks correct when segtimeline_1 and periods_60 are both defined."
+
+    def setUp(self):
+        self.now = 6003
+        self.tsbd = 90
+        urlParts = ['livesim', 'segtimeline_1', 'periods_60', 'tsbd_%d' % self.tsbd, 'testpic', 'Manifest.mpd']
+        dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
+        self.d = dp.handle_request()
+
+
+    def testThatThereAreMultiplePeriods(self):
+        "Check that the first segment starts less than one period before now-tsbd."
+        testOutputFile = "segtimeline_periods.mpd"
+        rm_outfile(testOutputFile)
+        write_data_to_outfile(self.d, testOutputFile)
+        self.root = ElementTree.fromstring(self.d)
+        periods = self.root.findall(node_ns('Period'))
+        self.assertGreater(len(periods), 1)
 
 
 class TestMediaSegments(unittest.TestCase):
