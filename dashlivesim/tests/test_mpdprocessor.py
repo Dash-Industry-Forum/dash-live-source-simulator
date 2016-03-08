@@ -43,7 +43,8 @@ class TestMpdProcessor(unittest.TestCase):
 
     def test_mpd_in_out(self):
         mp = mpdprocessor.MpdProcessor(vodMPD, self.cfg)
-        mp.process({'availabilityStartTime': "1971", 'BaseURL' : "http://india/", 'minimumUpdatePeriod' : "0", 'periodOffset' : 100000},
+        mp.process({'availabilityStartTime': "1971", 'availability_start_time_in_s': 31536000, 'BaseURL' : "http://india/",
+                    'minimumUpdatePeriod' : "0", 'periodOffset' : 100000},
                    [{'id' : "p0", 'startNumber' : "0", 'presentationTimeOffset' : 0},
                     {'id' : "p1", 'startNumber' : "3600", 'presentationTimeOffset' : 100000}])
         xml = mp.get_full_xml()
@@ -51,7 +52,8 @@ class TestMpdProcessor(unittest.TestCase):
     def test_utc_timing_head(self):
         self.cfg['utc_timing_methods'] = ["head"]
         mp = mpdprocessor.MpdProcessor(vodMPD, self.cfg)
-        mp.process({'availabilityStartTime': "1971", 'BaseURL' : "http://india/", 'minimumUpdatePeriod' : "0", 'periodOffset' : 100000},
+        mp.process({'availabilityStartTime': "1971", 'availability_start_time_in_s': 31536000, 'BaseURL' : "http://india/",
+                    'minimumUpdatePeriod' : "0", 'periodOffset' : 100000},
                     [{'id' : "p0", 'startNumber' : "0", 'presentationTimeOffset' : 0}] )
         xml = mp.get_full_xml()
         head_pos = xml.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:http-head:2014"')
@@ -60,7 +62,8 @@ class TestMpdProcessor(unittest.TestCase):
     def test_utc_timing_direct_and_head(self):
         self.cfg['utc_timing_methods'] = ["direct", "head"]
         mp = mpdprocessor.MpdProcessor(vodMPD, self.cfg)
-        mp.process({'availabilityStartTime': "1971", 'BaseURL' : "http://india/", 'minimumUpdatePeriod' : "0", 'periodOffset' : 100000},
+        mp.process({'availabilityStartTime': "1971", 'availability_start_time_in_s': 31536000, 'BaseURL' : "http://india/", 
+                    'minimumUpdatePeriod' : "0", 'periodOffset' : 100000},
                    [{'id' : "p0", 'startNumber' : "0", 'presentationTimeOffset' : 0}] )
         xml = mp.get_full_xml()
         head_pos = xml.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:http-head:2014"')

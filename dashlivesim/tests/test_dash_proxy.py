@@ -30,8 +30,8 @@
 import unittest, sys
 
 from dash_test_util import *
-from ..dashlib import dash_proxy
-from ..dashlib import mpdprocessor
+from dashlivesim.dashlib import dash_proxy
+from dashlivesim.dashlib import mpdprocessor
 
 
 class TestMPDProcessing(unittest.TestCase):
@@ -153,7 +153,7 @@ class TestMediaSegments(unittest.TestCase):
         d = dp.handle_request()
         write_data_to_outfile(d, testOutputFile)
         periodPositions = findAllIndexes("<Period", d)
-        self.assertEqual(len(periodPositions), 3)
+        self.assertEqual(len(periodPositions), 2)
 
     def testContinuous(self):
         testOutputFile = "ContMultiperiod.mpd"
