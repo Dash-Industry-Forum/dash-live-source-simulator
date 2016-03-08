@@ -29,7 +29,7 @@
 
 import unittest, sys
 
-from ..dashlib import scte35
+from dashlivesim.dashlib import scte35
 
 testMessage = """\
 <SpliceInfoSection ptsAdjustment="0" scte35:tier="4095">

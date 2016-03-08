@@ -30,7 +30,7 @@
 import unittest, sys
 
 from dash_test_util import *
-from ..dashlib import mpdprocessor
+from dashlivesim.dashlib import mpdprocessor
 
 vodMPD = join(CONTENT_ROOT, "testpic", "Manifest.mpd")
 
@@ -62,7 +62,7 @@ class TestMpdProcessor(unittest.TestCase):
     def test_utc_timing_direct_and_head(self):
         self.cfg['utc_timing_methods'] = ["direct", "head"]
         mp = mpdprocessor.MpdProcessor(vodMPD, self.cfg)
-        mp.process({'availabilityStartTime': "1971", 'availability_start_time_in_s': 31536000, 'BaseURL' : "http://india/", 
+        mp.process({'availabilityStartTime': "1971", 'availability_start_time_in_s': 31536000, 'BaseURL' : "http://india/",
                     'minimumUpdatePeriod' : "0", 'periodOffset' : 100000},
                    [{'id' : "p0", 'startNumber' : "0", 'presentationTimeOffset' : 0}] )
         xml = mp.get_full_xml()

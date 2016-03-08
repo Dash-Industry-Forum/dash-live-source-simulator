@@ -29,7 +29,7 @@
 
 import unittest, sys
 
-from ..dashlib import dash_proxy
+from dashlivesim.dashlib import dash_proxy
 
 from dash_test_util import *
 

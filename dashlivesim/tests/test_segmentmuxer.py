@@ -30,7 +30,7 @@
 import unittest, sys
 
 from dash_test_util import *
-from ..dashlib import segmentmuxer
+from dashlivesim.dashlib import segmentmuxer
 
 V1_INIT = join(CONTENT_ROOT, "testpic/V1/init.mp4")
 A1_INIT = join(CONTENT_ROOT, "testpic/A1/init.mp4")

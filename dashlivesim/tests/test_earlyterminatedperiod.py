@@ -30,10 +30,10 @@
 import unittest
 
 from dash_test_util import *
-from ..dashlib import dash_proxy
+from dashlivesim.dashlib import dash_proxy
 from re import findall
 from operator import mul
-from ..dashlib import mpdprocessor
+from dashlivesim.dashlib import mpdprocessor
 import xml.etree.ElementTree as ET
 
 

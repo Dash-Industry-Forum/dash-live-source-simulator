@@ -28,7 +28,7 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 
 import unittest
-from ..dashlib.moduloperiod import ModuloPeriod
+from dashlivesim.dashlib.moduloperiod import ModuloPeriod
 
 
 class TestModuloCalculations(unittest.TestCase):

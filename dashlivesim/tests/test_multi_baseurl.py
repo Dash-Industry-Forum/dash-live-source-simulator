@@ -1,8 +1,8 @@
 import unittest, sys
 
 from dash_test_util import *
-from ..dashlib import dash_proxy
-from ..dashlib import mpdprocessor
+from dashlivesim.dashlib import dash_proxy
+from dashlivesim.dashlib import mpdprocessor
 
 def isMediaSegment(data):
     "Check if response is a segment."

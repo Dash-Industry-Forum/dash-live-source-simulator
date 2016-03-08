@@ -30,7 +30,7 @@
 import unittest, os
 from dash_test_util import *
 
-from ..dashlib import configprocessor
+from dashlivesim.dashlib import configprocessor
 
 class TestConfigProcessor(unittest.TestCase):
 

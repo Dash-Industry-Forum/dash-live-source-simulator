@@ -30,8 +30,8 @@
 import unittest
 
 from dash_test_util import *
-from ..dashlib import ttml_timing_offset
-from ..dashlib import dash_proxy
+from dashlivesim.dashlib import ttml_timing_offset
+from dashlivesim.dashlib import dash_proxy
 
 TEST_STRING_1 = '< begin="01:02:03.1234" end="10:59:43:29" >'
 TEST_STRING_SEG_NR = '... Segment # 12 ...'
