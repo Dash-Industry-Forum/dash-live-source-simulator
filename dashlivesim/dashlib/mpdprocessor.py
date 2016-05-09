@@ -112,14 +112,13 @@ class MpdProcessor(object):
     def process_mpd_children(self, mpd, data, period_data):
         """Process the children of the MPD element.
 
-        They should be in order ProgramInformation, UTCTiming, BaseURL, Location, Period, Metrics."""
+        They should be in order ProgramInformation, BaseURL, Location, Period, UTCTiming, Metrics."""
         children = mpd.getchildren()
         pos = 0
         for child in children:
             if child.tag != add_ns('ProgramInformation'):
                 break
             pos += 1
-        pos = self.insert_utc_timings(mpd, pos)
         next_child = mpd.getchildren()[pos]
         if next_child.tag == add_ns('BaseURL'):
             if not data.has_key('BaseURL') or not SET_BASEURL:
@@ -160,6 +159,7 @@ class MpdProcessor(object):
         for i in range(1, len(period_data)):
             new_period = copy.deepcopy(period)
             mpd.insert(pos+i, new_period)
+        self.insert_utc_timings(mpd, pos+len(period_data))
         self.update_periods(mpd, period_data, data['periodOffset'] >= 0)
 
     def insert_baseurl(self, mpd, pos, new_baseurl):
