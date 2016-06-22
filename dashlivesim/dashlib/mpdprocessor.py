@@ -197,7 +197,7 @@ class MpdProcessor(object):
             "Insert SegmentBase element."
             segmentbase_elem = ElementTree.Element(add_ns('SegmentBase'))
             if presentation_time_offset != 0:
-                segmentbase_elem.set('presentation_time_offset', str(presentation_time_offset))
+                segmentbase_elem.set('presentationTimeOffset', str(presentation_time_offset))
             period.insert(0, segmentbase_elem)
 
         def create_inband_scte35stream_elem():
