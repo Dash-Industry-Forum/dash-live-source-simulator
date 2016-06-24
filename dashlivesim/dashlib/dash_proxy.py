@@ -329,7 +329,7 @@ class DashProvider(object):
             else:
                 response = self.process_init_segment(cfg)
         elif cfg.ext == ".m4s":
-            first_segment_ast = cfg.availability_start_time_in_s + cfg.seg_duration
+            first_segment_ast = cfg.availability_start_time_in_s + cfg.seg_duration - cfg.availability_time_offset_in_s
             if self.now_float < first_segment_ast:
                 diff = first_segment_ast - self.now_float
                 response = self.error_response("Request %s before first seg AST. %.1fs too early" %
@@ -379,6 +379,7 @@ class DashProvider(object):
         mpd_data['duration'] = '%d' % in_data['segDuration']
         mpd_data['maxSegmentDuration'] = 'PT%dS' % in_data['segDuration']
         mpd_data['presentationTimeOffset'] = 0
+        mpd_data['availabilityTimeOffset'] = '%d' % in_data['availability_time_offset_in_s']
         if in_data.has_key('availabilityEndTime'):
             mpd_data['availabilityEndTime'] = make_timestamp(in_data['availabilityEndTime'])
         mpd_proc_cfg = {'scte35Present': (cfg.scte35_per_minute > 0),
@@ -449,7 +450,7 @@ class DashProvider(object):
         seg_ast = seg_time + seg_dur
 
         if not cfg.all_segments_available_flag:
-            if now_float < seg_ast:
+            if now_float < seg_ast - cfg.availability_time_offset_in_s:
                 return self.error_response("Request for %s was %.1fs too early" % (seg_name, seg_ast - now_float))
             if now_float > seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s:
                 diff = now_float - (seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s)

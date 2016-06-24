@@ -35,6 +35,7 @@ from collections import namedtuple
 from .moduloperiod import ModuloPeriod
 
 DEFAULT_AVAILABILITY_STARTTIME_IN_S = 0 # Jan 1 1970 00:00 UTC
+DEFAULT_AVAILABILITY_TIME_OFFSET_IN_S = 0
 ALL_MEDIA_SEGMENTS_AVAILABLE = False # Set true to disable timing
 DEFAULT_TIMESHIFT_BUFFER_DEPTH_IN_SECS = 300
 DEFAULT_SHORT_MINIMUM_UPDATE_PERIOD_IN_S = 10
@@ -60,6 +61,7 @@ class Config(object):
     def __init__(self, vod_cfg_dir, base_url=None):
 
         self.availability_start_time_in_s = DEFAULT_AVAILABILITY_STARTTIME_IN_S
+        self.availability_time_offset_in_s = DEFAULT_AVAILABILITY_TIME_OFFSET_IN_S
         self.all_segments_available_flag = ALL_MEDIA_SEGMENTS_AVAILABLE
         self.availability_end_time = None
         self.media_presentation_duration = None
@@ -273,7 +275,8 @@ class ConfigProcessor(object):
     "Process the url and VoD config files and setup configuration."
 
     url_cfg_keys = ("start", "ast", "dur", "init", "tsbd", "mup", "modulo", "all", "tfdt", "cont",
-                    "periods", "xlink", "etp", "etpDuration", "insertad", "continuous", "segtimeline", "baseurl", "peroff", "scte35", "utc", "snr")
+                    "periods", "xlink", "etp", "etpDuration", "insertad", "continuous", "segtimeline", "baseurl",
+                    "peroff", "scte35", "utc", "snr", "ato")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -287,6 +290,7 @@ class ConfigProcessor(object):
         "Get data needed for generating the dynamic MPD."
         mpd = {'segDuration' : self.cfg.seg_duration,
                'availability_start_time_in_s' : self.cfg.availability_start_time_in_s,
+               'availability_time_offset_in_s' :self.cfg.availability_time_offset_in_s,
                'BaseURL' : self.cfg.base_url,
                'startNumber' : self.cfg.availability_start_time_in_s//self.cfg.seg_duration,
                'periodsPerHour' : self.cfg.periods_per_hour,
@@ -363,6 +367,8 @@ class ConfigProcessor(object):
                 cfg.utc_timing_methods = value.split("-")
             elif key == "snr": # Segment startNumber
                 cfg.start_nr = self.interpret_start_nr(value)
+            elif key == "ato": #availabilityTimeOffset
+                cfg.availability_time_offset_in_s = int(value)
             else:
                 raise ConfigProcessorError("Cannot interpret option %s properly" % key)
             url_pos += 1
