@@ -59,11 +59,18 @@ class TestMPDwithATO(unittest.TestCase):
 
     def testMpdGenerationHttps(self):
         "Check if availabilityTimeOffset works with https"
-        urlParts = ['livesim', 'ato_30', 'testpic', 'Manifest.mpd']
+        urlParts = ['livesim', 'ato_2.5', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0,
                                     is_https=True)
         d = dp.handle_request()
-        self.assertEqual(d.find('availabilityTimeOffset="30')-d.find('<BaseURL'), len('<BaseURL')+1)
+        self.assertEqual(d.find('availabilityTimeOffset="2.5')-d.find('<BaseURL'), len('<BaseURL')+1)
+
+    def testMpdGenerationInf(self):
+        "Check if availabilityTimeOffset works with https"
+        urlParts = ['livesim', 'ato_inf', 'testpic', 'Manifest.mpd']
+        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
+        d = dp.handle_request()
+        self.assertEqual(d.find('availabilityTimeOffset="INF')-d.find('<BaseURL'), len('<BaseURL')+1)
 
     def testMpdAtoSettings(self):
         "availabilityTimeOffset shouldn't appear if the setting is invalid"
@@ -73,6 +80,11 @@ class TestMPDwithATO(unittest.TestCase):
         self.assertTrue(d.find('availabilityTimeOffset') < 0)
 
         urlParts = ['livesim', 'ato_-10', 'testpic', 'Manifest.mpd']
+        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
+        d = dp.handle_request()
+        self.assertTrue(d.find('availabilityTimeOffset') < 0)
+
+        urlParts = ['livesim', 'ato_aa', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = dp.handle_request()
         self.assertTrue(d.find('availabilityTimeOffset') < 0)
@@ -94,3 +106,12 @@ class TestMPDwithATO(unittest.TestCase):
         for (exp, now) in zip(expected_results, times):
             dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
             self.assertEqual(isMediaSegment(dp.handle_request()), exp, "Did not match for time %s" % now)
+
+    def testCheckAvailabilityTimeInf(self):
+        "Check if timing with fractional seconds is correct with availabilityTimeOffset."
+        urlParts = ['livesim', 'start_60', 'ato_inf', 'testpic', 'A1', '0.m4s']
+        expected_results = [False, True, True] #should be available from 60s(AST)
+        times = [59, 60, 61]
+        for (exp, now) in zip(expected_results, times):
+            dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
+            self.assertEqual(isMediaSegment(dp.handle_request()), exp, "Did not match for time %s, but %r" % (now, dp.handle_request()))

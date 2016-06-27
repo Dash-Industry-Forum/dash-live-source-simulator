@@ -329,7 +329,11 @@ class DashProvider(object):
             else:
                 response = self.process_init_segment(cfg)
         elif cfg.ext == ".m4s":
-            first_segment_ast = cfg.availability_start_time_in_s + cfg.seg_duration - cfg.availability_time_offset_in_s
+            if cfg.availability_time_offset_in_s == -1:
+                first_segment_ast = cfg.availability_start_time_in_s
+            else:
+                first_segment_ast = cfg.availability_start_time_in_s + cfg.seg_duration - cfg.availability_time_offset_in_s
+
             if self.now_float < first_segment_ast:
                 diff = first_segment_ast - self.now_float
                 response = self.error_response("Request %s before first seg AST. %.1fs too early" %
@@ -449,7 +453,7 @@ class DashProvider(object):
         seg_time = (seg_nr - seg_start_nr) * seg_dur + cfg.availability_start_time_in_s
         seg_ast = seg_time + seg_dur
 
-        if not cfg.all_segments_available_flag:
+        if not cfg.all_segments_available_flag and cfg.availability_time_offset_in_s != -1:
             if now_float < seg_ast - cfg.availability_time_offset_in_s:
                 return self.error_response("Request for %s was %.1fs too early" % (seg_name, seg_ast - now_float))
             if now_float > seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s:

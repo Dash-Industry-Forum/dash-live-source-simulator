@@ -367,8 +367,15 @@ class ConfigProcessor(object):
                 cfg.utc_timing_methods = value.split("-")
             elif key == "snr": # Segment startNumber
                 cfg.start_nr = self.interpret_start_nr(value)
-            elif key == "ato": #availabilityTimeOffset, ignore the setting when the value is negative
-                cfg.availability_time_offset_in_s = max(float(value), 0)
+            elif key == "ato": #availabilityTimeOffset
+                if (value == "inf"):
+                    cfg.availability_time_offset_in_s = -1 #signal that the value is infinite
+                else:
+                    try:
+                        float(value)  #ignore the setting when the value is negative
+                        cfg.availability_time_offset_in_s = max(float(value), 0)
+                    except ValueError: #wrong setting
+                        cfg.availability_time_offset_in_s = 0
             else:
                 raise ConfigProcessorError("Cannot interpret option %s properly" % key)
             url_pos += 1
