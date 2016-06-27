@@ -169,7 +169,7 @@ class MpdProcessor(object):
         baseurl_elem = ElementTree.Element(add_ns('BaseURL'))
         baseurl_elem.text = new_baseurl
         baseurl_elem.tail = "\n"
-        if int(new_ato) > 0:  #ignore the setting when the value is negative
+        if float(new_ato) > 0:  # don't add this attribute when the value is 0
             self.insert_ato(baseurl_elem, new_ato)
         mpd.insert(pos, baseurl_elem)
 

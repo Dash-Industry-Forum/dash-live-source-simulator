@@ -379,7 +379,7 @@ class DashProvider(object):
         mpd_data['duration'] = '%d' % in_data['segDuration']
         mpd_data['maxSegmentDuration'] = 'PT%dS' % in_data['segDuration']
         mpd_data['presentationTimeOffset'] = 0
-        mpd_data['availabilityTimeOffset'] = '%d' % in_data['availability_time_offset_in_s']
+        mpd_data['availabilityTimeOffset'] = '%f' % in_data['availability_time_offset_in_s']
         if in_data.has_key('availabilityEndTime'):
             mpd_data['availabilityEndTime'] = make_timestamp(in_data['availabilityEndTime'])
         mpd_proc_cfg = {'scte35Present': (cfg.scte35_per_minute > 0),
