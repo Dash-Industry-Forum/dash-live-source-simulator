@@ -112,4 +112,3 @@ def create_scte35_emsg(timescale, presentation_time_offset, presentation_time, d
     "Create the Emsg DASH box for SCTE35 splice_insert."
     scte35emsg = Scte35Emsg(timescale, presentation_time_offset, presentation_time, duration, message_id, splice_id)
     return scte35emsg.get_box()
-

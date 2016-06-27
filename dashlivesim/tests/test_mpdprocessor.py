@@ -27,7 +27,7 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-import unittest, sys
+import unittest
 
 from dash_test_util import *
 from dashlivesim.dashlib import mpdprocessor
@@ -38,23 +38,23 @@ class TestMpdProcessor(unittest.TestCase):
     "Test of MPD parsing and writing"
 
     def setUp(self):
-        self.cfg = {'scte35Present' : False, 'utc_timing_methods' : [], 'utc_head_url' : "",
-                    'continuous' : False, 'segtimeline' : False, 'now' : 100000}
+        self.cfg = {'scte35Present': False, 'utc_timing_methods': [], 'utc_head_url': "",
+                    'continuous': False, 'segtimeline': False, 'now': 100000}
 
     def test_mpd_in_out(self):
         mp = mpdprocessor.MpdProcessor(vodMPD, self.cfg)
-        mp.process({'availabilityStartTime': "1971", 'availability_start_time_in_s': 31536000, 'BaseURL' : "http://india/",
-                    'minimumUpdatePeriod' : "0", 'periodOffset' : 100000},
-                   [{'id' : "p0", 'startNumber' : "0", 'presentationTimeOffset' : 0},
-                    {'id' : "p1", 'startNumber' : "3600", 'presentationTimeOffset' : 100000}])
+        mp.process({'availabilityStartTime': "1971", 'availability_start_time_in_s': 31536000,
+                    'BaseURL': "http://india/", 'minimumUpdatePeriod': "0", 'periodOffset': 100000},
+                   [{'id': "p0", 'startNumber': "0", 'presentationTimeOffset': 0},
+                    {'id': "p1", 'startNumber': "3600", 'presentationTimeOffset': 100000}])
         xml = mp.get_full_xml()
 
     def test_utc_timing_head(self):
         self.cfg['utc_timing_methods'] = ["head"]
         mp = mpdprocessor.MpdProcessor(vodMPD, self.cfg)
-        mp.process({'availabilityStartTime': "1971", 'availability_start_time_in_s': 31536000, 'BaseURL' : "http://india/",
-                    'minimumUpdatePeriod' : "0", 'periodOffset' : 100000},
-                    [{'id' : "p0", 'startNumber' : "0", 'presentationTimeOffset' : 0}] )
+        mp.process({'availabilityStartTime': "1971", 'availability_start_time_in_s': 31536000,
+                    'BaseURL': "http://india/", 'minimumUpdatePeriod': "0", 'periodOffset': 100000},
+                   [{'id': "p0", 'startNumber': "0", 'presentationTimeOffset': 0}])
         xml = mp.get_full_xml()
         head_pos = xml.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:http-head:2014"')
         self.assertGreater(head_pos, 0, "UTCTiming for head method not found.")
@@ -62,10 +62,10 @@ class TestMpdProcessor(unittest.TestCase):
     def test_utc_timing_direct_and_head(self):
         self.cfg['utc_timing_methods'] = ["direct", "head"]
         mp = mpdprocessor.MpdProcessor(vodMPD, self.cfg)
-        mp.process({'availabilityStartTime': "1971", 'availability_start_time_in_s': 31536000, 'BaseURL' : "http://india/",
-                    'minimumUpdatePeriod' : "0", 'periodOffset' : 100000},
-                   [{'id' : "p0", 'startNumber' : "0", 'presentationTimeOffset' : 0}] )
+        mp.process({'availabilityStartTime': "1971", 'availability_start_time_in_s': 31536000,
+                    'BaseURL': "http://india/", 'minimumUpdatePeriod': "0", 'periodOffset': 100000},
+                   [{'id': "p0", 'startNumber': "0", 'presentationTimeOffset': 0}])
         xml = mp.get_full_xml()
         head_pos = xml.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:http-head:2014"')
         direct_pos = xml.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:direct:2014"')
-        self.assertLess(direct_pos, head_pos , "UTCTiming direct method does not come before head method.")
+        self.assertLess(direct_pos, head_pos, "UTCTiming direct method does not come before head method.")

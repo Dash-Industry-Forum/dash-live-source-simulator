@@ -231,7 +231,7 @@ def generate_response_with_xlink(response, cfg, filename, nr_periods_per_hour, n
                                                        start_pos_period)  # Insert asset identifier,
                                                                           # if the the period is not replaced.
                     continue
-                if insert_ad == 5:  # Add additonal content for the default content
+                if insert_ad == 5:  # Add additional content for the default content
                     start_pos_period_contents = original_period.find('>') + 1
                     xlink_period = xlink_period[:-9] + '\n<!--Default content that will be played if the xlink is not' \
                                                        ' able to load.-->' + original_period[start_pos_period_contents:]
@@ -332,7 +332,8 @@ class DashProvider(object):
             if cfg.availability_time_offset_in_s == -1:
                 first_segment_ast = cfg.availability_start_time_in_s
             else:
-                first_segment_ast = cfg.availability_start_time_in_s + cfg.seg_duration - cfg.availability_time_offset_in_s
+                first_segment_ast = cfg.availability_start_time_in_s + cfg.seg_duration - \
+                                    cfg.availability_time_offset_in_s
 
             if self.now_float < first_segment_ast:
                 diff = first_segment_ast - self.now_float

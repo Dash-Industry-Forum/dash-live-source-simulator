@@ -27,7 +27,7 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-import unittest, sys
+import unittest
 
 from dash_test_util import *
 from dashlivesim.dashlib import segmentmuxer

@@ -27,7 +27,7 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-import unittest, sys
+import unittest
 
 from dashlivesim.dashlib import scte35
 
@@ -61,9 +61,9 @@ class TestScte35(unittest.TestCase):
         autoReturn = True
         duration = 900000
         message_data = scte35.create_scte35_insert_message(ptsAdjustment, tier, spliceEventId,
-                                         spliceEventCancelIndicator, outOfNetworkIndicator,
-                                         uniqueProgramId, availNum, availsExpected, spliceImmediateFlag,
-                                         ptsTime, autoReturn, duration)
+                                                           spliceEventCancelIndicator, outOfNetworkIndicator,
+                                                           uniqueProgramId, availNum, availsExpected,
+                                                           spliceImmediateFlag, ptsTime, autoReturn, duration)
         self.assertEqual(message_data, testMessage)
 
 
@@ -81,9 +81,9 @@ class TestScte35(unittest.TestCase):
         autoReturn = True
         duration = 900000
         message_data = scte35.create_scte35_insert_message(ptsAdjustment, tier, spliceEventId,
-                                         spliceEventCancelIndicator, outOfNetworkIndicator,
-                                         uniqueProgramId, availNum, availsExpected, spliceImmediateFlag,
-                                         ptsTime, autoReturn, duration)
+                                                           spliceEventCancelIndicator, outOfNetworkIndicator,
+                                                           uniqueProgramId, availNum, availsExpected,
+                                                           spliceImmediateFlag, ptsTime, autoReturn, duration)
         self.assertEqual(message_data, cancelMessage)
 
 
@@ -94,7 +94,7 @@ class TestEmsgMessage(unittest.TestCase):
         presentationTimeOffset = 1000000000000
         presentationTime = 1000001800000
         duration = 900000
-        messageId=18
+        messageId = 18
         spliceId = 13
         emsgBox = scte35.Scte35Emsg(timeScale, presentationTimeOffset, presentationTime, duration, messageId, spliceId)
         self.assertEqual(emsgBox.presentation_time_delta, presentationTime-presentationTimeOffset)
@@ -105,6 +105,7 @@ class TestEmsgMessage(unittest.TestCase):
         presentationTimeOffset = 1000000000000
         presentationTime = 1000001800000
         duration = 900000
-        messageId=18
+        messageId = 18
         spliceId = 13
-        self.assertRaises(scte35.Scte35Error, scte35.Scte35Emsg, timeScale, presentationTimeOffset, presentationTime, duration, messageId, spliceId)
+        self.assertRaises(scte35.Scte35Error, scte35.Scte35Emsg, timeScale, presentationTimeOffset, presentationTime,
+                          duration, messageId, spliceId)

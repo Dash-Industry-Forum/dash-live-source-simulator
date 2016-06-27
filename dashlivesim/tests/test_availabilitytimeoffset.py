@@ -27,7 +27,7 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-import unittest, sys
+import unittest
 
 from dash_test_util import *
 from dashlivesim.dashlib import dash_proxy
@@ -61,7 +61,7 @@ class TestMPDwithATO(unittest.TestCase):
         "Check if availabilityTimeOffset works with https"
         urlParts = ['livesim', 'ato_2.5', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0,
-                                    is_https=True)
+                                     is_https=True)
         d = dp.handle_request()
         self.assertEqual(d.find('availabilityTimeOffset="2.5')-d.find('<BaseURL'), len('<BaseURL')+1)
 
@@ -114,4 +114,4 @@ class TestMPDwithATO(unittest.TestCase):
         times = [59, 60, 61]
         for (exp, now) in zip(expected_results, times):
             dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
-            self.assertEqual(isMediaSegment(dp.handle_request()), exp, "Did not match for time %s, but %r" % (now, dp.handle_request()))
+            self.assertEqual(isMediaSegment(dp.handle_request()), exp, "Did not match for time %s" % now)

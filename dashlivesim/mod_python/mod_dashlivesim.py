@@ -115,4 +115,3 @@ def handle_request(hostname, path_parts, args, now, req):
 def handler(req):
     "This is the mod_python handler."
     return dash_handler(req, SERVER_AGENT, handle_request)
-
