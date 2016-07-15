@@ -32,7 +32,6 @@ from xml.etree import ElementTree
 
 from dash_test_util import *
 from dashlivesim.dashlib import dash_proxy
-from dashlivesim.dashlib import mpdprocessor
 
 NAMESPACE = 'urn:mpeg:dash:schema:mpd:2011'
 

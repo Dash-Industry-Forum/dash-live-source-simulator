@@ -212,7 +212,7 @@ class Representation(MpdElement):
         "The initialization path of this representation."
         init_pattern = self.adaptation_set.initialization_pattern
         rep_id = self.attribs['id']
-        bandwidth= self.attribs['bandwidth']
+        bandwidth = self.attribs['bandwidth']
         init_path = init_pattern.replace("$RepresentationID$", rep_id).replace("$bandwidth$", bandwidth)
         return init_path
 
@@ -220,7 +220,7 @@ class Representation(MpdElement):
         "Return the media path for this representation and given segNr."
         media_pattern = self.adaptation_set.media_pattern
         rep_id = self.attribs['id']
-        bandwidth= self.attribs['bandwidth']
+        bandwidth = self.attribs['bandwidth']
         media_path = media_pattern.replace("$RepresentationID$", rep_id).replace("$bandwidth$", bandwidth)
         media_path = media_path.replace("$Number$", str(segNr))
         return media_path
@@ -278,7 +278,7 @@ class MpdProcessor(MpdElement):
                 mediaPath = AS.media.replace("$RepresentationID$", self.muxed_rep).replace("$Number$", "%d")
         return mediaPath
 
-    def process(self, mpdData = {}):
+    def process(self, mpdData={}):
         MPD = self.root
         self.processMPD(MPD, mpdData)
 
@@ -348,7 +348,7 @@ class MpdProcessor(MpdElement):
         self.tree.write(ofh, encoding="utf-8")#, default_namespace=NAMESPACE)
         value = ofh.getvalue()
         if clean:
-            value =  value.replace("ns0:", "").replace("xmlns:ns0=", "xmlns=")
+            value = value.replace("ns0:", "").replace("xmlns:ns0=", "xmlns=")
         if targetMpdNameSpace is not None:
             newStr = 'xmlns="%s"' % targetMpdNameSpace
             value = re.sub('xmlns="[^"]+"', newStr, value)

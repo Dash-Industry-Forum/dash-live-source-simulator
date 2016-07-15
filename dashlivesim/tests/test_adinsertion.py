@@ -31,8 +31,6 @@ import unittest
 
 from dash_test_util import *
 from dashlivesim.dashlib import dash_proxy
-from re import findall
-from operator import mul
 from dashlivesim.dashlib import mpdprocessor
 import xml.etree.ElementTree as ET
 
@@ -58,7 +56,8 @@ class TestXlinkPeriod(unittest.TestCase):
         # added or not.
         prev_child = []
         for child in xml.findall('{urn:mpeg:dash:schema:mpd:2011}Period'): # Collect all period elements first
-            if child.attrib.has_key('{http://www.w3.org/1999/xlink}actuate'): # If the period element has the duration attribute.
+            if child.attrib.has_key('{http://www.w3.org/1999/xlink}actuate'):
+                # If the period element has the duration attribute.
                 collect_result.append(prev_child.attrib.has_key('duration')) # Then collect its period id in this
             prev_child = child
         # Ideally, at the periods should have a duration attribute, if no then the test fails.

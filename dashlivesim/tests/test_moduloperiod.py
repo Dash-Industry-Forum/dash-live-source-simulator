@@ -46,7 +46,7 @@ class TestModuloCalculations(unittest.TestCase):
         self.assertEqual(mp._availability_start_time, 300)
         self.assertEqual(mp._media_presentation_duration, 240)
         self.assertEqual(mp._availability_end_time, 555)
-        self.assertEqual(mp.compare_with_last_segment(269,2),0)
+        self.assertEqual(mp.compare_with_last_segment(269, 2), 0)
 
     def testFuturePeriod(self):
         mp = ModuloPeriod(5, 575)

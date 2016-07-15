@@ -111,8 +111,10 @@ class MpdProcessor(object):
     #pylint: disable = too-many-branches
     def process_mpd_children(self, mpd, data, period_data):
         """Process the children of the MPD element.
-
         They should be in order ProgramInformation, BaseURL, Location, Period, UTCTiming, Metrics."""
+        ato = 0
+        if data.has_key('availabilityTimeOffset'):
+            ato = data['availabilityTimeOffset']
         children = mpd.getchildren()
         pos = 0
         for child in children:
@@ -142,11 +144,11 @@ class MpdProcessor(object):
                 url_parts = filter(None, url_parts)
                 for url in data['urls']:
                     url_parts.insert(-1, "baseurl_" + url)
-                    self.insert_baseurl(mpd, pos, url_header + "//" + "/".join(url_parts) + "/")
+                    self.insert_baseurl(mpd, pos, url_header + "//" + "/".join(url_parts) + "/", ato)
                     del url_parts[-2]
                     pos += 1
             else:
-                self.insert_baseurl(mpd, pos, data['BaseURL'])
+                self.insert_baseurl(mpd, pos, data['BaseURL'], ato)
                 pos += 1
         children = mpd.getchildren()
         for ch_nr in range(pos, len(children)):
@@ -162,16 +164,24 @@ class MpdProcessor(object):
         self.insert_utc_timings(mpd, pos+len(period_data))
         self.update_periods(mpd, period_data, data['periodOffset'] >= 0)
 
-    def insert_baseurl(self, mpd, pos, new_baseurl):
+    def insert_baseurl(self, mpd, pos, new_baseurl, new_ato):
         "Create and insert a new <BaseURL> element."
         baseurl_elem = ElementTree.Element(add_ns('BaseURL'))
         baseurl_elem.text = new_baseurl
         baseurl_elem.tail = "\n"
+        if float(new_ato) == -1:
+            self.insert_ato(baseurl_elem, 'INF')
+        elif float(new_ato) > 0:  # don't add this attribute when the value is 0
+            self.insert_ato(baseurl_elem, new_ato)
         mpd.insert(pos, baseurl_elem)
 
     def modify_baseurl(self, baseurl_elem, new_baseurl):
         "Modify the text of an existing BaseURL"
         baseurl_elem.text = new_baseurl
+
+    def insert_ato(self, baseurl_elem, new_ato):
+        "Add availabilityTimeOffset to BaseURL element"
+        baseurl_elem.set('availabilityTimeOffset', new_ato)
 
     #pylint: disable = too-many-statements
     def update_periods(self, mpd, period_data, offset_at_period_level=False):
@@ -197,7 +207,7 @@ class MpdProcessor(object):
             "Insert SegmentBase element."
             segmentbase_elem = ElementTree.Element(add_ns('SegmentBase'))
             if presentation_time_offset != 0:
-                segmentbase_elem.set('presentation_time_offset', str(presentation_time_offset))
+                segmentbase_elem.set('presentationTimeOffset', str(presentation_time_offset))
             period.insert(0, segmentbase_elem)
 
         def create_inband_scte35stream_elem():

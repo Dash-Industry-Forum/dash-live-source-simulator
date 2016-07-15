@@ -117,7 +117,7 @@ class DashAnalyzer(object):
                     raise DashAnalyzerError("Timescales not consistent between %s tracks" % content_type)
                 if self.verbose:
                     print "%s data: " % content_type
-                    for (k,v) in rep_data.items():
+                    for (k, v) in rep_data.items():
                         print "  %s=%s" % (k, v)
 
     def getSegmentRange(self, rep_data):
@@ -134,10 +134,10 @@ class DashAnalyzer(object):
                 number = int(matchObj.groups(1)[0])
                 numbers.append(number)
         numbers.sort()
-        for i in range(1,len(numbers)):
+        for i in range(1, len(numbers)):
             if numbers[i] != numbers[i-1] + 1:
                 raise DashAnalyzerError("%s segment missing between %d and %d" % (rep_id, numbers[i-1], numbers[i]))
-        print "Found %s segments %d - %d" % (rep_id, numbers[0] , numbers[-1])
+        print "Found %s segments %d - %d" % (rep_id, numbers[0], numbers[-1])
         rep_data['firstNumber'] = numbers[0]
         rep_data['lastNumber'] = numbers[-1]
 
@@ -167,7 +167,7 @@ class DashAnalyzer(object):
             with open(as_data['datFile'], "wb") as ofh:
                 for (rep_nr, rep_data) in enumerate(as_data['reps']):
                     rep_id = rep_data['id']
-                    rep_data['endNr'] =  None
+                    rep_data['endNr'] = None
                     rep_data['startTick'] = None
                     rep_data['endTick'] = None
                     if self.firstSegmentInLoop >= 0:
@@ -232,7 +232,8 @@ class DashAnalyzer(object):
         self.loopTime = self.nrSegmentsInLoop*self.segDuration
         if self.verbose:
             print ""
-        print "Will loop segments %d-%d with loop time %ds" % (self.firstSegmentInLoop, self.lastSegmentInLoop, self.loopTime)
+        print "Will loop segments %d-%d with loop time %ds" % (self.firstSegmentInLoop, self.lastSegmentInLoop,
+                                                               self.loopTime)
 
     def write_config(self, config_file):
         "Write a config file for the analyzed content, that can then be used to serve it efficiently."

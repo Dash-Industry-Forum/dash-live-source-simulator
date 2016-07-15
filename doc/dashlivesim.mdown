@@ -44,7 +44,8 @@ There are thus no surprises due to network problems in the live content stream t
 * Support for periodic services which repeat every 10min or similar.
 * Support for multiple periods and one period that started later that the session.
 * Feedback on too early or too late segment fetching attempts by explicit text in HTTP 404 return messages
-* Disabling of all timing checks of segments by specifying the `all_1` modifier.
+* Support for availability time offset in BaseURL element
+* Disabling of all timing checks of segments by specifying the `ato_inf` modifier.
 * On the fly multiplexing of audio and video (for eMBMS testing, rather than DASH-IF)
 * Insertion of SCTE-35 ad signaling as emsg messages following the DASH-IF guidelines.
 * Support for client-server time-sync using UTCTiming (head and direct methods). This reduces dash.js startup time.

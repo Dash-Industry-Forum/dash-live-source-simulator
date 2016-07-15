@@ -1,4 +1,4 @@
-import unittest, sys
+import unittest
 
 from dash_test_util import *
 from dashlivesim.dashlib import dash_proxy
@@ -35,27 +35,27 @@ class TestMultipleBaseUrls(unittest.TestCase):
     def testMpdGenerationHttps(self):
         urlParts = ['livesim', 'baseurl_u40_d20', 'baseurl_d40_u20', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0,
-                                    is_https=True)
+                                     is_https=True)
         d = dp.handle_request()
         httpsIndexes = findAllIndexes("<BaseURL>https://", d)
         self.assertEqual(len(httpsIndexes), 2)
 
     def testCheckUpAndDownDependingOnTime(self):
-        urlParts = ['livesim','all_1', 'baseurl_u40_d20', 'testpic', 'A1', '0.m4s']
+        urlParts = ['livesim', 'ato_inf', 'baseurl_u40_d20', 'testpic', 'A1', '0.m4s']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=68)
         self.assertTrue(isMediaSegment(dp.handle_request()))
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=108)
         self.assertFalse(isMediaSegment(dp.handle_request()))
 
     def testCheckDowAndUpDependingOnTime(self):
-        urlParts = ['livesim','all_1', 'baseurl_d40_u20', 'testpic', 'A1', '0.m4s']
+        urlParts = ['livesim', 'ato_inf', 'baseurl_d40_u20', 'testpic', 'A1', '0.m4s']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=68)
         self.assertFalse(isMediaSegment(dp.handle_request()))
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=108)
         self.assertTrue(isMediaSegment(dp.handle_request()))
 
     def testCheckDowAndUpDependingOnTime30sPeriod(self):
-        urlParts = ['livesim','all_1', 'baseurl_d20_u10', 'testpic', 'A1', '0.m4s']
+        urlParts = ['livesim', 'ato_inf', 'baseurl_d20_u10', 'testpic', 'A1', '0.m4s']
         expected_results = [False, False, True, False, False, True]
         times = [7, 17, 27, 37, 47, 57]
         for (exp, now) in zip(expected_results, times):
@@ -63,7 +63,7 @@ class TestMultipleBaseUrls(unittest.TestCase):
             self.assertEqual(isMediaSegment(dp.handle_request()), exp, "Did not match for time %s" % now)
 
     def testCheckUpAndDownDependingOnTime30sPeriod(self):
-        urlParts = ['livesim','all_1', 'baseurl_u20_d10', 'testpic', 'A1', '0.m4s']
+        urlParts = ['livesim', 'ato_inf', 'baseurl_u20_d10', 'testpic', 'A1', '0.m4s']
         expected_results = [True, True, False, True, True, False]
         times = [7, 17, 27, 37, 47, 57]
         for (exp, now) in zip(expected_results, times):
@@ -71,11 +71,9 @@ class TestMultipleBaseUrls(unittest.TestCase):
             self.assertEqual(isMediaSegment(dp.handle_request()), exp, "Did not match for time %s" % now)
 
     def testOtherOrderOfOptions(self):
-        urlParts = ['livesim', 'baseurl_u20_d10', 'all_1', 'testpic', 'A1', '0.m4s']
+        urlParts = ['livesim', 'baseurl_u20_d10', 'ato_inf', 'testpic', 'A1', '0.m4s']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10)
         d = dp.handle_request()
         self.assertTrue(isMediaSegment(d), "Not a media segment, but %r" % d)
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=25)
         self.assertFalse(isMediaSegment(dp.handle_request()), "Is a media segment, but should not be")
-
-

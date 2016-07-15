@@ -27,7 +27,7 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-import unittest, sys
+import unittest
 
 from dash_test_util import *
 from dashlivesim.dashlib import dash_proxy
@@ -170,7 +170,8 @@ class TestMediaSegments(unittest.TestCase):
         urlParts = ['pdash', 'utc_direct-head', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = dp.handle_request()
-        head_pos = d.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:http-head:2014" value="http://streamtest.eu/dash/time.txt" />')
+        head_pos = d.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:http-head:2014" '
+                          'value="http://streamtest.eu/dash/time.txt" />')
         direct_pos = d.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:direct:2014"')
         self.assertLess(direct_pos, head_pos)
 
@@ -285,7 +286,7 @@ class TestScte35Segments(unittest.TestCase):
         rm_outfile(testOutputFile)
         segDur = 6
         segNr = 1800000
-        now =  segNr*segDur+50
+        now = segNr*segDur+50
         segment = "%d.m4s" % segNr
         urlParts = ['pdash', 'scte35_3', 'testpic', 'V1', segment]
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
@@ -296,10 +297,9 @@ class TestScte35Segments(unittest.TestCase):
     def testNoScte35Event(self):
         segDur = 6
         segNr = 1800001
-        now =  segNr*segDur+50
+        now = segNr*segDur+50
         segment = "%d.m4s" % segNr
         urlParts = ['pdash', 'scte35_1', 'testpic', 'V1', segment]
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
         d = dp.handle_request()
         self.assertEqual(d.find('emsg'), -1)
-
