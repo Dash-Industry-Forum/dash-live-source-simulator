@@ -7,5 +7,5 @@ It uses VoD content in live profile as a start, and modifies the MPD and the med
 segments to provide a live source. All modifications are made on the fly, which allows
 for many different options as well as accurate timing testing.
 
-The tool is written in Python and runs as an Apache mod_python plugin.
+The tool is written in Python and runs as an Apache mod_python plugin or using mod_wsgi.
 
