@@ -197,6 +197,7 @@ class DashAnalyzer(object):
                         msf.filter()
                         tfdt = msf.get_tfdt_value()
                         duration = msf.get_duration()
+                        print "{0} {1:8d} {2}  {3}".format(content_type, segNr, tfdt, duration)
                         if duration == lastDuration:
                             repeatCount += 1
                         else:

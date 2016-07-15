@@ -53,8 +53,7 @@ class SegmentTimeLineGenerator(object):
         try:
             dat_file = media_data['dat_file']
         except KeyError, e:
-            print media_data
-            print e
+            print "Error for %s: %s" % (media_data, e)
         dat_file_path = os.path.join(self.cfg.vod_cfg_dir, dat_file)
         self.segtimedata = [] # Tuples corresponding to SegTimeEntry
         with open(dat_file_path, "rb") as ifh:
