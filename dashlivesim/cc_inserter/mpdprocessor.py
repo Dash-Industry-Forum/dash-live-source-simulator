@@ -164,9 +164,14 @@ class AdaptationSet(MpdElement):
         return int(self.attribs['startNumber'])
 
     @property
+    def timescale(self):
+        "Timescale in units per seconds to be used for the derivation of different real-time duration values in the Segment Information"
+        return int(self.attribs['timescale'] or 1)
+
+    @property
     def duration(self):
         "Segment duration (in whole seconds)."
-        return int(self.attribs['duration'])
+        return int(self.attribs['duration']) / self.timescale
 
     def parse(self):
         "Parse the node and its children."
