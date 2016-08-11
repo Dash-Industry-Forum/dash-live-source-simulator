@@ -221,7 +221,7 @@ class VodConfig(object):
                 raise ConfigProcessorError("Bad config file version: %s (should be in %s)" % (version,
                                                                                               self.good_versions))
             self.first_segment_in_loop = config.getint("Setup", "first_segment_in_loop")
-            self.segment_duration_s = config.getint("Setup", "segment_duration_s")
+            self.segment_duration_s = config.getfloat("Setup", "segment_duration_s")
             self.nr_segments_in_loop = config.getint("Setup", "nr_segments_in_loop")
             self.default_tsbd_secs = config.getint("Setup", "default_tsbd_secs")
             for media in self.possible_media:
