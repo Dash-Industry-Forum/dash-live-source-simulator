@@ -214,6 +214,10 @@ class MpdProcessor(object):
             "Create an InbandEventStream element for SCTE-35."
             return self.create_descriptor_elem("InbandEventStream", scte35.SCHEME_ID_URI, value=str(scte35.PID))
 
+        def create_inline_mpdcallback_elem():
+            "Create an EventStream element for MPD Callback."
+            return self.create_descriptor_elem("EventStream", "urn:mpeg:dash:event:callback:2015", value=str(1),
+                                               elem_id=None, messageData="http://someurl.to.server")
         if self.segtimeline:
             segtimeline_generators = {}
             for content_type in ('video', 'audio'):
@@ -234,6 +238,10 @@ class MpdProcessor(object):
                     insert_segmentbase(period, pdata['presentationTimeOffset'])
                 else:
                     segmenttemplate_attribs.append('presentationTimeOffset')
+            if pdata.has_key('mpdCallback'):
+                # Add the mpdCallback element only if the flag is raised.
+                mpdcallback_elem = create_inline_mpdcallback_elem()
+                period.insert(0, mpdcallback_elem)
             adaptation_sets = period.findall(add_ns('AdaptationSet'))
             for ad_set in adaptation_sets:
                 ad_pos = 0
@@ -275,7 +283,7 @@ class MpdProcessor(object):
                         seg_template.insert(0, seg_timeline)
             last_period_id = pdata.get('id')
 
-    def create_descriptor_elem(self, name, scheme_id_uri, value=None, elem_id=None):
+    def create_descriptor_elem(self, name, scheme_id_uri, value=None, elem_id=None, messageData=None):
         "Create an element of DescriptorType."
         elem = ElementTree.Element(add_ns(name))
         elem.set("schemeIdUri", scheme_id_uri)
@@ -283,6 +291,8 @@ class MpdProcessor(object):
             elem.set("value", value)
         if elem_id:
             elem.set("id", elem_id)
+        if messageData:
+            elem.set("messageData", messageData)
         elem.tail = "\n"
         return elem
 

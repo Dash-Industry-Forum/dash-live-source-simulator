@@ -163,6 +163,21 @@ def generate_period_data(mpd_data, now, cfg):
                 if period_nr % fraction_nr_periods_to_nr_etp == 0:
                     data['etpDuration'] = etp_duration
                     data['period_duration_s'] = etp_duration
+
+            if mpd_data['mpdCallback'] > 0:
+                # Check whether the mpdCallback feature is enabled or not.
+                # If yes, then proceed.
+                nr_callback_periods_per_hour = min(mpd_data['mpdCallback'], 60)
+                # Limit the maximum value to 60, same as done for the period.
+                fraction_nr_periods_to_nr_callback = float(nr_periods_per_hour)/nr_callback_periods_per_hour
+                if fraction_nr_periods_to_nr_callback != int(fraction_nr_periods_to_nr_callback):
+                    raise Exception("(Number of periods per hour/ Number of callback periods per hour) "
+                                    "should be an integer.")
+                if period_nr % fraction_nr_periods_to_nr_callback == 0:
+                    data['mpdCallback'] = 1
+                    # If this period meets the condition, we raise a flag.
+                    # We use the flag later to decide to put a mpdCallback element or not.
+
             period_data.append(data)
             if ad_frequency > 0 and ((period_nr % ad_frequency) == 0) and counter > 0:
                 period_data[counter - 1]['periodDuration'] = 'PT%dS' % period_duration

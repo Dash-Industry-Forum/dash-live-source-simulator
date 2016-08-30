@@ -75,6 +75,7 @@ class Config(object):
         self.etp_periods_per_hour = -1 # Number of periods per hour that are accessed via xlink.
         self.etp_duration = -1 # Duration of the early-terminated period.
         self.insert_ad = -1 # Number of periods per hour that are accessed via xlink.
+        self.mpd_callback = -1 # Number of periods per hour that have mpd callback events.
         self.cont_multiperiod = False # This flag should only be used when periods_per_hour is set
         self.seg_timeline = False # This flag is only true when there is /segtimeline_1/ in the URL
         self.multi_url = [] # If not empty, give multiple URLs in the BaseURL element
@@ -273,7 +274,7 @@ class ConfigProcessor(object):
     "Process the url and VoD config files and setup configuration."
 
     url_cfg_keys = ("start", "ast", "dur", "init", "tsbd", "mup", "modulo", "tfdt", "cont",
-                    "periods", "xlink", "etp", "etpDuration", "insertad", "continuous", "segtimeline", "baseurl",
+                    "periods", "xlink", "etp", "etpDuration", "insertad", "mpdcallback", "continuous", "segtimeline", "baseurl",
                     "peroff", "scte35", "utc", "snr", "ato")
 
     def __init__(self, vod_cfg_dir, base_url):
@@ -296,6 +297,7 @@ class ConfigProcessor(object):
                'etpPeriodsPerHour' : self.cfg.etp_periods_per_hour,
                'etpDuration' : self.cfg.etp_duration,
                'insertAd' : self.cfg.insert_ad,
+               'mpdCallback':self.cfg.mpd_callback,
                'continuous' : self.cfg.cont_multiperiod,
                'segtimeline' : self.cfg.seg_timeline,
                'urls' : self.cfg.multi_url,
@@ -347,6 +349,8 @@ class ConfigProcessor(object):
                 cfg.etp_duration = int(value)
             elif key == "insertad": # Make periods access via xlink.
                 cfg.insert_ad = int(value)
+            elif key == "mpdcallback": # Make periods access via xlink.
+                cfg.mpd_callback = int(value)
             elif key == "continuous": # Only valid when it's set to 1 and periods_per_hour is set
                 if int(value) == 1:
                     cfg.cont_multiperiod = True
@@ -364,7 +368,7 @@ class ConfigProcessor(object):
             elif key == "snr": # Segment startNumber
                 cfg.start_nr = self.interpret_start_nr(value)
             elif key == "ato": #availabilityTimeOffset
-                if (value == "inf"):
+                if value == "inf":
                     cfg.availability_time_offset_in_s = -1 #signal that the value is infinite
                 else:
                     try:
