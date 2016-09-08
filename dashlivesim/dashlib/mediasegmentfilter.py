@@ -121,7 +121,10 @@ class MediaSegmentFilter(MP4Filter):
         if self.seg_nr is None:
             return data
         else:
-            return data[0:12] + uint32_to_str(self.seg_nr)
+            # segment number modulo max(unsigned int) avoids uint32_to_str from overflowing.
+            # This issue arised with the acceptance of miliseconds (float) in segment_duration_s
+            # segment_duration_s was originally int
+            return data[0:12] + uint32_to_str(self.seg_nr % 2**32-1)
 
     def process_trun(self, data):
         "Get total duration from trun. Fix offset if self.size_change is non-zero."
