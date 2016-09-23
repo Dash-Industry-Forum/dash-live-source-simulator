@@ -225,8 +225,10 @@ class MpdProcessor(object):
                                                                                 self.cfg)
         periods = mpd.findall(add_ns('Period'))
         BaseURL = mpd.findall(add_ns('BaseURL'))
-        BaseURLParts = BaseURL[0].text.split('/')
-        BaseURLSegmented = BaseURLParts[0] + '//' + BaseURLParts[2] + '/' + BaseURLParts[3] + '/mpdcallback/'
+        if len(BaseURL) > 0:
+            BaseURLParts = BaseURL[0].text.split('/')
+            if len(BaseURLParts) > 3:
+                BaseURLSegmented = BaseURLParts[0] + '//' + BaseURLParts[2] + '/' + BaseURLParts[3] + '/mpdcallback/'
         # From the Base URL
         last_period_id = '-1'
         for (period, pdata) in zip(periods, period_data):
