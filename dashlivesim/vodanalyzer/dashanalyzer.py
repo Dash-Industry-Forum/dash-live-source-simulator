@@ -144,7 +144,7 @@ class DashAnalyzer(object):
     def checkAndUpdateMediaData(self):
         """Check all segments for good values and return startTimes and total duration."""
         lastGoodSegments = []
-        seg_duration = None
+
         print "Checking all the media segment durations for deviations."
 
         def writeSegTiming(ofh, firstSegmentInRepeat, firstStartTimeInRepeat, duration, repeatCount):
@@ -221,6 +221,8 @@ class DashAnalyzer(object):
                             rep_data['endTick'] = tfdt + duration
                             rep_data['endTime'] = rep_data['endTick']/float(track_timescale)
                             rep_data['endNr'] = segNr
+                        else:
+                            raise DashAnalyzerError("Too much drift in the duration of the segments")
                         segNr += 1
                         if self.verbose:
                             sys.stdout.write(".")
