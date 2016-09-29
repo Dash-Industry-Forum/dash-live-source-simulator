@@ -30,7 +30,8 @@ After [prefix], one can specify the following (mixed with the start_X and dur_X 
 tsbd_x - timeshiftBufferDepth = x seconds
 mup_x - minimumUpdatePeriod = x seconds
 init_x - initSegmentAvailabilityOffset makes the init segments available ahead of time by x seconds
-all_1 - make all segments available (no timing checks)
+ato_inf - make all segments available (no timing checks)
+ato_x - availabilityTimeOffset = x seconds
 
 For dynamic MPDs, one can also specify a modulo_x period in minutes.
 
@@ -115,4 +116,3 @@ def handle_request(hostname, path_parts, args, now, req):
 def handler(req):
     "This is the mod_python handler."
     return dash_handler(req, SERVER_AGENT, handle_request)
-

@@ -30,8 +30,8 @@
 import unittest
 
 from dash_test_util import *
-from ..dashlib import ttml_timing_offset
-from ..dashlib import dash_proxy
+from dashlivesim.dashlib import ttml_timing_offset
+from dashlivesim.dashlib import dash_proxy
 
 TEST_STRING_1 = '< begin="01:02:03.1234" end="10:59:43:29" >'
 TEST_STRING_SEG_NR = '... Segment # 12 ...'
@@ -74,7 +74,7 @@ class TestSegmentModification(unittest.TestCase):
         segmentNr = 718263000
         segment = "%d.m4s" % segmentNr
         now = segmentNr * 2 + 10
-        urlParts = ['livsim', 'all_1', 'testpic_stpp', 'S1', segment]
+        urlParts = ['livsim', 'ato_inf', 'testpic_stpp', 'S1', segment]
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
         d = dp.handle_request()
         write_data_to_outfile(d, testOutputFile)

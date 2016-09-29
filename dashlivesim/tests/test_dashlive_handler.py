@@ -27,10 +27,9 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-import unittest, sys
+import unittest
 
-from dash_test_util import *
-from ..mod_python import dashlive_handler
+from dashlivesim.mod_python import dashlive_handler
 
 class TestRange(unittest.TestCase):
     "Test that ranges are handled correctly"
@@ -55,4 +54,3 @@ class TestRange(unittest.TestCase):
         (pl, rangeResponse) = dashlive_handler.handle_byte_range(payload, rangeLine)
         self.assertEqual(pl, "456789", "LastRange payload")
         self.assertEqual(rangeResponse, "bytes 4-9/10", "LastRange range")
-

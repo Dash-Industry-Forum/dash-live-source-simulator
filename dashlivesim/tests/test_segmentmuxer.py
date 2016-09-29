@@ -27,10 +27,10 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-import unittest, sys
+import unittest
 
 from dash_test_util import *
-from ..dashlib import segmentmuxer
+from dashlivesim.dashlib import segmentmuxer
 
 V1_INIT = join(CONTENT_ROOT, "testpic/V1/init.mp4")
 A1_INIT = join(CONTENT_ROOT, "testpic/A1/init.mp4")

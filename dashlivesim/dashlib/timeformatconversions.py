@@ -70,4 +70,3 @@ def seconds_to_iso_duration(nr_secs):
 def make_timestamp(time_in_s):
     "Return timestamp as string."
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time_in_s))
-

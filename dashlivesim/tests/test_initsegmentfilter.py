@@ -27,21 +27,20 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-import unittest, sys
+import unittest
 
 from dash_test_util import *
-from ..dashlib import initsegmentfilter
+from dashlivesim.dashlib import initsegmentfilter
 
 class TestInitParsing(unittest.TestCase):
 
     def setUp(self):
-        fileName = join(CONTENT_ROOT,"testpic/A1/init.mp4")
+        fileName = join(CONTENT_ROOT, "testpic/A1/init.mp4")
         self.f = initsegmentfilter.InitFilter(fileName)
         self.f.filter()
 
     def testTrackTimeScale(self):
-        self.assertEqual(self.f.track_timescale, 32000)
+        self.assertEqual(self.f.track_timescale, 48000)
 
     def testTrackHdlrType(self):
         self.assertEqual(self.f.handler_type, 'soun')
-

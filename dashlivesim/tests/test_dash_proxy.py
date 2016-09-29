@@ -27,24 +27,25 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-import unittest, sys
+import unittest
 
 from dash_test_util import *
-from ..dashlib import dash_proxy
+from dashlivesim.dashlib import dash_proxy
+from dashlivesim.dashlib import mpdprocessor
 
-def findAllIndexes(needle, haystack):
-    """Find the index for the beginning of each occurrence of ``needle`` in ``haystack``. Overlaps are allowed."""
-    indexes = []
-    last_index = haystack.find(needle)
-    while -1 != last_index:
-        indexes.append(last_index)
-        last_index = haystack.find(needle, last_index + 1)
-    return indexes
 
 class TestMPDProcessing(unittest.TestCase):
     "Test of MPD parsing"
 
+    def setUp(self):
+        self.oldBaseUrlState = mpdprocessor.SET_BASEURL
+        mpdprocessor.SET_BASEURL = False
+
+    def tearDown(self):
+        mpdprocessor.SET_BASEURL = self.oldBaseUrlState
+
     def testMPDhandling(self):
+        mpdprocessor.SET_BASEURL = True
         urlParts = ['pdash', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = dp.handle_request()
@@ -85,6 +86,7 @@ class TestMPDProcessing(unittest.TestCase):
 
     def testHttpsBaseURL(self):
         "Check that protocol is set to https if signalled to DashProvider."
+        mpdprocessor.SET_BASEURL = True
         urlParts = ['pdash', 'testpic', 'Manifest.mpd']
         is_https = 1
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0,
@@ -97,7 +99,7 @@ class TestInitSegmentProcessing(unittest.TestCase):
         urlParts = ['pdash', 'testpic', 'A1', 'init.mp4']
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = dp.handle_request()
-        self.assertEqual(len(d), 617)
+        self.assertEqual(len(d), 651)
 
 class TestMediaSegments(unittest.TestCase):
 
@@ -110,7 +112,7 @@ class TestMediaSegments(unittest.TestCase):
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
         d = dp.handle_request()
         write_data_to_outfile(d, testOutputFile)
-        self.assertEqual(len(d), 43661)
+        self.assertEqual(len(d), 39517)
 
     def testMediaSegmentTooEarly(self):
         urlParts = ['pdash', 'testpic', 'A1', '5.m4s'] # Should be available after 36s
@@ -125,7 +127,7 @@ class TestMediaSegments(unittest.TestCase):
         self.assertEqual(d['ok'], False)
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=14)
         d = dp.handle_request()
-        self.assertEqual(len(d), 43753) # A full media segment
+        self.assertEqual(len(d), 40346) # A full media segment
 
     def testMediaSegmentBeforeTimeShiftBufferDepth(self):
         now = 1356999060
@@ -151,7 +153,7 @@ class TestMediaSegments(unittest.TestCase):
         d = dp.handle_request()
         write_data_to_outfile(d, testOutputFile)
         periodPositions = findAllIndexes("<Period", d)
-        self.assertEqual(len(periodPositions), 3)
+        self.assertEqual(len(periodPositions), 2)
 
     def testContinuous(self):
         testOutputFile = "ContMultiperiod.mpd"
@@ -168,15 +170,24 @@ class TestMediaSegments(unittest.TestCase):
         urlParts = ['pdash', 'utc_direct-head', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = dp.handle_request()
-        head_pos = d.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:http-head:2014" value="http://streamtest.eu/dash/time.txt" />')
+        head_pos = d.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:http-head:2014" '
+                          'value="http://streamtest.eu/dash/time.txt" />')
         direct_pos = d.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:direct:2014"')
         self.assertLess(direct_pos, head_pos)
 
 class TestMorePathLevels(unittest.TestCase):
     "Test when representations are further down in"
 
+    def setUp(self):
+        self.oldBaseUrlState = mpdprocessor.SET_BASEURL
+        mpdprocessor.SET_BASEURL = False
+
+    def tearDown(self):
+        mpdprocessor.SET_BASEURL = self.oldBaseUrlState
+
     def testMPDGet(self):
-        urlParts = ['pdash', 'testpic', 'Manifest2l.mpd']
+        mpdprocessor.SET_BASEURL = True
+        urlParts = ['pdash', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = dp.handle_request()
         self.assertGreater(d.find("<BaseURL>http://streamtest.eu/pdash/testpic/</BaseURL>"), 0)
@@ -219,7 +230,7 @@ class TestTfdt(unittest.TestCase):
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
         d = dp.handle_request()
         tfdtValue = dp.new_tfdt_value
-        presentationTime = tfdtValue/15360
+        presentationTime = tfdtValue/90000
         segmentTime = segNr*6
         self.assertEqual(presentationTime, segmentTime)
 
@@ -275,7 +286,7 @@ class TestScte35Segments(unittest.TestCase):
         rm_outfile(testOutputFile)
         segDur = 6
         segNr = 1800000
-        now =  segNr*segDur+50
+        now = segNr*segDur+50
         segment = "%d.m4s" % segNr
         urlParts = ['pdash', 'scte35_3', 'testpic', 'V1', segment]
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
@@ -286,10 +297,9 @@ class TestScte35Segments(unittest.TestCase):
     def testNoScte35Event(self):
         segDur = 6
         segNr = 1800001
-        now =  segNr*segDur+50
+        now = segNr*segDur+50
         segment = "%d.m4s" % segNr
         urlParts = ['pdash', 'scte35_1', 'testpic', 'V1', segment]
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
         d = dp.handle_request()
         self.assertEqual(d.find('emsg'), -1)
-

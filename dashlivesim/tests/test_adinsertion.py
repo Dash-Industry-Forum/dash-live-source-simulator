@@ -1,5 +1,3 @@
-"""Utilities for testing."""
-
 # The copyright in this software is being made available under the BSD License,
 # included below. This software may be subject to other third party and contributor
 # rights, including patent rights, and no such rights are granted under this license.
@@ -29,32 +27,38 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-from os import unlink, makedirs
-from os.path import join, abspath, dirname, exists
-thisDir = abspath(dirname(__file__))
-VOD_CONFIG_DIR = thisDir
-CONTENT_ROOT = thisDir
-OUT_DIR = join(thisDir, "out_test")
+import unittest
 
-def rm_outfile(filename):
-    "Remove file from OUT_DIR if it exists."
-    path = join(OUT_DIR, filename)
-    if exists(path):
-        unlink(path)
+from dash_test_util import *
+from dashlivesim.dashlib import dash_proxy
+from dashlivesim.dashlib import mpdprocessor
+import xml.etree.ElementTree as ET
 
-def write_data_to_outfile(data, filename):
-    "Write data to a file in OUT_DIR."
-    if not exists(OUT_DIR):
-        makedirs(OUT_DIR)
-    ofh = open(join(OUT_DIR, filename), "wb")
-    ofh.write(data)
-    ofh.close()
 
-def findAllIndexes(needle, haystack):
-    """Find the index for the beginning of each occurrence of ``needle`` in ``haystack``. Overlaps are allowed."""
-    indexes = []
-    last_index = haystack.find(needle)
-    while -1 != last_index:
-        indexes.append(last_index)
-        last_index = haystack.find(needle, last_index + 1)
-    return indexes
+class TestXlinkPeriod(unittest.TestCase):
+
+    def setUp(self):
+        self.old_set_baseurl_value = mpdprocessor.SET_BASEURL
+        mpdprocessor.SET_BASEURL = True
+
+    def tearDown(self):
+        mpdprocessor.SET_BASEURL = self.old_set_baseurl_value
+
+    def testMpdPeriodReplaced(self):
+        " Check whether before every xlink period, duration attribute has been inserted"
+        collect_result = []
+        urlParts = ['livesim', 'periods_60', 'xlink_30', 'insertad_1', 'testpic_2s', 'Manifest.mpd']
+        dp = dash_proxy.DashProvider("10.4.247.98", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10000)
+        d = dp.handle_request()
+        xml = ET.fromstring(d)
+        # Make the string as a xml document.
+        # In the following, we will check if for every period before every xlink period, duration attribute has been
+        # added or not.
+        prev_child = []
+        for child in xml.findall('{urn:mpeg:dash:schema:mpd:2011}Period'): # Collect all period elements first
+            if child.attrib.has_key('{http://www.w3.org/1999/xlink}actuate'):
+                # If the period element has the duration attribute.
+                collect_result.append(prev_child.attrib.has_key('duration')) # Then collect its period id in this
+            prev_child = child
+        # Ideally, at the periods should have a duration attribute, if no then the test fails.
+        self.assertTrue((False in collect_result) == False)

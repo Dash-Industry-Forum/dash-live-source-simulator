@@ -1,5 +1,4 @@
-"""Utilities for testing."""
-
+"DASH namespace definition and prepender."
 # The copyright in this software is being made available under the BSD License,
 # included below. This software may be subject to other third party and contributor
 # rights, including patent rights, and no such rights are granted under this license.
@@ -27,34 +26,15 @@
 #  PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
 #  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-#  POSSIBILITY OF SUCH DAMAGE.
+#  POSSIBILITY OF SUCH DAMAGE.import re
 
-from os import unlink, makedirs
-from os.path import join, abspath, dirname, exists
-thisDir = abspath(dirname(__file__))
-VOD_CONFIG_DIR = thisDir
-CONTENT_ROOT = thisDir
-OUT_DIR = join(thisDir, "out_test")
+import re
 
-def rm_outfile(filename):
-    "Remove file from OUT_DIR if it exists."
-    path = join(OUT_DIR, filename)
-    if exists(path):
-        unlink(path)
+RE_NAMESPACE_TAG = re.compile(r"({.*})?(.*)")
+DASH_NAMESPACE = "{urn:mpeg:dash:schema:mpd:2011}"
 
-def write_data_to_outfile(data, filename):
-    "Write data to a file in OUT_DIR."
-    if not exists(OUT_DIR):
-        makedirs(OUT_DIR)
-    ofh = open(join(OUT_DIR, filename), "wb")
-    ofh.write(data)
-    ofh.close()
 
-def findAllIndexes(needle, haystack):
-    """Find the index for the beginning of each occurrence of ``needle`` in ``haystack``. Overlaps are allowed."""
-    indexes = []
-    last_index = haystack.find(needle)
-    while -1 != last_index:
-        indexes.append(last_index)
-        last_index = haystack.find(needle, last_index + 1)
-    return indexes
+def add_ns(element):
+    "Add DASH namespace to element or to path."
+    parts = element.split('/')
+    return "/".join([DASH_NAMESPACE + e for e in parts])

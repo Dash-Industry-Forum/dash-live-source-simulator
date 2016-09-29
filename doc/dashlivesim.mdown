@@ -44,13 +44,20 @@ There are thus no surprises due to network problems in the live content stream t
 * Support for periodic services which repeat every 10min or similar.
 * Support for multiple periods and one period that started later that the session.
 * Feedback on too early or too late segment fetching attempts by explicit text in HTTP 404 return messages
-* Disabling of all timing checks of segments by specifying the `all_1` modifier.
+* Support for availability time offset in BaseURL element
+* Disabling of all timing checks of segments by specifying the `ato_inf` modifier.
 * On the fly multiplexing of audio and video (for eMBMS testing, rather than DASH-IF)
 * Insertion of SCTE-35 ad signaling as emsg messages following the DASH-IF guidelines.
 * Support for client-server time-sync using UTCTiming (head and direct methods). This reduces dash.js startup time.
 * Support for choosing the startNumber in the MPD. All timing will be appropriately shifted so the content will be in sync, independent of the startNumber value.
 * Support for live subtitling in TTML and more specifically in EBU-TT-D format.
 * Support for signalling continuous adaptationSets over period boundaries.
+* Support for SegmentTimeline manifests
+* Support for xlink periods for ad insertion
+* Support for ntp and sntp UTC timing
+* Support for early-terminated periods
+* Support for availabilityTimeOffset
+
 
 Links and usage
 ---------------
@@ -238,6 +245,7 @@ Some examples of this are the modifiers:
 In addition, one can turn on signalling of continuous periods, but adding the flag /continuous_1/`.
 
 ## Changelog
+* 1.4 - Sep. 29 2016: Added support for SegmentTimeline manifests, xlink periods for ad insertion, ntp and sntp UTC timing, early-terminated periods, availabilityTimeOffset, and MPD callback.
 * 1.3 - Oct. 13, 2015: Added support for continuous periods (continuous_1) and https protocol fo`r BaseURL & UTCTiming. Moved some configuration to mod_wsgi. Also made the stand-alone wsgi server much better.
 * 1.2 - Aug. 18, 2015: Added support for live subtitles in TTML format. Beyond segment renumbering, the content will also be changed. A tool for generating a sequence of such segments is also provided. Support for choosing the starNr. Added support for running using mod_wsgi and not only mod_python.
 * 1.1 - Jun. 2, 2015: Added snr_ option to control startNumber in manifest. Fixed some bugs with availabilityStartTime and PTO._
