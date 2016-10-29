@@ -127,13 +127,14 @@ def generate_period_data(mpd_data, now, cfg):
         period_data.append(data)
     else:  # nr_periods_per_hour > 0
         period_duration = 3600 // nr_periods_per_hour
-        minimum_update_period_s = (period_duration // 2 - 5)
+        half_period_duration = period_duration // 2
+        minimum_update_period_s = (half_period_duration - 5)
         if cfg.seg_timeline:
             minimum_update_period_s = cfg.seg_duration
         minimum_update_period = "PT%dS" % minimum_update_period_s
         mpd_data['minimumUpdatePeriod'] = minimum_update_period
         this_period_nr = now // period_duration
-        last_period_nr = (now + minimum_update_period_s) // period_duration
+        last_period_nr = (now + half_period_duration) // period_duration
         this_period_start = this_period_nr * period_duration
         first_period_nr = (now - mpd_data['timeShiftBufferDepthInS'] - seg_dur) // period_duration
         counter = 0
@@ -163,6 +164,21 @@ def generate_period_data(mpd_data, now, cfg):
                 if period_nr % fraction_nr_periods_to_nr_etp == 0:
                     data['etpDuration'] = etp_duration
                     data['period_duration_s'] = etp_duration
+
+            if mpd_data['mpdCallback'] > 0:
+                # Check whether the mpdCallback feature is enabled or not.
+                # If yes, then proceed.
+                nr_callback_periods_per_hour = min(mpd_data['mpdCallback'], 60)
+                # Limit the maximum value to 60, same as done for the period.
+                fraction_nr_periods_to_nr_callback = float(nr_periods_per_hour)/nr_callback_periods_per_hour
+                if fraction_nr_periods_to_nr_callback != int(fraction_nr_periods_to_nr_callback):
+                    raise Exception("(Number of periods per hour/ Number of callback periods per hour) "
+                                    "should be an integer.")
+                if period_nr % fraction_nr_periods_to_nr_callback == 0:
+                    data['mpdCallback'] = 1
+                    # If this period meets the condition, we raise a flag.
+                    # We use the flag later to decide to put a mpdCallback element or not.
+
             period_data.append(data)
             if ad_frequency > 0 and ((period_nr % ad_frequency) == 0) and counter > 0:
                 period_data[counter - 1]['periodDuration'] = 'PT%dS' % period_duration
