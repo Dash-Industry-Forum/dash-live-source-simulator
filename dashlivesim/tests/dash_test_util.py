@@ -32,7 +32,7 @@
 from os import unlink, makedirs
 from os.path import join, abspath, dirname, exists
 thisDir = abspath(dirname(__file__))
-VOD_CONFIG_DIR = thisDir
+VOD_CONFIG_DIR = join(thisDir, "vod_cfg")
 CONTENT_ROOT = thisDir
 OUT_DIR = join(thisDir, "out_test")
 
