@@ -78,13 +78,12 @@ class MpdProcessor(object):
         self.cfg = cfg
         self.root = self.tree.getroot()
         self.availability_start_time_in_s = None
-        self.publish_time = None
+        self.publish_time = cfg.publish_time
 
     def process(self, data, period_data):
         "Top-level call to process the XML."
         mpd = self.root
         self.availability_start_time_in_s = data['availability_start_time_in_s']
-        self.publish_time = self.availability_start_time_in_s
         self.process_mpd(mpd, data)
         self.process_mpd_children(mpd, data, period_data)
 

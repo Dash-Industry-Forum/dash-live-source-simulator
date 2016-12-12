@@ -156,6 +156,7 @@ class Config(object):
         self.media_presentation_duration = modulo_period.media_presentation_duration
         self.availability_end_time = modulo_period.availability_end_time
         self.last_segment_numbers.append(modulo_period.calc_last_segment_number(seg_dur))
+        self.publish_time = modulo_period.publish_time
 
     def update_with_aet(self, now_int, availability_end_times, media_presentation_durations):
         "Find the proper availabilityEndTime and mediaPresentation duration for now and set in cfg."
@@ -397,9 +398,9 @@ class ConfigProcessor(object):
             cfg.update_for_tfdt32(now_int)
         if cont_update_flag:
             cfg.update_for_cont_update(now_int)
+        cfg.update_publish_time(now_int)
         if modulo_period is not None:
             cfg.update_with_modulo_period(modulo_period, cfg.seg_duration)
-        cfg.update_publish_time(now_int)
 
     #pylint: disable=no-self-use
     def interpret_start_nr(self, value):

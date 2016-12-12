@@ -408,6 +408,7 @@ class DashProvider(object):
                         'segtimeline': in_data['segtimeline'],
                         'utc_timing_methods': cfg.utc_timing_methods,
                         'utc_head_url': self.utc_head_url,
+                        'publish_time': cfg.publish_time,
                         'now': now}
         mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg)
         period_data = generate_period_data(mpd_data, now, cfg)
