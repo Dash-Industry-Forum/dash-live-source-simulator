@@ -64,6 +64,10 @@ class SegmentTimeLineGenerator(object):
                 data = ifh.read(12)
         self.interval_starts = [std.start_time for std in self.segtimedata]
         self.wrap_duration = cfg.vod_wrap_seconds * self.timescale
+        self.end_tics = None
+
+    def get_end_time_s(self):
+        return 1.0*self.end_tics/self.timescale
 
     def create_segtimeline(self, start_time, end_time):
         "Create and insert a new <SegmentTimeline> element and S entries for interval [now-tsbd, now]."
@@ -97,6 +101,7 @@ class SegmentTimeLineGenerator(object):
                     return (None, None, None)
             end_tics = self.get_seg_endtime(end_wraps, end_index, end_repeats)
 
+        self.end_tics = end_tics
         #print "end_time2 %d %d %d" % (end, end_tics, (end-end_tics)/(self.timescale*1.0))
         #print "end time %d %d %d" % (end_index, end_repeats, end_wraps)
 

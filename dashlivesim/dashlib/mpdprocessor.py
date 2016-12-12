@@ -78,13 +78,19 @@ class MpdProcessor(object):
         self.cfg = cfg
         self.root = self.tree.getroot()
         self.availability_start_time_in_s = None
+        self.publish_time = None
 
     def process(self, data, period_data):
         "Top-level call to process the XML."
         mpd = self.root
         self.availability_start_time_in_s = data['availability_start_time_in_s']
+        self.publish_time = self.availability_start_time_in_s
         self.process_mpd(mpd, data)
         self.process_mpd_children(mpd, data, period_data)
+
+    def calculate_publishtime(self):
+        "Calculate the publishtime corresponding to the last segment change."
+        return self.mpd_proc_cfg['now']
 
     def process_mpd(self, mpd, data):
         """Process the root element (MPD)"""
@@ -100,13 +106,11 @@ class MpdProcessor(object):
         set_values_from_dict(mpd, key_list, data)
         if mpd.attrib.has_key('mediaPresentationDuration') and not data.has_key('mediaPresentationDuration'):
             del mpd.attrib['mediaPresentationDuration']
-        mpd.set('publishTime', make_timestamp(self.mpd_proc_cfg['now'])) #TODO Correlate time with change in MPD
         mpd.set('id', 'Config part of url maybe?')
         if self.segtimeline:
             if mpd.attrib.has_key('maxSegmentDuration'):
                 del mpd.attrib['maxSegmentDuration']
             mpd.set('minimumUpdatePeriod', "PT0S")
-
 
     #pylint: disable = too-many-branches
     def process_mpd_children(self, mpd, data, period_data):
@@ -163,6 +167,7 @@ class MpdProcessor(object):
             mpd.insert(pos+i, new_period)
         self.insert_utc_timings(mpd, pos+len(period_data))
         self.update_periods(mpd, period_data, data['periodOffset'] >= 0)
+        mpd.set('publishTime', make_timestamp(self.publish_time))
 
     def insert_baseurl(self, mpd, pos, new_baseurl, new_ato):
         "Create and insert a new <BaseURL> element."
@@ -182,6 +187,10 @@ class MpdProcessor(object):
     def insert_ato(self, baseurl_elem, new_ato):
         "Add availabilityTimeOffset to BaseURL element"
         baseurl_elem.set('availabilityTimeOffset', new_ato)
+
+    def update_publish_time(self, candidate_time_s):
+        if candidate_time_s > self.publish_time:
+            self.publish_time = candidate_time_s
 
     #pylint: disable = too-many-statements
     def update_periods(self, mpd, period_data, offset_at_period_level=False):
@@ -267,6 +276,7 @@ class MpdProcessor(object):
                         remove_attribs(seg_template, ['startNumber'])
 
                     if self.segtimeline:
+                        seg_gen = segtimeline_generators[content_type]
                         # add SegmentTimeline block in SegmentTemplate with timescale and window.
                         now = self.mpd_proc_cfg['now']
                         tsbd = self.cfg.timeshift_buffer_depth_in_s
@@ -278,7 +288,7 @@ class MpdProcessor(object):
                             end_time = now
                         start_time -= self.cfg.availability_start_time_in_s
                         end_time -= self.cfg.availability_start_time_in_s
-                        seg_timeline = segtimeline_generators[content_type].create_segtimeline(start_time, end_time)
+                        seg_timeline = seg_gen.create_segtimeline(start_time, end_time)
                         remove_attribs(seg_template, ['duration'])
                         remove_attribs(seg_template, ['startNumber'])
                         seg_template.set('timescale', str(self.cfg.media_data[content_type]['timescale']))
@@ -287,6 +297,7 @@ class MpdProcessor(object):
                         seg_template.set('media', media_template)
                         seg_template.text = "\n"
                         seg_template.insert(0, seg_timeline)
+                        self.update_publish_time(seg_gen.get_end_time_s())
             last_period_id = pdata.get('id')
 
     def create_descriptor_elem(self, name, scheme_id_uri, value=None, elem_id=None, messageData=None):
