@@ -15,7 +15,7 @@
 #  this list of conditions and the following disclaimer in the documentation and/or
 #  other materials provided with the distribution.
 #  * Neither the name of Dash Industry Forum nor the names of its
-#  contributors may be used to endorse or promote products derived from this software
+#  contributors ma  y be used to endorse or promote products derived from this software
 #  without specific prior written permission.
 #
 #  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS AS IS AND ANY
@@ -78,7 +78,7 @@ class MpdProcessor(object):
         self.cfg = cfg
         self.root = self.tree.getroot()
         self.availability_start_time_in_s = None
-        self.publish_time = cfg.publish_time
+        self.publish_time = None
 
     def process(self, data, period_data):
         "Top-level call to process the XML."
@@ -86,6 +86,7 @@ class MpdProcessor(object):
         self.availability_start_time_in_s = data['availability_start_time_in_s']
         self.process_mpd(mpd, data)
         self.process_mpd_children(mpd, data, period_data)
+        self.publish_time = self.cfg.publish_time
 
     def calculate_publishtime(self):
         "Calculate the publishtime corresponding to the last segment change."
@@ -110,6 +111,7 @@ class MpdProcessor(object):
             if mpd.attrib.has_key('maxSegmentDuration'):
                 del mpd.attrib['maxSegmentDuration']
             mpd.set('minimumUpdatePeriod', "PT0S")
+        self.publish_time = self.cfg.publish_time
 
     #pylint: disable = too-many-branches
     def process_mpd_children(self, mpd, data, period_data):
