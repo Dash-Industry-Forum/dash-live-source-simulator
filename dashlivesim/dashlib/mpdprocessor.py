@@ -113,8 +113,11 @@ class MpdProcessor(object):
         """Process the children of the MPD element.
         They should be in order ProgramInformation, BaseURL, Location, Period, UTCTiming, Metrics."""
         ato = 0
+        atc = 'true'
         if data.has_key('availabilityTimeOffset'):
             ato = data['availabilityTimeOffset']
+        if data.has_key('availabilityTimeComplete'):
+            atc = data['availabilityTimeComplete']
         children = mpd.getchildren()
         pos = 0
         for child in children:
@@ -144,11 +147,11 @@ class MpdProcessor(object):
                 url_parts = filter(None, url_parts)
                 for url in data['urls']:
                     url_parts.insert(-1, "baseurl_" + url)
-                    self.insert_baseurl(mpd, pos, url_header + "//" + "/".join(url_parts) + "/", ato)
+                    self.insert_baseurl(mpd, pos, url_header + "//" + "/".join(url_parts) + "/", ato, atc)
                     del url_parts[-2]
                     pos += 1
             else:
-                self.insert_baseurl(mpd, pos, data['BaseURL'], ato)
+                self.insert_baseurl(mpd, pos, data['BaseURL'], ato, atc)
                 pos += 1
         children = mpd.getchildren()
         for ch_nr in range(pos, len(children)):
@@ -164,7 +167,7 @@ class MpdProcessor(object):
         self.insert_utc_timings(mpd, pos+len(period_data))
         self.update_periods(mpd, period_data, data['periodOffset'] >= 0)
 
-    def insert_baseurl(self, mpd, pos, new_baseurl, new_ato):
+    def insert_baseurl(self, mpd, pos, new_baseurl, new_ato, new_atc):
         "Create and insert a new <BaseURL> element."
         baseurl_elem = ElementTree.Element(add_ns('BaseURL'))
         baseurl_elem.text = new_baseurl
@@ -173,6 +176,8 @@ class MpdProcessor(object):
             self.insert_ato(baseurl_elem, 'INF')
         elif float(new_ato) > 0:  # don't add this attribute when the value is 0
             self.insert_ato(baseurl_elem, new_ato)
+        if new_atc in ['False', 'false', '0']:
+            baseurl_elem.set('availabilityTimeComplete', new_atc)
         mpd.insert(pos, baseurl_elem)
 
     def modify_baseurl(self, baseurl_elem, new_baseurl):

@@ -61,10 +61,12 @@ class Config(object):
 
         self.availability_start_time_in_s = DEFAULT_AVAILABILITY_STARTTIME_IN_S
         self.availability_time_offset_in_s = DEFAULT_AVAILABILITY_TIME_OFFSET_IN_S
+        self.availability_time_complete = True
         self.availability_end_time = None
         self.media_presentation_duration = None
         self.timeshift_buffer_depth_in_s = None
         self.minimum_update_period_in_s = None
+        self.chunk_duration_in_s = None
         self.modulo_period = None
         self.last_segment_numbers = [] # The last segment number in every period.
         self.init_seg_avail_offset = 0 # The number of secs before AST that one can fetch the init segments
@@ -275,7 +277,7 @@ class ConfigProcessor(object):
 
     url_cfg_keys = ("start", "ast", "dur", "init", "tsbd", "mup", "modulo", "tfdt", "cont",
                     "periods", "xlink", "etp", "etpDuration", "insertad", "mpdcallback", "continuous", "segtimeline", "baseurl",
-                    "peroff", "scte35", "utc", "snr", "ato")
+                    "peroff", "scte35", "utc", "snr", "ato", "chunkdur")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -367,12 +369,20 @@ class ConfigProcessor(object):
                 cfg.utc_timing_methods = value.split("-")
             elif key == "snr": # Segment startNumber
                 cfg.start_nr = self.interpret_start_nr(value)
+            elif key == "chunkdur":  # Chunk duration
+                try:
+                    chunk_duration = float(value)
+                    if 0.0 < chunk_duration:
+                        cfg.chunk_duration_in_s = chunk_duration
+                        cfg.availability_time_complete = False
+                except ValueError:
+                    pass
             elif key == "ato": #availabilityTimeOffset
                 if value == "inf":
                     cfg.availability_time_offset_in_s = -1 #signal that the value is infinite
                 else:
                     try:
-                        float(value)  #ignore the setting when the value is negative
+                        # ignore the setting when the value is negative
                         cfg.availability_time_offset_in_s = max(float(value), 0)
                     except ValueError: #wrong setting
                         cfg.availability_time_offset_in_s = 0

@@ -69,9 +69,11 @@ from .initsegmentfilter import InitLiveFilter
 from .mediasegmentfilter import MediaSegmentFilter
 from . import segmentmuxer
 from . import mpdprocessor
+from . import chunker
 from .timeformatconversions import make_timestamp, seconds_to_iso_duration
 from .configprocessor import ConfigProcessor
 from xml.etree import ElementTree as ET
+
 
 SECS_IN_DAY = 24 * 3600
 DEFAULT_MINIMUM_UPDATE_PERIOD = "P100Y"
@@ -281,6 +283,18 @@ def insert_asset_identifier(response, start_pos_period):
     return response
 
 
+def simulate_continuous_production(now_float, segment, start_time, chunk_duration):
+    from time import time, sleep
+    start = time()
+    for i, chunk in enumerate(segment, start=1):
+        chunk_availability_time = (start_time + i * chunk_duration)
+        time_until_available =  chunk_availability_time - (now_float + time() - start)
+        if time_until_available > 0:
+            print 'Chunk %d was delayed by %dms.' % (i, 1000*time_until_available)
+            sleep(time_until_available)
+        yield chunk
+
+
 class DashProvider(object):
     "Provide DASH manifest and segments."
 
@@ -301,7 +315,8 @@ class DashProvider(object):
 
     def handle_request(self):
         "Handle the HTTP request."
-        return self.parse_url()
+        for chunk in  self.parse_url():
+            yield chunk
 
     def error_response(self, msg):
         "Return a mod_python error response."
@@ -336,14 +351,16 @@ class DashProvider(object):
                                 "insert ad option, also set use xlink_m in your url.")
             response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, self.now)
             if nr_xlink_periods_per_hour > 0:
-                response = generate_response_with_xlink(response, cfg.ext, cfg.filename, nr_periods_per_hour,
-                                                        nr_xlink_periods_per_hour, mpd_input_data['insertAd'])
+                yield generate_response_with_xlink(response, cfg.ext, cfg.filename, nr_periods_per_hour,
+                                                   nr_xlink_periods_per_hour, mpd_input_data['insertAd'])
+            else:
+                yield response
         elif cfg.ext == ".mp4":
             if self.now < cfg.availability_start_time_in_s - cfg.init_seg_avail_offset:
                 diff = (cfg.availability_start_time_in_s - cfg.init_seg_avail_offset) - self.now_float
-                response = self.error_response("Request for %s was %.1fs too early" % (cfg.filename, diff))
+                yield self.error_response("Request for %s was %.1fs too early" % (cfg.filename, diff))
             else:
-                response = self.process_init_segment(cfg)
+                yield self.process_init_segment(cfg)
         elif cfg.ext == ".m4s":
             if cfg.availability_time_offset_in_s == -1:
                 first_segment_ast = cfg.availability_start_time_in_s
@@ -353,14 +370,13 @@ class DashProvider(object):
 
             if self.now_float < first_segment_ast:
                 diff = first_segment_ast - self.now_float
-                response = self.error_response("Request %s before first seg AST. %.1fs too early" %
+                yield self.error_response("Request %s before first seg AST. %.1fs too early" %
                                                (cfg.filename, diff))
             elif cfg.availability_end_time is not None and \
                             self.now > cfg.availability_end_time + EXTRA_TIME_AFTER_END_IN_S:
                 diff = self.now_float - (cfg.availability_end_time + EXTRA_TIME_AFTER_END_IN_S)
-                response = self.error_response("Request for %s after AET. %.1fs too late" % (cfg.filename, diff))
+                yield self.error_response("Request for %s after AET. %.1fs too late" % (cfg.filename, diff))
             else:
-                response = self.process_media_segment(cfg, self.now_float)
                 if len(cfg.multi_url) == 1:  # There is one specific baseURL with losses specified
                     a_var, b_var = cfg.multi_url[0].split("_")
                     dur1 = int(a_var[1:])
@@ -371,16 +387,18 @@ class DashProvider(object):
                     if a_var[0] == 'u' and b_var[0] == 'd':  # parse server up or down information
                         for i in range(num_loop):
                             if i * total_dur + dur1 < now_mod_60 <= (i + 1) * total_dur:
-                                response = self.error_response("BaseURL server down at %d" % (self.now))
-                                break
+                                yield self.error_response("BaseURL server down at %d" % (self.now))
+                                return
                     elif a_var[0] == 'd' and b_var[0] == 'u':
                         for i in range(num_loop):
                             if i * (total_dur) < now_mod_60 <= i * (total_dur) + dur1:
-                                response = self.error_response("BaseURL server down at %d" % (self.now))
-                                break
+                                yield self.error_response("BaseURL server down at %d" % (self.now))
+                                return
+                segment = self.process_media_segment(cfg, self.now_float)
+                for chunk in segment:
+                    yield chunk
         else:
-            response = "Unknown file extension: %s" % cfg.ext
-        return response
+            yield "Unknown file extension: %s" % cfg.ext
 
     # pylint: disable=no-self-use
     def generate_dynamic_mpd(self, cfg, mpd_filename, in_data, now):
@@ -401,6 +419,8 @@ class DashProvider(object):
         mpd_data['maxSegmentDuration'] = 'PT%dS' % in_data['segDuration']
         mpd_data['presentationTimeOffset'] = 0
         mpd_data['availabilityTimeOffset'] = '%f' % in_data['availability_time_offset_in_s']
+        if not cfg.availability_time_complete:
+            mpd_data['availabilityTimeComplete'] = 'false'
         if in_data.has_key('availabilityEndTime'):
             mpd_data['availabilityEndTime'] = make_timestamp(in_data['availabilityEndTime'])
         mpd_proc_cfg = {'scte35Present': (cfg.scte35_per_minute > 0),
@@ -460,22 +480,27 @@ class DashProvider(object):
             seg_nr = int(seg_base)
         seg_start_nr = cfg.start_nr == -1 and 1 or cfg.start_nr
         if seg_nr < seg_start_nr:
-            return self.error_response("Request for segment %d before first %d" % (seg_nr, seg_start_nr))
+            yield self.error_response("Request for segment %d before first %d" % (seg_nr, seg_start_nr))
+            return
         if len(cfg.last_segment_numbers) > 0:
             very_last_segment = cfg.last_segment_numbers[-1]
             if seg_nr > very_last_segment:
-                return self.error_response("Request for segment %d beyond last (%d)" % (seg_nr, very_last_segment))
+                yield self.error_response("Request for segment %d beyond last (%d)" % (seg_nr, very_last_segment))
+                return
         lmsg = seg_nr in cfg.last_segment_numbers
         # print cfg.last_segment_numbers
         seg_time = (seg_nr - seg_start_nr) * seg_dur + cfg.availability_start_time_in_s
         seg_ast = seg_time + seg_dur
 
         if cfg.availability_time_offset_in_s != -1:
-            if now_float < seg_ast - cfg.availability_time_offset_in_s:
-                return self.error_response("Request for %s was %.1fs too early" % (seg_name, seg_ast - now_float))
-            if now_float > seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s:
-                diff = now_float - (seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s)
-                return self.error_response("Request for %s was %.1fs too late" % (seg_name, diff))
+            adjusted_ast = seg_ast - cfg.availability_time_offset_in_s
+            if now_float < adjusted_ast:
+                yield self.error_response("Request for %s was %.1fs too early" % (seg_name, seg_ast - cfg.availability_time_offset_in_s - now_float))
+                return
+            if now_float > adjusted_ast + seg_dur + cfg.timeshift_buffer_depth_in_s:
+                diff = now_float - (adjusted_ast + seg_dur + cfg.timeshift_buffer_depth_in_s)
+                yield self.error_response("Request for %s was %.1fs too late" % (seg_name, diff))
+                return
 
         time_since_ast = seg_time - cfg.availability_start_time_in_s
         loop_duration = cfg.seg_duration * cfg.vod_nr_segments_in_loop
@@ -487,8 +512,8 @@ class DashProvider(object):
         rel_path = cfg.rel_path
         nr_reps = len(cfg.reps)
         if nr_reps == 1:  # Not muxed
-            seg_content = self.filter_media_segment(cfg, cfg.reps[0], rel_path, vod_nr, seg_nr, seg_ext,
-                                                    offset_at_loop_start, lmsg)
+            segment = self.filter_media_segment(cfg, cfg.reps[0], rel_path, vod_nr, seg_nr, seg_ext,
+                                                offset_at_loop_start, lmsg)
         else:
             rel_path_parts = rel_path.split("/")
             common_path_parts = rel_path_parts[:-1]
@@ -498,9 +523,9 @@ class DashProvider(object):
                                              offset_at_loop_start, lmsg)
             seg2 = self.filter_media_segment(cfg, cfg.reps[1], rel_path2, vod_nr, seg_nr, seg_ext,
                                              offset_at_loop_start, lmsg)
-            muxed = segmentmuxer.MultiplexMediaSegments(data1=seg1, data2=seg2)
-            seg_content = muxed.mux_on_sample_level()
-        return seg_content
+            segment = (segmentmuxer.MultiplexMediaSegments(data1=chu1, data2=chu2).mux_on_sample_level() for chu1, chu2 in zip(seg1, seg2))
+        for chunk in simulate_continuous_production(now_float, segment, seg_time, cfg.chunk_duration_in_s or seg_dur):
+            yield chunk
 
     # pylint: disable=too-many-arguments
     def filter_media_segment(self, cfg, rep, rel_path, vod_nr, seg_nr, seg_ext, offset_at_loop_start, lmsg):
@@ -513,4 +538,10 @@ class DashProvider(object):
                                         scte35_per_minute, rel_path, is_ttml)
         seg_content = seg_filter.filter()
         self.new_tfdt_value = seg_filter.get_tfdt_value()
-        return seg_content
+
+        if cfg.chunk_duration_in_s is not None:
+            chunk_duration = int(cfg.chunk_duration_in_s * timescale)
+            for chunk in chunker.chunk(seg_content, chunk_duration):
+                yield chunk
+        else:
+            yield seg_content
