@@ -72,6 +72,7 @@ class Config(object):
         self.cont = False # Continuous update of MPD AST and seg_nr.
         self.periods_per_hour = -1 # If > 0, generates that many periods per hour. If 0, only one offset period.
         self.xlink_periods_per_hour = -1 # Number of periods per hour that are accessed via xlink.
+        self.trick_mode = -1 # the trick mode used
         self.etp_periods_per_hour = -1 # Number of periods per hour that are accessed via xlink.
         self.etp_duration = -1 # Duration of the early-terminated period.
         self.insert_ad = -1 # Number of periods per hour that are accessed via xlink.
@@ -274,8 +275,7 @@ class ConfigProcessor(object):
     "Process the url and VoD config files and setup configuration."
 
     url_cfg_keys = ("start", "ast", "dur", "init", "tsbd", "mup", "modulo", "tfdt", "cont",
-                    "periods", "xlink", "etp", "etpDuration", "insertad", "mpdcallback", "continuous", "segtimeline", "baseurl",
-                    "peroff", "scte35", "utc", "snr", "ato")
+                    "periods", "xlink", "trickMode", "etp", "etpDuration", "insertad", "mpdcallback", "continuous", "segtimeline", "baseurl", "peroff", "scte35", "utc", "snr", "ato")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -294,6 +294,7 @@ class ConfigProcessor(object):
                'startNumber' : self.cfg.availability_start_time_in_s//self.cfg.seg_duration,
                'periodsPerHour' : self.cfg.periods_per_hour,
                'xlinkPeriodsPerHour' : self.cfg.xlink_periods_per_hour,
+               'trickMode' : self.cfg.trick_mode,
                'etpPeriodsPerHour' : self.cfg.etp_periods_per_hour,
                'etpDuration' : self.cfg.etp_duration,
                'insertAd' : self.cfg.insert_ad,
@@ -343,6 +344,8 @@ class ConfigProcessor(object):
                 cfg.periods_per_hour = int(value)
             elif key == "xlink": # Make periods access via xlink.
                 cfg.xlink_periods_per_hour = int(value)
+            elif key == "trickMode": # The trick mode that you want to do.
+                cfg.trick_mode = int(value)
             elif key == "etp": # Make periods access via xlink.
                 cfg.etp_periods_per_hour = int(value)
             elif key == "etpDuration": # Add a presentation duration for multiple periods

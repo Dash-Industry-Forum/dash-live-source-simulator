@@ -119,11 +119,15 @@ def generate_period_data(mpd_data, now, cfg):
         data = {'id': "p0", 'start': 'PT%dS' % start, 'startNumber': str(start_number),
                 'duration': seg_dur, 'presentationTimeOffset': "%d" % mpd_data['presentationTimeOffset'],
                 'start_s' : start}
+	if mpd_data['trickMode'] > 0:
+	    data["trickMode"] = mpd_data['trickMode']
         period_data.append(data)
     elif nr_periods_per_hour == 0:  # nrPeriodsPerHour == 0, make one old period but starting 1000h after AST
         start = 3600 * 1000
         data = {'id': "p0", 'start': 'PT%dS' % start, 'startNumber': "%d" % (start / seg_dur),
                 'duration': seg_dur, 'presentationTimeOffset': "%d" % start, 'start_s' : start}
+	if mpd_data['trickMode'] > 0:
+	    data["trickMode"] = mpd_data['trickMode']   
         period_data.append(data)
     else:  # nr_periods_per_hour > 0
         period_duration = 3600 // nr_periods_per_hour
@@ -144,6 +148,9 @@ def generate_period_data(mpd_data, now, cfg):
                     'startNumber' : "%d" % (start_time/seg_dur), 'duration' : seg_dur,
                     'presentationTimeOffset' : period_nr*period_duration,
                     'start_s' : start_time}
+
+	    if mpd_data['trickMode'] > 0:
+	        data["trickMode"] = mpd_data['trickMode']
             if mpd_data['etpPeriodsPerHour'] > 0:
                 # Check whether the early terminated feature is enabled or not.
                 # If yes, then proceed.
@@ -178,7 +185,6 @@ def generate_period_data(mpd_data, now, cfg):
                     data['mpdCallback'] = 1
                     # If this period meets the condition, we raise a flag.
                     # We use the flag later to decide to put a mpdCallback element or not.
-
             period_data.append(data)
             if ad_frequency > 0 and ((period_nr % ad_frequency) == 0) and counter > 0:
                 period_data[counter - 1]['periodDuration'] = 'PT%dS' % period_duration
