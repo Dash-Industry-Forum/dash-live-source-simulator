@@ -100,7 +100,7 @@ class DashSegmentNotAvailableError(DashProxyError):
 def generate_period_data(mpd_data, now, cfg):
     """Generate an array of period data depending on current time (now) and tsbd. 0 gives one period with start=1000h.
 
-    mpd_data is changed (minimumUpdatePeriod)."""
+    mpd_data is changed (minimumUpdatePeriod) and publish_time."""
     # pylint: disable=too-many-locals
 
     nr_periods_per_hour = min(mpd_data['periodsPerHour'], 60)
@@ -113,18 +113,20 @@ def generate_period_data(mpd_data, now, cfg):
     if mpd_data['insertAd'] > 0:
         ad_frequency = nr_periods_per_hour / mpd_data['xlinkPeriodsPerHour']
 
-    if nr_periods_per_hour == -1:  # Just one period starting at at time start relative AST
+    if nr_periods_per_hour == -1:  # Just one period starting at time start relative AST
         start = 0
         start_number = mpd_data['startNumber'] + start / seg_dur
         data = {'id': "p0", 'start': 'PT%dS' % start, 'startNumber': str(start_number),
                 'duration': seg_dur, 'presentationTimeOffset': "%d" % mpd_data['presentationTimeOffset'],
                 'start_s' : start}
         period_data.append(data)
+        cfg.publish_time = cfg.availability_start_time_in_s
     elif nr_periods_per_hour == 0:  # nrPeriodsPerHour == 0, make one old period but starting 1000h after AST
         start = 3600 * 1000
         data = {'id': "p0", 'start': 'PT%dS' % start, 'startNumber': "%d" % (start / seg_dur),
                 'duration': seg_dur, 'presentationTimeOffset': "%d" % start, 'start_s' : start}
         period_data.append(data)
+        cfg.publish_time = cfg.availability_start_time_in_s
     else:  # nr_periods_per_hour > 0
         period_duration = 3600 // nr_periods_per_hour
         half_period_duration = period_duration // 2
@@ -136,6 +138,9 @@ def generate_period_data(mpd_data, now, cfg):
         this_period_nr = now // period_duration
         last_period_nr = (now + half_period_duration) // period_duration
         this_period_start = this_period_nr * period_duration
+        publish_time = this_period_start - period_duration//2
+        cfg.publish_time = publish_time
+
         first_period_nr = (now - mpd_data['timeShiftBufferDepthInS'] - seg_dur) // period_duration
         counter = 0
         for period_nr in range(first_period_nr, last_period_nr+1):
@@ -408,6 +413,7 @@ class DashProvider(object):
                         'segtimeline': in_data['segtimeline'],
                         'utc_timing_methods': cfg.utc_timing_methods,
                         'utc_head_url': self.utc_head_url,
+                        'publish_time': cfg.publish_time,
                         'now': now}
         mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg)
         period_data = generate_period_data(mpd_data, now, cfg)

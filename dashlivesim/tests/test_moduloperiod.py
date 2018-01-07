@@ -38,7 +38,7 @@ class TestModuloCalculations(unittest.TestCase):
         self.assertEqual(mp._minimum_update_period, 30)
         self.assertEqual(mp._availability_start_time, 1800)
         self.assertEqual(mp._media_presentation_duration, 360)
-        self.assertEqual(mp._availability_end_time, 2190)
+        self.assertEqual(mp.publish_time, 1980)
 
     def testEndOfMediaInPeriod(self):
         mp = ModuloPeriod(5, 540)

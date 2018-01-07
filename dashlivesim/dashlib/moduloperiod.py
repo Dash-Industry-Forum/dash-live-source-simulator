@@ -54,9 +54,11 @@ class ModuloPeriod(object):
         self.percent = self.calc_percent()
         self._availability_start_time = self.calc_availability_start_time()
         self._minimum_update_period = self.mod_secs/20
+        self.publish_time = None
         self._media_presentation_duration = self.calc_media_pres_dur()
-        self._availability_end_time = self._availability_start_time + self._media_presentation_duration +\
-                                     self._minimum_update_period
+        self._availability_end_time = (self._availability_start_time
+                                       + self._media_presentation_duration
+                                       +self._minimum_update_period)
 
     @property
     def availability_start_time(self):
@@ -92,16 +94,23 @@ class ModuloPeriod(object):
 
     def calc_media_pres_dur(self):
         "Calculate the media presentation duration."
+        ast = self._availability_start_time
         if self.percent < 10:
             mpd = 2*self.mod_secs/10
+            pub_time = ast - self.mod_secs/10
         elif self.percent < 30:
             mpd = 4*self.mod_secs/10
+            pub_time = ast + self.mod_secs/10
         elif self.percent < 50:
             mpd = 6*self.mod_secs/10
+            pub_time = ast + self.mod_secs*3/10
         elif self.percent < 90:
             mpd = 8*self.mod_secs/10
+            pub_time = ast + self.mod_secs*7/10
         else:
             mpd = 2*self.mod_secs/10 # This is in the next period
+            pub_time = ast - self.mod_secs/10
+        self.publish_time = pub_time
         return mpd
 
     def get_start_number(self, segment_duration):
