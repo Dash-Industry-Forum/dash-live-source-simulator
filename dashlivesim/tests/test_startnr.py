@@ -40,7 +40,7 @@ class TestMpdChange(unittest.TestCase):
         "Check that startNumber=0."
         urlParts = ['pdash', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
-        d = dp.handle_request()
+        d = next(dp.handle_request())
         self.assertEqual(len(findAllIndexes('startNumber="0"', d)), 2)
         self.assertTrue(d.find('availabilityStartTime="1970-01-01T00:00:00Z"') > 0)
 
@@ -48,7 +48,7 @@ class TestMpdChange(unittest.TestCase):
         "Check that startNumber=111."
         urlParts = ['pdash', 'snr_111', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
-        d = dp.handle_request()
+        d = next(dp.handle_request())
         self.assertEqual(len(findAllIndexes('startNumber="111"', d)), 2)
         self.assertTrue(d.find('availabilityStartTime="1970-01-01T00:00:00Z"') > 0)
 
@@ -56,7 +56,7 @@ class TestMpdChange(unittest.TestCase):
         "Check that startNumber=1."
         urlParts = ['pdash', 'snr_1', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
-        d = dp.handle_request()
+        d = next(dp.handle_request())
         self.assertEqual(len(findAllIndexes('startNumber="1"', d)), 2)
         self.assertTrue(d.find('availabilityStartTime="1970-01-01T00:00:00Z"') > 0)
 
@@ -64,7 +64,7 @@ class TestMpdChange(unittest.TestCase):
         "Check that startNumber is not present in MPD."
         urlParts = ['pdash', 'snr_-1', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
-        d = dp.handle_request()
+        d = next(dp.handle_request())
         self.assertTrue(d.find('startNumber=') < 0) #
         self.assertTrue(d.find('availabilityStartTime="1970-01-01T00:00:00Z"') > 0)
 

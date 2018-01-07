@@ -1402,7 +1402,7 @@ class trun_box(full_box):
             row['size'] = struct.unpack('>I', self.fmap[offset:offset+4])[0]
             offset += 4
         if self.has_sample_flags:
-            row['flags'] = '0x%x' % struct.unpack('>I', self.fmap[offset:offset+4])[0]
+            row['flags'] = struct.unpack('>I', self.fmap[offset:offset+4])[0]
             offset += 4
         if self.has_sample_composition_time_offset:
             row['time_offset'] = struct.unpack('>I', self.fmap[offset:offset+4])[0]

@@ -30,7 +30,7 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 
 from mp4 import mp4, trex_box
-from boxes import create_moof, create_mdat
+from boxes import create_moof, create_mdat, Sample
 
 
 def decode_fragment(data, trex):
@@ -58,7 +58,7 @@ def decode_fragment(data, trex):
                 trex.default_sample_flags
         time_offset = entry['time_offset'] if trun.has_sample_composition_time_offset else 0
         begin, end = end, end + size
-        data = root.raw_data[base_data_offset+data_offset:][begin:end]
+        data = root.fmap[base_data_offset+data_offset:][begin:end]
         t0, t1 = t1, t1 + duration
         yield Sample(data, t0, duration, flags & 0x2000000, time_offset)
 
@@ -98,7 +98,7 @@ def chunk(data, duration, init_data=None):
                     '\x00\x00\x00\x01'  # default_sample_description_index
                     '\x00\x00\x02\x00'  # default_sample_duration
                     '\x00\x00\x00\x00'  # default_sample_size
-                    '\x00\x01\x00\x00', # default_sample_flags
+                    '\x02\x00\x00\x00', # default_sample_flags
                     'trex', 0x20, 0x0)
 
     seqno = mfhd.seqno

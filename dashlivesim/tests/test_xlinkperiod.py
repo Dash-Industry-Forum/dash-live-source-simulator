@@ -53,7 +53,7 @@ class TestXlinkPeriod(unittest.TestCase):
             urlParts = ['livesim', 'periods_%s' %nr_period_per_hour, 'xlink_%s' %nr_xlink_periods_per_hour,
                         'testpic_2s', 'Manifest.mpd']
             dp = dash_proxy.DashProvider("10.4.247.98", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10000)
-            d = dp.handle_request()
+            d = next(dp.handle_request())
             period_id_all = findall('Period id="([^"]*)"', d)
             # Find all period ids in the .mpd file returned.
             # We will check whether the correct periods have been xlinked here.

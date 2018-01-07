@@ -46,7 +46,7 @@ class TestMPDWithSegmentTimeline(unittest.TestCase):
         self.tsbd = 30
         urlParts = ['livesim', 'segtimeline_1', 'tsbd_%d' % self.tsbd, 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
-        self.d = dp.handle_request()
+        self.d = next(dp.handle_request())
         self.root = ElementTree.fromstring(self.d)
 
     def testThatNumberTemplateFeaturesAreAbsent(self):
@@ -93,7 +93,7 @@ class TestMPDWithSegmentTimeline(unittest.TestCase):
         self.tsbd = 30
         urlParts = ['livesim', 'segtimeline_1', 'tsbd_%d' % self.tsbd, 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
-        self.d = dp.handle_request()
+        self.d = next(dp.handle_request())
         self.root = ElementTree.fromstring(self.d)
         period = self.root.find(node_ns('Period'))
         for adaptation_set in period.findall(node_ns('AdaptationSet')):
@@ -141,7 +141,7 @@ class TestMultiPeriodSegmentTimeline(unittest.TestCase):
         self.tsbd = 90
         urlParts = ['livesim', 'segtimeline_1', 'periods_60', 'tsbd_%d' % self.tsbd, 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
-        self.d = dp.handle_request()
+        self.d = next(dp.handle_request())
 
 
     def testThatThereAreMultiplePeriods(self):
@@ -167,15 +167,15 @@ class TestMediaSegments(unittest.TestCase):
     def testThatTimeLookupWorks(self):
         urlParts = ['livesim', 'segtimeline_1', 'testpic', 'A1', 't%d.m4s' % self.seg_time]
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
-        d = dp.handle_request()
+        d = next(dp.handle_request())
         self.assertTrue(isinstance(d, basestring), "A segment is returned")
 
     def testThatTimeSegmentIsSameAsNumber(self):
         urlParts = ['livesim', 'segtimeline_1', 'testpic', 'A1', 't%d.m4s' % self.seg_time]
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
-        time_seg = dp.handle_request()
+        time_seg = next(dp.handle_request())
         urlParts = ['livesim', 'segtimeline_1', 'testpic', 'A1', '%d.m4s' % self.seg_nr]
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
-        nr_seg = dp.handle_request()
+        nr_seg = next(dp.handle_request())
         self.assertEqual(len(time_seg), len(nr_seg))
         self.assertEqual(time_seg, nr_seg)
