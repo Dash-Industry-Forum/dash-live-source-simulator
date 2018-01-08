@@ -53,7 +53,7 @@ class TestXlinkPeriod(unittest.TestCase):
             urlParts = ['livesim', 'periods_%s' %nr_period_per_hour, 'mpdcallback_%s' %nr_callback_periods_per_hour, 'testpic_2s',
                         'Manifest.mpd']
             dp = dash_proxy.DashProvider("10.4.247.98", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10000)
-            d = dp.handle_request()
+            d = next(dp.handle_request())
             xml = ET.fromstring(d)
             # Make the string as a xml document.
             periods_containing_callback_element = []

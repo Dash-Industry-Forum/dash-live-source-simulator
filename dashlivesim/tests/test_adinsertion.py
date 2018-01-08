@@ -49,7 +49,7 @@ class TestXlinkPeriod(unittest.TestCase):
         collect_result = []
         urlParts = ['livesim', 'periods_60', 'xlink_30', 'insertad_1', 'testpic_2s', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("10.4.247.98", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10000)
-        d = dp.handle_request()
+        d = next(dp.handle_request())
         xml = ET.fromstring(d)
         # Make the string as a xml document.
         # In the following, we will check if for every period before every xlink period, duration attribute has been
