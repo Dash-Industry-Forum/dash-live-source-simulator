@@ -30,7 +30,7 @@
 import unittest
 
 from dash_test_util import *
-from dashlivesim.dashlib import dash_proxy
+from dashlivesim.dashlib.dash_proxy import DashProvider
 from time import time
 
 class TestChunkedDelivery(unittest.TestCase):
@@ -38,14 +38,12 @@ class TestChunkedDelivery(unittest.TestCase):
 
     def testCheckChunkTiming(self):
         "Check if timing with fractional seconds is correct with availabilityTimeOffset."
-        expected_results = [0, 0, 2.3, 4.9]
-        times = [60.9, 66.1, 63.7, 61.1]
-        for (exp, now) in zip(expected_results, times):
-            dp = dash_proxy.DashProvider('streamtest.eu', ['livesim', 'start_60', 'ato_5', 'chunkdur_1', 'testpic',
-                                                           'A1', '0.m4s'], None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
+
+        for (now, exp) in [(0.9, 0), (6.1, 0), (3.7, 2.3), (1.1, 4.9)]:
+            dp = DashProvider('streamtest.eu', ['livesim', 'ato_5', 'chunkdur_1', 'testpic', 'A1', '0.m4s'], None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
             start = time()
             for chunk in dp.handle_request():
                 pass
             wait = time() - start
-            self.assertAlmostEqual(wait, exp, places=1, msg='Request handled at %ds was completed after %fs, expected %fs' % (now, wait, exp))
+            self.assertAlmostEqual(wait, exp, places=1, msg='Request handled at %fs was completed after %fs, expected %fs' % (now, wait, exp))
 
