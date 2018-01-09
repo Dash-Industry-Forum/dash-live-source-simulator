@@ -209,7 +209,7 @@ class VodConfig(object):
         self.nr_segments_in_loop = 0
         self.segment_duration_s = 0
         self.default_tsbd_secs = DEFAULT_TIMESHIFT_BUFFER_DEPTH_IN_SECS
-        self.possible_media = ('video', 'audio', 'subtitles')
+        self.possible_media = ('video', 'audio', 'subtitles', 'image')
         self.media_data = {}
 
     def read_config(self, config_file):
