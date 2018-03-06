@@ -282,9 +282,10 @@ class MpdProcessor(object):
                         remove_attribs(seg_template, ['duration'])
                         remove_attribs(seg_template, ['startNumber'])
                         seg_template.set('timescale', str(self.cfg.media_data[content_type]['timescale']))
-                        if pto and not offset_at_period_level:
+                        if pto != "0" and not offset_at_period_level:
                             # rescale presentationTimeOffset based on the local timescale
-                            seg_template.set('presentationTimeOffset', str(pto * int(self.cfg.media_data[content_type]['timescale'])))
+                            seg_template.set('presentationTimeOffset',
+                                             str(int(pto) * int(self.cfg.media_data[content_type]['timescale'])))
                         media_template = seg_template.attrib['media']
                         media_template = media_template.replace('$Number$', 't$Time$')
                         seg_template.set('media', media_template)
