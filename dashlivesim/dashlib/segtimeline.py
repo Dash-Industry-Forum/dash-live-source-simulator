@@ -145,11 +145,9 @@ class SegmentTimeLineGenerator(object):
 
     def find_latest_starting_before(self, act_time):
         "Find the latest segment starting before act_time."
-        nr_wraps = act_time // self.wrap_duration
+        nr_wraps, rel_time = divmod(act_time, self.wrap_duration)
         if nr_wraps < 0:
             return (None, None, None) # This is before AST
-        wrap_start_time = nr_wraps * self.wrap_duration
-        rel_time = act_time - wrap_start_time
         index = bisect.bisect(self.interval_starts, rel_time) - 1
         seg_data = self.segtimedata[index]
         repeats = 0
