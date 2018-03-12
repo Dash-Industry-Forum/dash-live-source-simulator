@@ -344,7 +344,7 @@ class DashProvider(object):
                 response = self.error_response("Request for %s was %.1fs too early" % (cfg.filename, diff))
             else:
                 response = self.process_init_segment(cfg)
-        elif cfg.ext == ".m4s":
+        elif cfg.ext in (".m4s", ".jpg"):
             if cfg.availability_time_offset_in_s == -1:
                 first_segment_ast = cfg.availability_start_time_in_s
             else:
@@ -359,7 +359,7 @@ class DashProvider(object):
                             self.now > cfg.availability_end_time + EXTRA_TIME_AFTER_END_IN_S:
                 diff = self.now_float - (cfg.availability_end_time + EXTRA_TIME_AFTER_END_IN_S)
                 response = self.error_response("Request for %s after AET. %.1fs too late" % (cfg.filename, diff))
-            else:
+            elif cfg.ext == ".m4s":
                 response = self.process_media_segment(cfg, self.now_float)
                 if len(cfg.multi_url) == 1:  # There is one specific baseURL with losses specified
                     a_var, b_var = cfg.multi_url[0].split("_")
@@ -378,6 +378,8 @@ class DashProvider(object):
                             if i * (total_dur) < now_mod_60 <= i * (total_dur) + dur1:
                                 response = self.error_response("BaseURL server down at %d" % (self.now))
                                 break
+            else:  # cfg.ext == ".jpg"
+                response = self.process_thumbnail(cfg, self.now_float)
         else:
             response = "Unknown file extension: %s" % cfg.ext
         return response
@@ -513,4 +515,62 @@ class DashProvider(object):
                                         scte35_per_minute, rel_path, is_ttml)
         seg_content = seg_filter.filter()
         self.new_tfdt_value = seg_filter.get_tfdt_value()
+        return seg_content
+
+    def process_thumbnail(self, cfg, now_float):
+        """Process thumbnail. Return error response if timing is not OK.
+
+        Assumes that segment_ast = (seg_nr+1-startNumber)*seg_dur."""
+
+        # pylint: disable=too-many-locals
+
+        def get_timescale(cfg):
+            "Get timescale for the current representation."
+            timescale = None
+            curr_rep_id = cfg.rel_path
+            for rep in cfg.reps:
+                if rep['id'] == curr_rep_id:
+                    timescale = rep['timescale']
+                    break
+            return timescale
+
+        seg_dur = cfg.seg_duration
+        seg_name = cfg.filename
+        seg_base, seg_ext = splitext(seg_name)
+        timescale = get_timescale(cfg)
+        if seg_base[0] == 't':
+            # TODO. Make a more accurate test here that the timestamp is a correct one
+            seg_nr = int(round(float(seg_base[1:]) / seg_dur / timescale))
+        else:
+            seg_nr = int(seg_base)
+        seg_start_nr = cfg.start_nr == -1 and 1 or cfg.start_nr
+        if seg_nr < seg_start_nr:
+            return self.error_response("Request for segment %d before first %d" % (seg_nr, seg_start_nr))
+        if len(cfg.last_segment_numbers) > 0:
+            very_last_segment = cfg.last_segment_numbers[-1]
+            if seg_nr > very_last_segment:
+                return self.error_response("Request for segment %d beyond last (%d)" % (seg_nr, very_last_segment))
+        lmsg = seg_nr in cfg.last_segment_numbers
+        # print cfg.last_segment_numbers
+        seg_time = (seg_nr - seg_start_nr) * seg_dur + cfg.availability_start_time_in_s
+        seg_ast = seg_time + seg_dur
+
+        if cfg.availability_time_offset_in_s != -1:
+            if now_float < seg_ast - cfg.availability_time_offset_in_s:
+                return self.error_response("Request for %s was %.1fs too early" % (seg_name, seg_ast - now_float))
+            if now_float > seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s:
+                diff = now_float - (seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s)
+                return self.error_response("Request for %s was %.1fs too late" % (seg_name, diff))
+
+        time_since_ast = seg_time - cfg.availability_start_time_in_s
+        loop_duration = cfg.seg_duration * cfg.vod_nr_segments_in_loop
+        nr_loops_done, time_in_loop = divmod(time_since_ast, loop_duration)
+        seg_nr_in_loop = time_in_loop // seg_dur
+        vod_nr = seg_nr_in_loop + cfg.vod_first_segment_in_loop
+        assert 0 <= vod_nr - cfg.vod_first_segment_in_loop < cfg.vod_nr_segments_in_loop
+        rel_path = cfg.rel_path
+        thumb_path = join(self.content_dir, cfg.content_name, rel_path,
+                        "%d%s" % (vod_nr, seg_ext))
+        with open(thumb_path, 'rb') as ifh:
+            seg_content = ifh.read()
         return seg_content
