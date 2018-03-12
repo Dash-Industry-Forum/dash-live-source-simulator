@@ -97,6 +97,9 @@ class Config(object):
         self.publish_time = None
         self.vod_cfg_dir = vod_cfg_dir
         self.vod_wrap_seconds = None
+        self.add_location = False
+        self.start_time = None
+        self.stop_time = None
 
     def __str__(self):
         lines = ["%s=%s" % (k, v) for (k, v) in self.__dict__.items() if not k.startswith("_")]
@@ -172,9 +175,10 @@ class Config(object):
             self.availability_end_time = end_time
             self.media_presentation_duration = media_presentation_duration
 
-    def process_start_time(self, start_time, durations, now_int):
+    def process_start_time(self, start_time, durations, now_int, stop_time):
         "Process start_time and durations and set appropriate values."
         self.availability_start_time_in_s = quantize(start_time, self.seg_duration)
+        self.start_time = self.availability_start_time_in_s
         if self.minimum_update_period_in_s is None:
             self.minimum_update_period_in_s = DEFAULT_SHORT_MINIMUM_UPDATE_PERIOD_IN_S
         if len(durations) > 0:
@@ -189,6 +193,13 @@ class Config(object):
             last_segment_number = (end_time-self.availability_start_time_in_s)//self.seg_duration - 1
             self.last_segment_numbers.append(last_segment_number)
             self.update_with_aet(now_int, availability_end_times, media_presentation_durations)
+        if stop_time is not None:
+            self.stop_time = quantize(stop_time + 0.999 * self.seg_duration,
+                                      self.seg_duration)
+
+    def do_add_location(self):
+        "Do add Location header to MPD. Use with relative start and stop time."
+        self.add_location = True
 
     def update_publish_time(self, now_int):
         """The publishTime to be written in the MPD. Changed according to the rules:
@@ -273,8 +284,10 @@ class VodConfig(object):
 class ConfigProcessor(object):
     "Process the url and VoD config files and setup configuration."
 
-    url_cfg_keys = ("start", "ast", "dur", "init", "tsbd", "mup", "modulo", "tfdt", "cont",
-                    "periods", "xlink", "etp", "etpDuration", "insertad", "mpdcallback", "continuous", "segtimeline", "baseurl",
+    url_cfg_keys = ("start", "ast", "stop", "startrel", "stoprel","dur",
+                    "init", "tsbd", "mup", "modulo", "tfdt", "cont",
+                    "periods", "xlink", "etp", "etpDuration", "insertad",
+                    "mpdcallback", "continuous", "segtimeline", "baseurl",
                     "peroff", "scte35", "utc", "snr", "ato")
 
     def __init__(self, vod_cfg_dir, base_url):
@@ -312,10 +325,12 @@ class ConfigProcessor(object):
         """Extract config and calculate availabilityStartTimeInS and availabilityEndTime from URL."""
         #pylint: disable=too-many-branches, too-many-statements
         start_time = None
+        stop_time = None
         durations = []
         cont_update_flag = False
         modulo_period = None
         cfg = self.cfg
+        add_location = False
 
         url_pos = 0
         for part in url_parts: # Should be listed in self.configParts to make sure it works.
@@ -325,6 +340,14 @@ class ConfigProcessor(object):
             key, value = cfg_parts
             if key == "start" or key == "ast": # Change availability start time in s.
                 start_time = int(value)
+            elif key == "stop":
+                stop_time = int(value)
+            elif key == "startrel":
+                start_time = now_int + int(value)
+                add_location = True
+            elif key == "stoprel":
+                stop_time = now_int + int(value)
+                add_location = True
             elif key == "dur": # Add a presentation duration for multiple periods
                 durations.append(int(value))
             elif key == "init": # Make the init segment available earlier
@@ -390,7 +413,7 @@ class ConfigProcessor(object):
         if start_time is not None:
             if modulo_period is not None:
                 raise ConfigProcessorError("Cannot have both start_time and modulo_period set!")
-            cfg.process_start_time(start_time, durations, now_int)
+            cfg.process_start_time(start_time, durations, now_int, stop_time)
         if cfg.tfdt32_flag:
             if cont_update_flag:
                 raise ConfigProcessorError("Cannot have continuous update with tfdt_32 (similar behavior)")
@@ -400,6 +423,8 @@ class ConfigProcessor(object):
         if modulo_period is not None:
             cfg.update_with_modulo_period(modulo_period, cfg.seg_duration)
         cfg.update_publish_time(now_int)
+        if add_location:
+            cfg.do_add_location()
 
     #pylint: disable=no-self-use
     def interpret_start_nr(self, value):

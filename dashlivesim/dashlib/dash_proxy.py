@@ -411,7 +411,9 @@ class DashProvider(object):
                         'utc_timing_methods': cfg.utc_timing_methods,
                         'utc_head_url': self.utc_head_url,
                         'now': now}
-        mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg)
+        full_url = self.base_url + '/'.join(self.url_parts)
+        mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg,
+                                          full_url)
         period_data = generate_period_data(mpd_data, now, cfg)
         mpmod.process(mpd_data, period_data)
         return mpmod.get_full_xml()

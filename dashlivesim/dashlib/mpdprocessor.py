@@ -29,6 +29,7 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
+import re
 import copy
 from xml.etree import ElementTree
 import cStringIO
@@ -67,7 +68,7 @@ class MpdProcessor(object):
     "Process a VoD MPD. Analyze and convert it to a live (dynamic) session."
     #pylint: disable=no-self-use, too-many-locals, too-many-instance-attributes
 
-    def __init__(self, infile, mpd_proc_cfg, cfg=None):
+    def __init__(self, infile, mpd_proc_cfg, cfg=None, full_url=None):
         self.tree = ElementTree.parse(infile)
         self.scte35_present = mpd_proc_cfg['scte35Present']
         self.utc_timing_methods = mpd_proc_cfg['utc_timing_methods']
@@ -76,6 +77,7 @@ class MpdProcessor(object):
         self.segtimeline = mpd_proc_cfg['segtimeline']
         self.mpd_proc_cfg = mpd_proc_cfg
         self.cfg = cfg
+        self.full_url = full_url
         self.root = self.tree.getroot()
         self.availability_start_time_in_s = None
 
@@ -122,13 +124,16 @@ class MpdProcessor(object):
                 break
             pos += 1
         next_child = mpd.getchildren()[pos]
+        set_baseurl = SET_BASEURL
+        if self.cfg and self.cfg.add_location:
+            set_baseurl = False  # Cannot have both BASEURL and Location
         if next_child.tag == add_ns('BaseURL'):
-            if not data.has_key('BaseURL') or not SET_BASEURL:
+            if not data.has_key('BaseURL') or not set_baseurl:
                 self.root.remove(next_child)
             else:
                 self.modify_baseurl(next_child, data['BaseURL'])
                 pos += 1
-        elif data.has_key('BaseURL') and SET_BASEURL:
+        elif data.has_key('BaseURL') and set_baseurl:
             if data.has_key('urls') and data['urls']: # check if we have to set multiple URLs
                 url_header, url_body = data['BaseURL'].split('//')
                 url_parts = url_body.split('/')
@@ -150,6 +155,14 @@ class MpdProcessor(object):
             else:
                 self.insert_baseurl(mpd, pos, data['BaseURL'], ato)
                 pos += 1
+        if self.cfg and self.cfg.add_location and self.full_url is not None:
+            loc_url = re.sub(r"/startrel_[-\d]+", "/start_%d" %
+                             self.cfg.start_time, self.full_url)
+            loc_url = re.sub(r"/stoprel_[-\d]+", "/stop_%d" %
+                             self.cfg.stop_time, loc_url)
+            self.insert_location(mpd, pos, loc_url)
+            pos += 1
+
         children = mpd.getchildren()
         for ch_nr in range(pos, len(children)):
             if children[ch_nr].tag == add_ns("Period"):
@@ -182,6 +195,12 @@ class MpdProcessor(object):
     def insert_ato(self, baseurl_elem, new_ato):
         "Add availabilityTimeOffset to BaseURL element"
         baseurl_elem.set('availabilityTimeOffset', new_ato)
+
+    def insert_location(self, mpd, pos, location_url):
+        location_elem = ElementTree.Element(add_ns('Location'))
+        location_elem.text = location_url
+        location_elem.tail = "\n"
+        mpd.insert(pos, location_elem)
 
     #pylint: disable = too-many-statements
     def update_periods(self, mpd, period_data, offset_at_period_level=False):

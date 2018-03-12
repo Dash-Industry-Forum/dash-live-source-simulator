@@ -94,12 +94,40 @@ class TestMPDProcessing(unittest.TestCase):
         d = dp.handle_request()
         self.assertTrue(d.find("<BaseURL>https://streamtest.eu/pdash/testpic/</BaseURL>") > 0)
 
+    def test_location_for_rel_times(self):
+        mpdprocessor.SET_BASEURL = True
+        urlParts = ['pdash', 'startrel_-20', 'stoprel_40', 'testpic',
+                    'Manifest.mpd']
+        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None,
+                                     VOD_CONFIG_DIR, CONTENT_ROOT, now=1000)
+        d = dp.handle_request()
+        self.assertTrue(d.find(
+            'availabilityStartTime="1970-01-01T00:16:18Z"') > 0)
+        self.assertTrue(d.find("<BaseURL>") < 0)
+        self.assertTrue(
+            d.find('<Location>http://streamtest.eu/pdash/start_978/stop_1044/'
+                   'testpic/Manifest.mpd</Location>') > 0)
+
+    def test_absolute_times(self):
+        mpdprocessor.SET_BASEURL = True
+        urlParts = ['pdash', 'start_978', 'stop_1044', 'testpic',
+                    'Manifest.mpd']
+        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None,
+                                     VOD_CONFIG_DIR, CONTENT_ROOT, now=1000)
+        d = dp.handle_request()
+        self.assertTrue(d.find(
+            'availabilityStartTime="1970-01-01T00:16:18Z"') > 0)
+        self.assertTrue(d.find("<BaseURL>") > 0)
+        self.assertTrue(d.find('<Location>') < 0)
+
+
 class TestInitSegmentProcessing(unittest.TestCase):
     def testInit(self):
         urlParts = ['pdash', 'testpic', 'A1', 'init.mp4']
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = dp.handle_request()
         self.assertEqual(len(d), 651)
+
 
 class TestMediaSegments(unittest.TestCase):
 
