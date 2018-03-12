@@ -35,10 +35,9 @@ import os
 import time
 import re
 from struct import pack
-from ..dashlib import configprocessor
-
-from ..dashlib import initsegmentfilter, mediasegmentfilter
-from .mpdprocessor import MpdProcessor
+from dashlivesim.dashlib import configprocessor
+from dashlivesim.dashlib import initsegmentfilter, mediasegmentfilter
+from mpdprocessor import MpdProcessor
 
 DEFAULT_DASH_NAMESPACE = "urn:mpeg:dash:schema:mpd:2011"
 MUX_TYPE_NONE = 0
@@ -202,7 +201,9 @@ class DashAnalyzer(object):
                             repeatCount += 1
                         else:
                             if lastDuration != 0 and rep_nr == 0:
-                                writeSegTiming(ofh, firstSegmentInRepeat, firstStartTimeInRepeat, duration, repeatCount)
+                                writeSegTiming(ofh, firstSegmentInRepeat,
+                                               firstStartTimeInRepeat,
+                                               lastDuration, repeatCount)
                             repeatCount = 0
                             lastDuration = duration
                             firstSegmentInRepeat = segNr

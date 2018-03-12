@@ -33,7 +33,7 @@ from xml.etree import ElementTree
 import cStringIO
 import re
 
-from ..dashlib import timeformatconversions as tfc
+from dashlivesim.dashlib import timeformatconversions as tfc
 
 RE_DURATION = re.compile(r"PT((?P<hours>\d+)H)?((?P<minutes>\d+)M)?((?P<seconds>\d+)S)?")
 RE_NAMESPACE_TAG = re.compile(r"({.*})?(.*)")
