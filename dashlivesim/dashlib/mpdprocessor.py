@@ -218,6 +218,11 @@ class MpdProcessor(object):
             "Create an EventStream element for MPD Callback."
             return self.create_descriptor_elem("EventStream", "urn:mpeg:dash:event:callback:2015", value=str(1),
                                                elem_id=None, messageData=BaseURLSegmented)
+
+        def create_essential_trickmode_elem(AdaptationSetId):
+            "Create an EssentialProperty element for trickmode."
+            return self.create_descriptor_elem("EssentialProperty", "http://dashif.org/guidelines/trickmode",  value=str(AdaptationSetId))
+
         if self.segtimeline:
             segtimeline_generators = {}
             for content_type in ('video', 'audio'):
@@ -291,6 +296,14 @@ class MpdProcessor(object):
                         seg_template.set('media', media_template)
                         seg_template.text = "\n"
                         seg_template.insert(0, seg_timeline)
+            #insert the next adaptations set here
+                if content_type == 'video' and pdata.has_key('trickMode'):
+                    ad_set_trick_mode = copy.deepcopy(ad_set)
+                    ad_set.set('id', str(ad_pos))
+                    ad_set_trick_mode.set('id', str(ad_pos+1))
+                    trickmode_elem = create_essential_trickmode_elem(ad_set.get('id'))
+                    ad_set_trick_mode.insert(0, trickmode_elem)
+                    period.append(ad_set_trick_mode)
             last_period_id = pdata.get('id')
 
     def create_descriptor_elem(self, name, scheme_id_uri, value=None, elem_id=None, messageData=None):
