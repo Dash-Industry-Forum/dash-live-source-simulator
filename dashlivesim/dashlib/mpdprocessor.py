@@ -81,17 +81,18 @@ class MpdProcessor(object):
         self.root = self.tree.getroot()
         self.availability_start_time_in_s = None
 
-    def process(self, data, period_data):
+    def process(self, mpd_data, period_data):
         "Top-level call to process the XML."
         mpd = self.root
-        self.availability_start_time_in_s = data['availability_start_time_in_s']
-        self.process_mpd(mpd, data)
-        self.process_mpd_children(mpd, data, period_data)
+        self.availability_start_time_in_s = mpd_data[
+            'availability_start_time_in_s']
+        self.process_mpd(mpd, mpd_data)
+        self.process_mpd_children(mpd, mpd_data, period_data)
 
-    def process_mpd(self, mpd, data):
+    def process_mpd(self, mpd, mpd_data):
         """Process the root element (MPD)"""
         assert mpd.tag == add_ns('MPD')
-        mpd.set('type', "dynamic")
+        mpd.set('type', mpd_data.get('type', 'dynamic'))
         if self.scte35_present:
             old_profiles = mpd.get('profiles')
             if not old_profiles.find(scte35.PROFILE) >= 0:
@@ -99,15 +100,19 @@ class MpdProcessor(object):
                 mpd.set('profiles', new_profiles)
         key_list = ['availabilityStartTime', 'availabilityEndTime', 'timeShiftBufferDepth',
                     'minimumUpdatePeriod', 'maxSegmentDuration', 'mediaPresentationDuration']
-        set_values_from_dict(mpd, key_list, data)
-        if mpd.attrib.has_key('mediaPresentationDuration') and not data.has_key('mediaPresentationDuration'):
+        if mpd_data.get('type', 'dynamic') == 'static':
+            key_list.remove('minimumUpdatePeriod')
+            key_list.remove('timeShiftBufferDepth')
+        set_values_from_dict(mpd, key_list, mpd_data)
+        if mpd.attrib.has_key('mediaPresentationDuration') and not mpd_data.has_key('mediaPresentationDuration'):
             del mpd.attrib['mediaPresentationDuration']
         mpd.set('publishTime', make_timestamp(self.mpd_proc_cfg['now'])) #TODO Correlate time with change in MPD
         mpd.set('id', 'Config part of url maybe?')
         if self.segtimeline:
             if mpd.attrib.has_key('maxSegmentDuration'):
                 del mpd.attrib['maxSegmentDuration']
-            mpd.set('minimumUpdatePeriod', "PT0S")
+            if mpd_data.get('type', 'dynamic') != 'static':
+                mpd.set('minimumUpdatePeriod', "PT0S")
 
 
     #pylint: disable = too-many-branches
@@ -260,7 +265,7 @@ class MpdProcessor(object):
             pto = pdata['presentationTimeOffset']
             if pto:
                 if offset_at_period_level:
-                    insert_segmentbase(period, pdata['presentationTimeOffset'])
+                    insert_segmentbase(period, pto)
                 else:
                     segmenttemplate_attribs.append('presentationTimeOffset')
             if pdata.has_key('mpdCallback'):

@@ -100,6 +100,7 @@ class Config(object):
         self.add_location = False
         self.start_time = None
         self.stop_time = None
+        self.timeoffset = None
 
     def __str__(self):
         lines = ["%s=%s" % (k, v) for (k, v) in self.__dict__.items() if not k.startswith("_")]
@@ -196,6 +197,8 @@ class Config(object):
         if stop_time is not None:
             self.stop_time = quantize(stop_time + 0.999 * self.seg_duration,
                                       self.seg_duration)
+            self.media_presentation_duration = self.stop_time - self.start_time
+            self.timeshift_buffer_depth_in_s = self.stop_time - self.start_time
 
     def do_add_location(self):
         "Do add Location header to MPD. Use with relative start and stop time."
@@ -209,6 +212,31 @@ class Config(object):
         else:
             publish_time = DEFAULT_AVAILABILITY_STARTTIME_IN_S
         self.publish_time = publish_time
+
+    def set_timeoffset(self, new_offset):
+        self.timeoffset = new_offset
+
+    @property
+    def adjusted_start_number(self):
+        start_nr = self.start_nr
+        if self.timeoffset is not None:
+            start_nr += ((self.availability_start_time_in_s - self.timeoffset)
+                         // self.seg_duration)
+        return start_nr
+
+    def adjusted_pto(self, pto, timescale):
+        if self.timeoffset is not None:
+            return pto + (self.availability_start_time_in_s -
+                          self.timeoffset) * timescale
+        else:
+            return pto
+
+    @property
+    def stop_number(self):
+        if self.stop_time is None:
+            return None
+        start = self.adjusted_start_number
+        return start + self.media_presentation_duration // self.seg_duration
 
 
 class VodConfig(object):
@@ -285,10 +313,10 @@ class ConfigProcessor(object):
     "Process the url and VoD config files and setup configuration."
 
     url_cfg_keys = ("start", "ast", "stop", "startrel", "stoprel","dur",
-                    "init", "tsbd", "mup", "modulo", "tfdt", "cont",
-                    "periods", "xlink", "etp", "etpDuration", "insertad",
-                    "mpdcallback", "continuous", "segtimeline", "baseurl",
-                    "peroff", "scte35", "utc", "snr", "ato")
+                    "timeoffset", "init", "tsbd", "mup", "modulo", "tfdt",
+                    "cont", "periods", "xlink", "etp", "etpDuration",
+                    "insertad", "mpdcallback", "continuous", "segtimeline",
+                    "baseurl", "peroff", "scte35", "utc", "snr", "ato")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -304,7 +332,7 @@ class ConfigProcessor(object):
                'availability_start_time_in_s' : self.cfg.availability_start_time_in_s,
                'availability_time_offset_in_s' :self.cfg.availability_time_offset_in_s,
                'BaseURL' : self.cfg.base_url,
-               'startNumber' : self.cfg.availability_start_time_in_s//self.cfg.seg_duration,
+               'startNumber' : None,
                'periodsPerHour' : self.cfg.periods_per_hour,
                'xlinkPeriodsPerHour' : self.cfg.xlink_periods_per_hour,
                'etpPeriodsPerHour' : self.cfg.etp_periods_per_hour,
@@ -327,6 +355,7 @@ class ConfigProcessor(object):
         start_time = None
         stop_time = None
         durations = []
+        timeoffset = None
         cont_update_flag = False
         modulo_period = None
         cfg = self.cfg
@@ -350,6 +379,8 @@ class ConfigProcessor(object):
                 add_location = True
             elif key == "dur": # Add a presentation duration for multiple periods
                 durations.append(int(value))
+            elif key == "timeoffset":
+                timeoffset = int(value)  # Time offset in seconds version epoch
             elif key == "init": # Make the init segment available earlier
                 cfg.init_seg_avail_offset = int(value)
             elif key == "tsbd":
@@ -425,6 +456,8 @@ class ConfigProcessor(object):
         cfg.update_publish_time(now_int)
         if add_location:
             cfg.do_add_location()
+        if timeoffset is not None:
+            cfg.set_timeoffset(timeoffset)
 
     #pylint: disable=no-self-use
     def interpret_start_nr(self, value):
