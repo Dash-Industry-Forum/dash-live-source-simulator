@@ -309,6 +309,7 @@ class TestMorePathLevels(unittest.TestCase):
         d = dp.handle_request()
         write_data_to_outfile(d, testOutputFile)
 
+
 class TestTfdt(unittest.TestCase):
     "Test that the tfdt rewrite is working correctly"
 
@@ -364,6 +365,7 @@ class TestInitMux(unittest.TestCase):
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
         d = dp.handle_request()
         write_data_to_outfile(d, testOutputFile)
+
 
 class TestScte35Manifest(unittest.TestCase):
 

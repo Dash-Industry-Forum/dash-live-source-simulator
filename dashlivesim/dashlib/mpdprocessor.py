@@ -302,7 +302,15 @@ class MpdProcessor(object):
                             end_time = now
                         start_time -= self.cfg.availability_start_time_in_s
                         end_time -= self.cfg.availability_start_time_in_s
-                        seg_timeline = segtimeline_generators[content_type].create_segtimeline(start_time, end_time)
+                        use_closest = False
+                        if self.cfg.stop_time and self.cfg.timeoffset == 0:
+                            start_time = self.cfg.start_time
+                            end_time = min(now, self.cfg.stop_time)
+                            use_closest = True
+                        seg_timeline = segtimeline_generators[
+                            content_type].create_segtimeline(start_time,
+                                                             end_time,
+                                                             use_closest)
                         remove_attribs(seg_template, ['duration'])
                         remove_attribs(seg_template, ['startNumber'])
                         seg_template.set('timescale', str(self.cfg.media_data[content_type]['timescale']))

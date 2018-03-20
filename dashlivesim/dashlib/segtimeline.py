@@ -65,8 +65,8 @@ class SegmentTimeLineGenerator(object):
         self.interval_starts = [std.start_time for std in self.segtimedata]
         self.wrap_duration = cfg.vod_wrap_seconds * self.timescale
 
-    def create_segtimeline(self, start_time, end_time):
-        "Create and insert a new <SegmentTimeline> element and S entries for interval [now-tsbd, now]."
+    def create_segtimeline(self, start_time, end_time, use_closest=False):
+        "Create and insert a new <SegmentTimeline> element and S entries."
         seg_timeline = ElementTree.Element(add_ns('SegmentTimeline'))
         seg_timeline.text = "\n"
         seg_timeline.tail = "\n"
@@ -100,7 +100,11 @@ class SegmentTimeLineGenerator(object):
         #print "end_time2 %d %d %d" % (end, end_tics, (end-end_tics)/(self.timescale*1.0))
         #print "end time %d %d %d" % (end_index, end_repeats, end_wraps)
 
-        (start_index, start_repeats, start_wraps) = self.find_latest_starting_before(start)
+        if use_closest:
+            result = self.find_closest_start(start)
+        else:
+            result = self.find_latest_starting_before(start)
+        (start_index, start_repeats, start_wraps) = result
         #print "start %d %d %d" % (start_index, start_repeats, start_wraps)
         start_tics = self.get_seg_starttime(start_wraps, start_index, start_repeats)
         start_tics_end = self.get_seg_starttime(end_wraps, end_index, end_repeats)
@@ -156,6 +160,54 @@ class SegmentTimeLineGenerator(object):
             accumulated_end_time += seg_data.duration
             repeats += 1
         return index, repeats, nr_wraps
+
+    def find_closest_start(self, act_time):
+        nr_wraps, rel_time = divmod(act_time, self.wrap_duration)
+        if nr_wraps < 0:
+            return (None, None, None) # This is before AST
+        index = bisect.bisect(self.interval_starts, rel_time) - 1
+        seg_data = self.segtimedata[index]
+        repeats = 0
+        start = seg_data.start_time
+        if abs(rel_time - start) <= (seg_data.duration // 2):
+            return index, repeats, nr_wraps
+
+        while repeats < seg_data.repeats:
+            repeats += 1
+            start += seg_data.duration
+
+            if abs(rel_time - start) <= (seg_data.duration // 2):
+                return index, repeats, nr_wraps
+
+        index += 1
+        if index >= len(self.interval_starts):
+            index = 0
+            nr_wraps += 1
+        return index, self.segtimedata[index].repeats, nr_wraps
+
+    def find_closest_end(self, act_time):
+        "Find "
+        nr_wraps, rel_time = divmod(act_time, self.wrap_duration)
+        if nr_wraps < 0:
+            return (None, None, None) # This is before AST
+        index = bisect.bisect(self.interval_starts, rel_time) - 1
+        seg_data = self.segtimedata[index]
+        repeats = 0
+        start = seg_data.start_time
+        if abs(act_time, start) < (seg_data.duration // 2):
+            return index, repeats, nr_wraps
+
+        while repeats < seg_data.repeats:
+            repeats += 1
+            start += seg_data.duration
+            if abs(act_time, start) < (seg_data.duration // 2):
+                return index, repeats, nr_wraps
+
+        index += 1
+        if index >= self.interval_starts:
+            index = 0
+            nr_wraps += 1
+        return index, self.segtimedata[index].repeats, nr_wraps
 
     def generate_s_elem(self, start_time, duration, repeat):
         "Generate the S elements for the SegmentTimeline."
