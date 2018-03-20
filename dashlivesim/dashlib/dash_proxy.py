@@ -338,13 +338,13 @@ class DashProvider(object):
             if nr_xlink_periods_per_hour > 0:
                 response = generate_response_with_xlink(response, cfg.ext, cfg.filename, nr_periods_per_hour,
                                                         nr_xlink_periods_per_hour, mpd_input_data['insertAd'])
-        elif cfg.ext == ".mp4":
+        elif cfg.ext == ".mp4":  # Init segment
             if self.now < cfg.availability_start_time_in_s - cfg.init_seg_avail_offset:
                 diff = (cfg.availability_start_time_in_s - cfg.init_seg_avail_offset) - self.now_float
                 response = self.error_response("Request for %s was %.1fs too early" % (cfg.filename, diff))
             else:
                 response = self.process_init_segment(cfg)
-        elif cfg.ext in (".m4s", ".jpg"):
+        elif cfg.ext in (".m4s", ".jpg"):  # Media segment or thumbnail
             if cfg.availability_time_offset_in_s == -1:
                 first_segment_ast = cfg.availability_start_time_in_s
             else:
@@ -396,22 +396,28 @@ class DashProvider(object):
             mpd_data['mediaPresentationDuration'] = seconds_to_iso_duration(cfg.media_presentation_duration)
         mpd_data['timeShiftBufferDepth'] = seconds_to_iso_duration(cfg.timeshift_buffer_depth_in_s)
         mpd_data['timeShiftBufferDepthInS'] = cfg.timeshift_buffer_depth_in_s
-        mpd_data['startNumber'] = cfg.start_nr
+        mpd_data['startNumber'] = cfg.adjusted_start_number
         mpd_data['publishTime'] = '%s' % make_timestamp(in_data['publishTime'])
         mpd_data['availabilityStartTime'] = '%s' % make_timestamp(in_data['availability_start_time_in_s'])
         mpd_data['duration'] = '%d' % in_data['segDuration']
         mpd_data['maxSegmentDuration'] = 'PT%dS' % in_data['segDuration']
-        mpd_data['presentationTimeOffset'] = 0
+        timescale = 1
+        pto = 0
+        mpd_data['presentationTimeOffset'] = cfg.adjusted_pto(pto, timescale)
         mpd_data['availabilityTimeOffset'] = '%f' % in_data['availability_time_offset_in_s']
         if in_data.has_key('availabilityEndTime'):
             mpd_data['availabilityEndTime'] = make_timestamp(in_data['availabilityEndTime'])
+        if cfg.stop_time is not None and (now > cfg.stop_time):
+            mpd_data['type'] = "static"
         mpd_proc_cfg = {'scte35Present': (cfg.scte35_per_minute > 0),
                         'continuous': in_data['continuous'],
                         'segtimeline': in_data['segtimeline'],
                         'utc_timing_methods': cfg.utc_timing_methods,
                         'utc_head_url': self.utc_head_url,
                         'now': now}
-        mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg)
+        full_url = self.base_url + '/'.join(self.url_parts)
+        mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg,
+                                          full_url)
         period_data = generate_period_data(mpd_data, now, cfg)
         mpmod.process(mpd_data, period_data)
         return mpmod.get_full_xml()
@@ -437,7 +443,7 @@ class DashProvider(object):
     def process_media_segment(self, cfg, now_float):
         """Process media segment. Return error response if timing is not OK.
 
-        Assumes that segment_ast = (seg_nr+1-startNumber)*seg_dur."""
+        Assumes that segment_ast = (seg_nr+1-startNumber)*seg_dur + ast."""
 
         # pylint: disable=too-many-locals
 
@@ -460,28 +466,35 @@ class DashProvider(object):
             seg_nr = int(round(float(seg_base[1:]) / seg_dur / timescale))
         else:
             seg_nr = int(seg_base)
-        seg_start_nr = cfg.start_nr == -1 and 1 or cfg.start_nr
+        seg_start_nr = cfg.start_nr == -1 and 1 or cfg.adjusted_start_number
         if seg_nr < seg_start_nr:
             return self.error_response("Request for segment %d before first %d" % (seg_nr, seg_start_nr))
+        stop_number = cfg.stop_number
+        if stop_number and seg_nr >= stop_number:
+            return self.error_response("Beyond last segment %d" % stop_number)
         if len(cfg.last_segment_numbers) > 0:
             very_last_segment = cfg.last_segment_numbers[-1]
             if seg_nr > very_last_segment:
                 return self.error_response("Request for segment %d beyond last (%d)" % (seg_nr, very_last_segment))
         lmsg = seg_nr in cfg.last_segment_numbers
         # print cfg.last_segment_numbers
-        seg_time = (seg_nr - seg_start_nr) * seg_dur + cfg.availability_start_time_in_s
-        seg_ast = seg_time + seg_dur
+        timescale = 1
+        media_time_at_ast = cfg.adjusted_pto(0, timescale)
+        seg_time = (seg_nr - seg_start_nr) * seg_dur + media_time_at_ast
+        seg_ast = (seg_time + seg_dur - media_time_at_ast) + \
+                  cfg.availability_start_time_in_s
 
-        if cfg.availability_time_offset_in_s != -1:
+        if cfg.availability_time_offset_in_s != -1:  # - 1 is infinity
             if now_float < seg_ast - cfg.availability_time_offset_in_s:
                 return self.error_response("Request for %s was %.1fs too early" % (seg_name, seg_ast - now_float))
-            if now_float > seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s:
+            # If stop_number is not None, the manifest will become static
+            if ((now_float > seg_ast + seg_dur +
+                    cfg.timeshift_buffer_depth_in_s) and not stop_number):
                 diff = now_float - (seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s)
                 return self.error_response("Request for %s was %.1fs too late" % (seg_name, diff))
 
-        time_since_ast = seg_time - cfg.availability_start_time_in_s
         loop_duration = cfg.seg_duration * cfg.vod_nr_segments_in_loop
-        nr_loops_done, time_in_loop = divmod(time_since_ast, loop_duration)
+        nr_loops_done, time_in_loop = divmod(seg_time, loop_duration)
         offset_at_loop_start = nr_loops_done * loop_duration
         seg_nr_in_loop = time_in_loop // seg_dur
         vod_nr = seg_nr_in_loop + cfg.vod_first_segment_in_loop
@@ -555,10 +568,11 @@ class DashProvider(object):
         seg_time = (seg_nr - seg_start_nr) * seg_dur + cfg.availability_start_time_in_s
         seg_ast = seg_time + seg_dur
 
-        if cfg.availability_time_offset_in_s != -1:
+        if cfg.availability_time_offset_in_s != -1:  # -1 is infinity
             if now_float < seg_ast - cfg.availability_time_offset_in_s:
                 return self.error_response("Request for %s was %.1fs too early" % (seg_name, seg_ast - now_float))
-            if now_float > seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s:
+            if ((now_float > seg_ast + seg_dur +
+                    cfg.timeshift_buffer_depth_in_s) and not stop_number):
                 diff = now_float - (seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s)
                 return self.error_response("Request for %s was %.1fs too late" % (seg_name, diff))
 

@@ -94,6 +94,67 @@ class TestMPDProcessing(unittest.TestCase):
         d = dp.handle_request()
         self.assertTrue(d.find("<BaseURL>https://streamtest.eu/pdash/testpic/</BaseURL>") > 0)
 
+    def test_location_for_rel_times(self):
+        mpdprocessor.SET_BASEURL = True
+        urlParts = ['pdash', 'startrel_-20', 'stoprel_40', 'testpic',
+                    'Manifest.mpd']
+        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None,
+                                     VOD_CONFIG_DIR, CONTENT_ROOT, now=1000)
+        d = dp.handle_request()
+        self.assertTrue(d.find(
+            'availabilityStartTime="1970-01-01T00:16:18Z"') > 0)
+        self.assertTrue(d.find('startNumber="0"') > 0)
+        self.assertTrue(d.find("<BaseURL>") < 0)
+        self.assertTrue(
+            d.find('<Location>http://streamtest.eu/pdash/start_978/stop_1044/'
+                   'testpic/Manifest.mpd</Location>') > 0)
+
+    def test_location_for_rel_times_zero_offset(self):
+        mpdprocessor.SET_BASEURL = True
+        urlParts = ['pdash', 'startrel_-20', 'stoprel_40', 'timeoffset_0',
+                    'testpic', 'Manifest.mpd']
+        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None,
+                                     VOD_CONFIG_DIR, CONTENT_ROOT, now=1000)
+        d = dp.handle_request()
+        self.assertTrue(d.find(
+            'availabilityStartTime="1970-01-01T00:16:18Z"') > 0)
+        self.assertTrue(d.find('startNumber="163"') > 0)
+        self.assertTrue(d.find('presentationTimeOffset="978"') > 0)
+        self.assertTrue(d.find("<BaseURL>") < 0)
+        self.assertTrue(
+            d.find('<Location>http://streamtest.eu/pdash/start_978/stop_1044/'
+                   'timeoffset_0/testpic/Manifest.mpd</Location>') > 0)
+
+    def test_absolute_times(self):
+        mpdprocessor.SET_BASEURL = True
+        urlParts = ['pdash', 'start_978', 'stop_1044', 'testpic',
+                    'Manifest.mpd']
+        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None,
+                                     VOD_CONFIG_DIR, CONTENT_ROOT, now=1000)
+        d = dp.handle_request()
+        self.assertTrue(d.find(
+            'availabilityStartTime="1970-01-01T00:16:18Z"') > 0)
+        self.assertTrue(d.find("<BaseURL>") > 0)
+        self.assertTrue(d.find('<Location>') < 0)
+        self.assertTrue(d.find('type="dynamic"') > 0)
+        self.assertTrue(d.find('mediaPresentationDuration="PT1M6S') > 0)
+        self.assertTrue(d.find('minimumUpdatePeriod') > 0)
+        self.assertTrue(d.find('timeShiftBufferDepth="PT1M6S') > 0)
+
+    def test_absolute_times_after_stop(self):
+        mpdprocessor.SET_BASEURL = True
+        urlParts = ['pdash', 'start_978', 'stop_1044', 'testpic',
+                    'Manifest.mpd']
+        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None,
+                                     VOD_CONFIG_DIR, CONTENT_ROOT, now=1046)
+        d = dp.handle_request()
+        self.assertTrue(d.find(
+            'availabilityStartTime="1970-01-01T00:16:18Z"') > 0)
+        self.assertTrue(d.find('type="static"') > 0)
+        self.assertTrue(d.find('mediaPresentationDuration="PT1M6S') > 0)
+        self.assertTrue(d.find('minimumUpdatePeriod') < 0)
+
+
 class TestInitSegmentProcessing(unittest.TestCase):
     def testInit(self):
         urlParts = ['pdash', 'testpic', 'A1', 'init.mp4']
@@ -101,12 +162,13 @@ class TestInitSegmentProcessing(unittest.TestCase):
         d = dp.handle_request()
         self.assertEqual(len(d), 651)
 
+
 class TestMediaSegments(unittest.TestCase):
 
     def testMediaSegmentForTfdt32(self):
         testOutputFile = "t1.m4s"
         rm_outfile(testOutputFile)
-        now = 110101 # 2101s into a 3h period
+        now = 2101 # 1s after start of segment 350
         segment = "349.m4s"
         urlParts = ['pdash', 'tfdt_32', 'testpic', 'A1', segment]
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
@@ -138,9 +200,11 @@ class TestMediaSegments(unittest.TestCase):
         self.assertEqual(d['ok'], False)
 
     def testLastMediaSegment(self):
-        "With total duration of 2100, the last segment shall be 349 (independent of start) and available at 4101."
+        """With total duration of 2100, the last segment shall be 349
+        (independent of start) and available at 4101 start+dur_1800+dur_300."""
         urlParts = ['pdash', 'start_2000', 'dur_1800', 'dur_300', 'testpic', 'A1', '349.m4s']
-        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=4101)
+        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None,
+                                     VOD_CONFIG_DIR, CONTENT_ROOT, now=4101)
         d = dp.handle_request()
         #print "LMSG at %d" % d.find("lmsg")
         self.assertEqual(d.find("lmsg"), 24)
@@ -175,6 +239,43 @@ class TestMediaSegments(unittest.TestCase):
         direct_pos = d.find('<UTCTiming schemeIdUri="urn:mpeg:dash:utc:direct:2014"')
         self.assertLess(direct_pos, head_pos)
 
+    def testMediaSegmentInIntervalWithoutOffset(self):
+        "Check that segment 5 is available after an hour."
+        urlParts = ['pdash', 'start_3600', 'stop_3660',
+                    'testpic', 'A1', '5.m4s']
+        dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None,
+                                     VOD_CONFIG_DIR, CONTENT_ROOT, now=3650)
+        d = dp.handle_request()
+        self.assertEqual(d[4:8], 'styp')
+
+    def testMediaSegmentInIntervalWithOffset(self):
+        "Check that segment 605 is available after an hour."
+        urlParts = ['pdash', 'start_3540', 'stop_3660',
+                    'timeoffset_0', 'testpic', 'A1', '605.m4s']
+        dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None,
+                                     VOD_CONFIG_DIR, CONTENT_ROOT, now=3650)
+        d = dp.handle_request()
+        self.assertEqual(d[4:8], 'styp')
+
+    def testMediaIntervalWithOffset(self):
+        "Test that only segments 590-609 are available"
+
+        def get_segment(nr, now):
+            urlParts = ['pdash', 'start_3540', 'stop_3660',
+                        'timeoffset_0', 'testpic', 'A1', '%d.m4s' % nr]
+            dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None,
+                                        VOD_CONFIG_DIR, CONTENT_ROOT, now)
+            return dp.handle_request()
+        res = get_segment(589, 3600)
+        self.assertEqual(res['ok'], False)
+        res = get_segment(590, 3600)
+        self.assertEqual(res[4:8], 'styp')
+        res = get_segment(609, 3670)
+        self.assertEqual(res[4:8], 'styp')
+        res = get_segment(610, 3670)
+        self.assertEqual(res['ok'], False)
+
+
 class TestMorePathLevels(unittest.TestCase):
     "Test when representations are further down in"
 
@@ -207,6 +308,7 @@ class TestMorePathLevels(unittest.TestCase):
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
         d = dp.handle_request()
         write_data_to_outfile(d, testOutputFile)
+
 
 class TestTfdt(unittest.TestCase):
     "Test that the tfdt rewrite is working correctly"
@@ -263,6 +365,7 @@ class TestInitMux(unittest.TestCase):
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
         d = dp.handle_request()
         write_data_to_outfile(d, testOutputFile)
+
 
 class TestScte35Manifest(unittest.TestCase):
 
