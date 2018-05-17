@@ -133,6 +133,44 @@ class TestMPDWithSegmentTimeline(unittest.TestCase):
             self.assertGreater(start_time_plus_duration, self.now - self.tsbd)
 
 
+class TestSegmentTimelineInterval(unittest.TestCase):
+    """SegmentTimeline wiht start, stop, timeoffset"""
+
+    def setUp(self):
+        self.now = 100
+        urlParts = ['livesim', 'segtimeline_1', 'start_60', 'stop_120',
+                   'timeoffset_0', 'testpic', 'Manifest.mpd']
+        dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
+        self.d = dp.handle_request()
+        self.root = ElementTree.fromstring(self.d)
+
+    def testSegmentList(self):
+        period = self.root.find(node_ns('Period'))
+        for adaptation_set in period.findall(node_ns('AdaptationSet')):
+            content_type = adaptation_set.attrib['contentType']
+            if content_type != "video":
+                continue
+            segment_template = adaptation_set.find(node_ns('SegmentTemplate'))
+            timescale = int(segment_template.attrib['timescale'])
+            segment_timeline = segment_template.find(node_ns('SegmentTimeline'))
+            s_elements = segment_timeline.findall(node_ns('S'))
+            seg_start_time = None
+            for s_elem in s_elements:
+                if seg_start_time is None:
+                    seg_start_time = int(s_elem.attrib['t'])
+                    self.assertEqual(60 * timescale, seg_start_time)
+                else:
+                    seg_start_time = seg_end_time
+                nr_repeat = int(s_elem.attrib.get('r', 0))
+                duration = int(s_elem.attrib['d'])
+                seg_end_time = seg_start_time + duration * (1 + nr_repeat)
+            last_end_time = seg_end_time / timescale
+            self.assertLess(last_end_time, self.now)
+            last_end_time_plus_duration = (seg_end_time + duration)/timescale
+            self.assertGreater(last_end_time_plus_duration, self.now)
+
+
+
 class TestMultiPeriodSegmentTimeline(unittest.TestCase):
     "Test that the MPD looks correct when segtimeline_1 and periods_60 are both defined."
 

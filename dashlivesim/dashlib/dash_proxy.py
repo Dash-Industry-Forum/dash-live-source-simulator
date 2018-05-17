@@ -338,13 +338,13 @@ class DashProvider(object):
             if nr_xlink_periods_per_hour > 0:
                 response = generate_response_with_xlink(response, cfg.ext, cfg.filename, nr_periods_per_hour,
                                                         nr_xlink_periods_per_hour, mpd_input_data['insertAd'])
-        elif cfg.ext == ".mp4":
+        elif cfg.ext == ".mp4":  # Init segment
             if self.now < cfg.availability_start_time_in_s - cfg.init_seg_avail_offset:
                 diff = (cfg.availability_start_time_in_s - cfg.init_seg_avail_offset) - self.now_float
                 response = self.error_response("Request for %s was %.1fs too early" % (cfg.filename, diff))
             else:
                 response = self.process_init_segment(cfg)
-        elif cfg.ext == ".m4s":
+        elif cfg.ext in (".m4s", ".jpg"):  # Media segment or thumbnail
             if cfg.availability_time_offset_in_s == -1:
                 first_segment_ast = cfg.availability_start_time_in_s
             else:
@@ -359,7 +359,7 @@ class DashProvider(object):
                             self.now > cfg.availability_end_time + EXTRA_TIME_AFTER_END_IN_S:
                 diff = self.now_float - (cfg.availability_end_time + EXTRA_TIME_AFTER_END_IN_S)
                 response = self.error_response("Request for %s after AET. %.1fs too late" % (cfg.filename, diff))
-            else:
+            elif cfg.ext == ".m4s":
                 response = self.process_media_segment(cfg, self.now_float)
                 if len(cfg.multi_url) == 1:  # There is one specific baseURL with losses specified
                     a_var, b_var = cfg.multi_url[0].split("_")
@@ -378,6 +378,8 @@ class DashProvider(object):
                             if i * (total_dur) < now_mod_60 <= i * (total_dur) + dur1:
                                 response = self.error_response("BaseURL server down at %d" % (self.now))
                                 break
+            else:  # cfg.ext == ".jpg"
+                response = self.process_thumbnail(cfg, self.now_float)
         else:
             response = "Unknown file extension: %s" % cfg.ext
         return response
@@ -394,22 +396,28 @@ class DashProvider(object):
             mpd_data['mediaPresentationDuration'] = seconds_to_iso_duration(cfg.media_presentation_duration)
         mpd_data['timeShiftBufferDepth'] = seconds_to_iso_duration(cfg.timeshift_buffer_depth_in_s)
         mpd_data['timeShiftBufferDepthInS'] = cfg.timeshift_buffer_depth_in_s
-        mpd_data['startNumber'] = cfg.start_nr
+        mpd_data['startNumber'] = cfg.adjusted_start_number
         mpd_data['publishTime'] = '%s' % make_timestamp(in_data['publishTime'])
         mpd_data['availabilityStartTime'] = '%s' % make_timestamp(in_data['availability_start_time_in_s'])
         mpd_data['duration'] = '%d' % in_data['segDuration']
         mpd_data['maxSegmentDuration'] = 'PT%dS' % in_data['segDuration']
-        mpd_data['presentationTimeOffset'] = 0
+        timescale = 1
+        pto = 0
+        mpd_data['presentationTimeOffset'] = cfg.adjusted_pto(pto, timescale)
         mpd_data['availabilityTimeOffset'] = '%f' % in_data['availability_time_offset_in_s']
         if in_data.has_key('availabilityEndTime'):
             mpd_data['availabilityEndTime'] = make_timestamp(in_data['availabilityEndTime'])
+        if cfg.stop_time is not None and (now > cfg.stop_time):
+            mpd_data['type'] = "static"
         mpd_proc_cfg = {'scte35Present': (cfg.scte35_per_minute > 0),
                         'continuous': in_data['continuous'],
                         'segtimeline': in_data['segtimeline'],
                         'utc_timing_methods': cfg.utc_timing_methods,
                         'utc_head_url': self.utc_head_url,
                         'now': now}
-        mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg)
+        full_url = self.base_url + '/'.join(self.url_parts)
+        mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg,
+                                          full_url)
         period_data = generate_period_data(mpd_data, now, cfg)
         mpmod.process(mpd_data, period_data)
         return mpmod.get_full_xml()
@@ -434,6 +442,96 @@ class DashProvider(object):
 
     def process_media_segment(self, cfg, now_float):
         """Process media segment. Return error response if timing is not OK.
+
+        Assumes that segment_ast = (seg_nr+1-startNumber)*seg_dur + ast."""
+
+        # pylint: disable=too-many-locals
+
+        def get_timescale(cfg):
+            "Get timescale for the current representation."
+            timescale = None
+            curr_rep_id = cfg.rel_path
+            for rep in cfg.reps:
+                if rep['id'] == curr_rep_id:
+                    timescale = rep['timescale']
+                    break
+            return timescale
+
+        seg_dur = cfg.seg_duration
+        seg_name = cfg.filename
+        seg_base, seg_ext = splitext(seg_name)
+        timescale = get_timescale(cfg)
+        if seg_base[0] == 't':
+            # TODO. Make a more accurate test here that the timestamp is a correct one
+            seg_nr = int(round(float(seg_base[1:]) / seg_dur / timescale))
+        else:
+            seg_nr = int(seg_base)
+        seg_start_nr = cfg.start_nr == -1 and 1 or cfg.adjusted_start_number
+        if seg_nr < seg_start_nr:
+            return self.error_response("Request for segment %d before first %d" % (seg_nr, seg_start_nr))
+        stop_number = cfg.stop_number
+        if stop_number and seg_nr >= stop_number:
+            return self.error_response("Beyond last segment %d" % stop_number)
+        if len(cfg.last_segment_numbers) > 0:
+            very_last_segment = cfg.last_segment_numbers[-1]
+            if seg_nr > very_last_segment:
+                return self.error_response("Request for segment %d beyond last (%d)" % (seg_nr, very_last_segment))
+        lmsg = seg_nr in cfg.last_segment_numbers
+        # print cfg.last_segment_numbers
+        timescale = 1
+        media_time_at_ast = cfg.adjusted_pto(0, timescale)
+        seg_time = (seg_nr - seg_start_nr) * seg_dur + media_time_at_ast
+        seg_ast = (seg_time + seg_dur - media_time_at_ast) + \
+                  cfg.availability_start_time_in_s
+
+        if cfg.availability_time_offset_in_s != -1:  # - 1 is infinity
+            if now_float < seg_ast - cfg.availability_time_offset_in_s:
+                return self.error_response("Request for %s was %.1fs too early" % (seg_name, seg_ast - now_float))
+            # If stop_number is not None, the manifest will become static
+            if ((now_float > seg_ast + seg_dur +
+                    cfg.timeshift_buffer_depth_in_s) and not stop_number):
+                diff = now_float - (seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s)
+                return self.error_response("Request for %s was %.1fs too late" % (seg_name, diff))
+
+        loop_duration = cfg.seg_duration * cfg.vod_nr_segments_in_loop
+        nr_loops_done, time_in_loop = divmod(seg_time, loop_duration)
+        offset_at_loop_start = nr_loops_done * loop_duration
+        seg_nr_in_loop = time_in_loop // seg_dur
+        vod_nr = seg_nr_in_loop + cfg.vod_first_segment_in_loop
+        assert 0 <= vod_nr - cfg.vod_first_segment_in_loop < cfg.vod_nr_segments_in_loop
+        rel_path = cfg.rel_path
+        nr_reps = len(cfg.reps)
+        if nr_reps == 1:  # Not muxed
+            seg_content = self.filter_media_segment(cfg, cfg.reps[0], rel_path, vod_nr, seg_nr, seg_ext,
+                                                    offset_at_loop_start, lmsg)
+        else:
+            rel_path_parts = rel_path.split("/")
+            common_path_parts = rel_path_parts[:-1]
+            rel_path1 = "/".join(common_path_parts + [cfg.reps[0]['id']])
+            rel_path2 = "/".join(common_path_parts + [cfg.reps[1]['id']])
+            seg1 = self.filter_media_segment(cfg, cfg.reps[0], rel_path1, vod_nr, seg_nr, seg_ext,
+                                             offset_at_loop_start, lmsg)
+            seg2 = self.filter_media_segment(cfg, cfg.reps[1], rel_path2, vod_nr, seg_nr, seg_ext,
+                                             offset_at_loop_start, lmsg)
+            muxed = segmentmuxer.MultiplexMediaSegments(data1=seg1, data2=seg2)
+            seg_content = muxed.mux_on_sample_level()
+        return seg_content
+
+    # pylint: disable=too-many-arguments
+    def filter_media_segment(self, cfg, rep, rel_path, vod_nr, seg_nr, seg_ext, offset_at_loop_start, lmsg):
+        "Filter an actual media segment by using time-scale from init segment."
+        media_seg_file = join(self.content_dir, cfg.content_name, rel_path, "%d%s" % (vod_nr, seg_ext))
+        timescale = rep['timescale']
+        scte35_per_minute = (rep['content_type'] == 'video') and cfg.scte35_per_minute or 0
+        is_ttml = rep['content_type'] == 'subtitles'
+        seg_filter = MediaSegmentFilter(media_seg_file, seg_nr, cfg.seg_duration, offset_at_loop_start, lmsg, timescale,
+                                        scte35_per_minute, rel_path, is_ttml)
+        seg_content = seg_filter.filter()
+        self.new_tfdt_value = seg_filter.get_tfdt_value()
+        return seg_content
+
+    def process_thumbnail(self, cfg, now_float):
+        """Process thumbnail. Return error response if timing is not OK.
 
         Assumes that segment_ast = (seg_nr+1-startNumber)*seg_dur."""
 
@@ -470,47 +568,23 @@ class DashProvider(object):
         seg_time = (seg_nr - seg_start_nr) * seg_dur + cfg.availability_start_time_in_s
         seg_ast = seg_time + seg_dur
 
-        if cfg.availability_time_offset_in_s != -1:
+        if cfg.availability_time_offset_in_s != -1:  # -1 is infinity
             if now_float < seg_ast - cfg.availability_time_offset_in_s:
                 return self.error_response("Request for %s was %.1fs too early" % (seg_name, seg_ast - now_float))
-            if now_float > seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s:
+            if ((now_float > seg_ast + seg_dur +
+                    cfg.timeshift_buffer_depth_in_s) and not stop_number):
                 diff = now_float - (seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s)
                 return self.error_response("Request for %s was %.1fs too late" % (seg_name, diff))
 
         time_since_ast = seg_time - cfg.availability_start_time_in_s
         loop_duration = cfg.seg_duration * cfg.vod_nr_segments_in_loop
         nr_loops_done, time_in_loop = divmod(time_since_ast, loop_duration)
-        offset_at_loop_start = nr_loops_done * loop_duration
         seg_nr_in_loop = time_in_loop // seg_dur
         vod_nr = seg_nr_in_loop + cfg.vod_first_segment_in_loop
         assert 0 <= vod_nr - cfg.vod_first_segment_in_loop < cfg.vod_nr_segments_in_loop
         rel_path = cfg.rel_path
-        nr_reps = len(cfg.reps)
-        if nr_reps == 1:  # Not muxed
-            seg_content = self.filter_media_segment(cfg, cfg.reps[0], rel_path, vod_nr, seg_nr, seg_ext,
-                                                    offset_at_loop_start, lmsg)
-        else:
-            rel_path_parts = rel_path.split("/")
-            common_path_parts = rel_path_parts[:-1]
-            rel_path1 = "/".join(common_path_parts + [cfg.reps[0]['id']])
-            rel_path2 = "/".join(common_path_parts + [cfg.reps[1]['id']])
-            seg1 = self.filter_media_segment(cfg, cfg.reps[0], rel_path1, vod_nr, seg_nr, seg_ext,
-                                             offset_at_loop_start, lmsg)
-            seg2 = self.filter_media_segment(cfg, cfg.reps[1], rel_path2, vod_nr, seg_nr, seg_ext,
-                                             offset_at_loop_start, lmsg)
-            muxed = segmentmuxer.MultiplexMediaSegments(data1=seg1, data2=seg2)
-            seg_content = muxed.mux_on_sample_level()
-        return seg_content
-
-    # pylint: disable=too-many-arguments
-    def filter_media_segment(self, cfg, rep, rel_path, vod_nr, seg_nr, seg_ext, offset_at_loop_start, lmsg):
-        "Filter an actual media segment by using time-scale from init segment."
-        media_seg_file = join(self.content_dir, cfg.content_name, rel_path, "%d%s" % (vod_nr, seg_ext))
-        timescale = rep['timescale']
-        scte35_per_minute = (rep['content_type'] == 'video') and cfg.scte35_per_minute or 0
-        is_ttml = rep['content_type'] == 'subtitles'
-        seg_filter = MediaSegmentFilter(media_seg_file, seg_nr, cfg.seg_duration, offset_at_loop_start, lmsg, timescale,
-                                        scte35_per_minute, rel_path, is_ttml)
-        seg_content = seg_filter.filter()
-        self.new_tfdt_value = seg_filter.get_tfdt_value()
+        thumb_path = join(self.content_dir, cfg.content_name, rel_path,
+                        "%d%s" % (vod_nr, seg_ext))
+        with open(thumb_path, 'rb') as ifh:
+            seg_content = ifh.read()
         return seg_content

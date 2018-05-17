@@ -34,15 +34,21 @@ from dashlivesim.dashlib import mpdprocessor
 
 vodMPD = join(CONTENT_ROOT, "testpic", "Manifest.mpd")
 
+class FakeConfig(object):
+
+    def __init__(self):
+        pass
+
 class TestMpdProcessor(unittest.TestCase):
     "Test of MPD parsing and writing"
 
     def setUp(self):
-        self.cfg = {'scte35Present': False, 'utc_timing_methods': [], 'utc_head_url': "",
-                    'continuous': False, 'segtimeline': False, 'now': 100000}
+        self.mpd_cfg = {'scte35Present': False, 'utc_timing_methods': [],
+                        'utc_head_url': "", 'continuous': False,
+                        'segtimeline': False, 'now': 100000}
 
     def test_mpd_in_out(self):
-        mp = mpdprocessor.MpdProcessor(vodMPD, self.cfg)
+        mp = mpdprocessor.MpdProcessor(vodMPD, self.mpd_cfg)
         mp.process({'availabilityStartTime': "1971", 'availability_start_time_in_s': 31536000,
                     'BaseURL': "http://india/", 'minimumUpdatePeriod': "0", 'periodOffset': 100000},
                    [{'id': "p0", 'startNumber': "0", 'presentationTimeOffset': 0},
@@ -50,8 +56,8 @@ class TestMpdProcessor(unittest.TestCase):
         xml = mp.get_full_xml()
 
     def test_utc_timing_head(self):
-        self.cfg['utc_timing_methods'] = ["head"]
-        mp = mpdprocessor.MpdProcessor(vodMPD, self.cfg)
+        self.mpd_cfg['utc_timing_methods'] = ["head"]
+        mp = mpdprocessor.MpdProcessor(vodMPD, self.mpd_cfg)
         mp.process({'availabilityStartTime': "1971", 'availability_start_time_in_s': 31536000,
                     'BaseURL': "http://india/", 'minimumUpdatePeriod': "0", 'periodOffset': 100000},
                    [{'id': "p0", 'startNumber': "0", 'presentationTimeOffset': 0}])
@@ -60,8 +66,8 @@ class TestMpdProcessor(unittest.TestCase):
         self.assertGreater(head_pos, 0, "UTCTiming for head method not found.")
 
     def test_utc_timing_direct_and_head(self):
-        self.cfg['utc_timing_methods'] = ["direct", "head"]
-        mp = mpdprocessor.MpdProcessor(vodMPD, self.cfg)
+        self.mpd_cfg['utc_timing_methods'] = ["direct", "head"]
+        mp = mpdprocessor.MpdProcessor(vodMPD, self.mpd_cfg)
         mp.process({'availabilityStartTime': "1971", 'availability_start_time_in_s': 31536000,
                     'BaseURL': "http://india/", 'minimumUpdatePeriod': "0", 'periodOffset': 100000},
                    [{'id': "p0", 'startNumber': "0", 'presentationTimeOffset': 0}])

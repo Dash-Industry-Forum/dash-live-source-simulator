@@ -29,6 +29,7 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
+import re
 import copy
 from xml.etree import ElementTree
 import cStringIO
@@ -67,7 +68,7 @@ class MpdProcessor(object):
     "Process a VoD MPD. Analyze and convert it to a live (dynamic) session."
     #pylint: disable=no-self-use, too-many-locals, too-many-instance-attributes
 
-    def __init__(self, infile, mpd_proc_cfg, cfg=None):
+    def __init__(self, infile, mpd_proc_cfg, cfg=None, full_url=None):
         self.tree = ElementTree.parse(infile)
         self.scte35_present = mpd_proc_cfg['scte35Present']
         self.utc_timing_methods = mpd_proc_cfg['utc_timing_methods']
@@ -76,20 +77,22 @@ class MpdProcessor(object):
         self.segtimeline = mpd_proc_cfg['segtimeline']
         self.mpd_proc_cfg = mpd_proc_cfg
         self.cfg = cfg
+        self.full_url = full_url
         self.root = self.tree.getroot()
         self.availability_start_time_in_s = None
 
-    def process(self, data, period_data):
+    def process(self, mpd_data, period_data):
         "Top-level call to process the XML."
         mpd = self.root
-        self.availability_start_time_in_s = data['availability_start_time_in_s']
-        self.process_mpd(mpd, data)
-        self.process_mpd_children(mpd, data, period_data)
+        self.availability_start_time_in_s = mpd_data[
+            'availability_start_time_in_s']
+        self.process_mpd(mpd, mpd_data)
+        self.process_mpd_children(mpd, mpd_data, period_data)
 
-    def process_mpd(self, mpd, data):
+    def process_mpd(self, mpd, mpd_data):
         """Process the root element (MPD)"""
         assert mpd.tag == add_ns('MPD')
-        mpd.set('type', "dynamic")
+        mpd.set('type', mpd_data.get('type', 'dynamic'))
         if self.scte35_present:
             old_profiles = mpd.get('profiles')
             if not old_profiles.find(scte35.PROFILE) >= 0:
@@ -97,15 +100,19 @@ class MpdProcessor(object):
                 mpd.set('profiles', new_profiles)
         key_list = ['availabilityStartTime', 'availabilityEndTime', 'timeShiftBufferDepth',
                     'minimumUpdatePeriod', 'maxSegmentDuration', 'mediaPresentationDuration']
-        set_values_from_dict(mpd, key_list, data)
-        if mpd.attrib.has_key('mediaPresentationDuration') and not data.has_key('mediaPresentationDuration'):
+        if mpd_data.get('type', 'dynamic') == 'static':
+            key_list.remove('minimumUpdatePeriod')
+            key_list.remove('timeShiftBufferDepth')
+        set_values_from_dict(mpd, key_list, mpd_data)
+        if mpd.attrib.has_key('mediaPresentationDuration') and not mpd_data.has_key('mediaPresentationDuration'):
             del mpd.attrib['mediaPresentationDuration']
         mpd.set('publishTime', make_timestamp(self.mpd_proc_cfg['now'])) #TODO Correlate time with change in MPD
         mpd.set('id', 'Config part of url maybe?')
         if self.segtimeline:
             if mpd.attrib.has_key('maxSegmentDuration'):
                 del mpd.attrib['maxSegmentDuration']
-            mpd.set('minimumUpdatePeriod', "PT0S")
+            if mpd_data.get('type', 'dynamic') != 'static':
+                mpd.set('minimumUpdatePeriod', "PT0S")
 
 
     #pylint: disable = too-many-branches
@@ -122,13 +129,16 @@ class MpdProcessor(object):
                 break
             pos += 1
         next_child = mpd.getchildren()[pos]
+        set_baseurl = SET_BASEURL
+        if self.cfg and self.cfg.add_location:
+            set_baseurl = False  # Cannot have both BASEURL and Location
         if next_child.tag == add_ns('BaseURL'):
-            if not data.has_key('BaseURL') or not SET_BASEURL:
+            if not data.has_key('BaseURL') or not set_baseurl:
                 self.root.remove(next_child)
             else:
                 self.modify_baseurl(next_child, data['BaseURL'])
                 pos += 1
-        elif data.has_key('BaseURL') and SET_BASEURL:
+        elif data.has_key('BaseURL') and set_baseurl:
             if data.has_key('urls') and data['urls']: # check if we have to set multiple URLs
                 url_header, url_body = data['BaseURL'].split('//')
                 url_parts = url_body.split('/')
@@ -150,6 +160,14 @@ class MpdProcessor(object):
             else:
                 self.insert_baseurl(mpd, pos, data['BaseURL'], ato)
                 pos += 1
+        if self.cfg and self.cfg.add_location and self.full_url is not None:
+            loc_url = re.sub(r"/startrel_[-\d]+", "/start_%d" %
+                             self.cfg.start_time, self.full_url)
+            loc_url = re.sub(r"/stoprel_[-\d]+", "/stop_%d" %
+                             self.cfg.stop_time, loc_url)
+            self.insert_location(mpd, pos, loc_url)
+            pos += 1
+
         children = mpd.getchildren()
         for ch_nr in range(pos, len(children)):
             if children[ch_nr].tag == add_ns("Period"):
@@ -182,6 +200,12 @@ class MpdProcessor(object):
     def insert_ato(self, baseurl_elem, new_ato):
         "Add availabilityTimeOffset to BaseURL element"
         baseurl_elem.set('availabilityTimeOffset', new_ato)
+
+    def insert_location(self, mpd, pos, location_url):
+        location_elem = ElementTree.Element(add_ns('Location'))
+        location_elem.text = location_url
+        location_elem.tail = "\n"
+        mpd.insert(pos, location_elem)
 
     #pylint: disable = too-many-statements
     def update_periods(self, mpd, period_data, offset_at_period_level=False):
@@ -241,7 +265,7 @@ class MpdProcessor(object):
             pto = pdata['presentationTimeOffset']
             if pto:
                 if offset_at_period_level:
-                    insert_segmentbase(period, pdata['presentationTimeOffset'])
+                    insert_segmentbase(period, pto)
                 else:
                     segmenttemplate_attribs.append('presentationTimeOffset')
             if pdata.has_key('mpdCallback'):
@@ -278,10 +302,22 @@ class MpdProcessor(object):
                             end_time = now
                         start_time -= self.cfg.availability_start_time_in_s
                         end_time -= self.cfg.availability_start_time_in_s
-                        seg_timeline = segtimeline_generators[content_type].create_segtimeline(start_time, end_time)
+                        use_closest = False
+                        if self.cfg.stop_time and self.cfg.timeoffset == 0:
+                            start_time = self.cfg.start_time
+                            end_time = min(now, self.cfg.stop_time)
+                            use_closest = True
+                        seg_timeline = segtimeline_generators[
+                            content_type].create_segtimeline(start_time,
+                                                             end_time,
+                                                             use_closest)
                         remove_attribs(seg_template, ['duration'])
                         remove_attribs(seg_template, ['startNumber'])
                         seg_template.set('timescale', str(self.cfg.media_data[content_type]['timescale']))
+                        if pto != "0" and not offset_at_period_level:
+                            # rescale presentationTimeOffset based on the local timescale
+                            seg_template.set('presentationTimeOffset',
+                                             str(int(pto) * int(self.cfg.media_data[content_type]['timescale'])))
                         media_template = seg_template.attrib['media']
                         media_template = media_template.replace('$Number$', 't$Time$')
                         seg_template.set('media', media_template)
