@@ -2,7 +2,7 @@
 
 The copyright in this software is being made available under the BSD License, included below. This software may be subject to other third party and contributor rights, including patent rights, and no such rights are granted under this license.
 
-**Copyright (c) 2015-2016, Dash Industry Forum.
+**Copyright (c) 2015-2018, Dash Industry Forum.
 **All rights reserved.**
 
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
