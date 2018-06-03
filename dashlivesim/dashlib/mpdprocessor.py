@@ -102,6 +102,8 @@ class MpdProcessor(object):
                     'minimumUpdatePeriod', 'maxSegmentDuration', 'mediaPresentationDuration']
         if mpd_data.get('type', 'dynamic') == 'static':
             key_list.remove('minimumUpdatePeriod')
+        if (mpd_data.get('type', 'dynamic') == 'static' or
+                    mpd_data.get('mediaPresentationDuration')):
             key_list.remove('timeShiftBufferDepth')
         set_values_from_dict(mpd, key_list, mpd_data)
         if mpd.attrib.has_key('mediaPresentationDuration') and not mpd_data.has_key('mediaPresentationDuration'):
