@@ -139,7 +139,6 @@ class TestMPDProcessing(unittest.TestCase):
         self.assertTrue(d.find('type="dynamic"') > 0)
         self.assertTrue(d.find('mediaPresentationDuration="PT1M6S') > 0)
         self.assertTrue(d.find('minimumUpdatePeriod') > 0)
-        self.assertTrue(d.find('timeShiftBufferDepth="PT1M6S') > 0)
 
     def test_absolute_times_after_stop(self):
         mpdprocessor.SET_BASEURL = True
