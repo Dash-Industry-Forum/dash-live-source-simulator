@@ -100,7 +100,8 @@ class MpdProcessor(object):
                 new_profiles = old_profiles + "," + scte35.PROFILE
                 mpd.set('profiles', new_profiles)
         key_list = ['availabilityStartTime', 'availabilityEndTime', 'timeShiftBufferDepth',
-                    'minimumUpdatePeriod', 'maxSegmentDuration', 'mediaPresentationDuration']
+                    'minimumUpdatePeriod', 'maxSegmentDuration',
+                    'mediaPresentationDuration', 'suggestedPresentationDelay']
         if mpd_data.get('type', 'dynamic') == 'static':
             key_list.remove('minimumUpdatePeriod')
         if (mpd_data.get('type', 'dynamic') == 'static' or

@@ -405,6 +405,10 @@ class DashProvider(object):
         pto = 0
         mpd_data['presentationTimeOffset'] = cfg.adjusted_pto(pto, timescale)
         mpd_data['availabilityTimeOffset'] = '%f' % in_data['availability_time_offset_in_s']
+        if mpd_data['suggested_presentation_delay_in_s'] is not None:
+            spd = in_data['suggested_presentation_delay_in_s']
+            mpd_data['suggestedPresentationDelay'] = \
+                seconds_to_iso_duration(spd)
         if in_data.has_key('availabilityEndTime'):
             mpd_data['availabilityEndTime'] = make_timestamp(in_data['availabilityEndTime'])
         if cfg.stop_time is not None and (now > cfg.stop_time):
