@@ -129,7 +129,7 @@ def generate_period_data(mpd_data, now, cfg):
         period_duration = 3600 // nr_periods_per_hour
         half_period_duration = period_duration // 2
         minimum_update_period_s = (half_period_duration - 5)
-        if cfg.seg_timeline:
+        if cfg.seg_timeline or cfg.seg_timeline_nr:
             minimum_update_period_s = cfg.seg_duration
         minimum_update_period = "PT%dS" % minimum_update_period_s
         mpd_data['minimumUpdatePeriod'] = minimum_update_period
@@ -412,6 +412,7 @@ class DashProvider(object):
         mpd_proc_cfg = {'scte35Present': (cfg.scte35_per_minute > 0),
                         'continuous': in_data['continuous'],
                         'segtimeline': in_data['segtimeline'],
+                        'segtimeline_nr': in_data['segtimeline_nr'],
                         'utc_timing_methods': cfg.utc_timing_methods,
                         'utc_head_url': self.utc_head_url,
                         'now': now}

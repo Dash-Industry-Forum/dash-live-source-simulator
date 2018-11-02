@@ -134,7 +134,7 @@ class TestMPDWithSegmentTimeline(unittest.TestCase):
 
 
 class TestSegmentTimelineInterval(unittest.TestCase):
-    """SegmentTimeline wiht start, stop, timeoffset"""
+    """SegmentTimeline with start, stop, timeoffset"""
 
     def setUp(self):
         self.now = 100
@@ -217,3 +217,47 @@ class TestMediaSegments(unittest.TestCase):
         nr_seg = dp.handle_request()
         self.assertEqual(len(time_seg), len(nr_seg))
         self.assertEqual(time_seg, nr_seg)
+
+
+class TestMPDWithSegmentTimelineNumber(unittest.TestCase):
+    "Test that the MPD looks correct when segtimelinenr_1 is defined."
+
+    def setUp(self):
+        self.now = 6003
+        self.tsbd = 30
+        urlParts = ['livesim', 'segtimelinenr_1', 'tsbd_%d' % self.tsbd,
+                    'testpic', 'Manifest.mpd']
+        dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
+        self.d = dp.handle_request()
+        self.root = ElementTree.fromstring(self.d)
+
+    def testThatSomeFeaturesAreAbsent(self):
+        testOutputFile = "segtimelinenr.mpd"
+        rm_outfile(testOutputFile)
+        write_data_to_outfile(self.d, testOutputFile)
+        self.assertTrue(self.d.find("duration") == -1) # There should be no duration in the segmentTemplate
+        self.assertTrue(self.d.find("$Time$") == -1) # There should be no
+        # $Number$ in template
+        self.assertTrue(self.d.find("maxSegmentDuration") == -1) # There should be no maxSegmentDuration in MPD
+
+    def testThatSegmentTimeLineDataIsPresent(self):
+        testOutputFile = "segtimelinenr.mpd"
+        rm_outfile(testOutputFile)
+        write_data_to_outfile(self.d, testOutputFile)
+        self.assertTrue(self.d.find("$Number$") > 0, "$Number$ missing")
+
+    def testThatFirstSegmentHasRightNumber(self):
+        "Check that the first segment has the right number."
+        duration_in_s = 6
+        period = self.root.find(node_ns('Period'))
+        for adaptation_set in period.findall(node_ns('AdaptationSet')):
+            content_type = adaptation_set.attrib['contentType']
+            segment_template = adaptation_set.find(node_ns('SegmentTemplate'))
+            timescale = int(segment_template.attrib['timescale'])
+            start_number = int(segment_template.attrib['startNumber'])
+            segment_timeline = segment_template.find(node_ns('SegmentTimeline'))
+            first_s_elem = segment_timeline.find(node_ns('S'))
+            first_start = int(first_s_elem.attrib['t'])
+            duration = duration_in_s * timescale
+            start_nr_from_time = int(round(1.0 * first_start / duration))
+            self.assertEqual(start_number, start_nr_from_time)
