@@ -61,6 +61,7 @@ class Config(object):
 
         self.availability_start_time_in_s = DEFAULT_AVAILABILITY_STARTTIME_IN_S
         self.availability_time_offset_in_s = DEFAULT_AVAILABILITY_TIME_OFFSET_IN_S
+        self.suggested_presentation_delay_in_s = None  # Not set
         self.availability_end_time = None
         self.media_presentation_duration = None
         self.timeshift_buffer_depth_in_s = None
@@ -335,8 +336,8 @@ class ConfigProcessor(object):
                     "timeoffset", "init", "tsbd", "mup", "modulo", "tfdt",
                     "cont", "periods", "xlink", "etp", "etpDuration",
                     "insertad", "mpdcallback", "continuous", "segtimeline",
-                    "segtimelinenr",
-                    "baseurl", "peroff", "scte35", "utc", "snr", "ato")
+                    "segtimelinenr", "baseurl", "peroff", "scte35", "utc",
+                    "snr", "ato", "spd")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -349,8 +350,11 @@ class ConfigProcessor(object):
     def get_mpd_data(self):
         "Get data needed for generating the dynamic MPD."
         mpd = {'segDuration' : self.cfg.seg_duration,
-               'availability_start_time_in_s' : self.cfg.availability_start_time_in_s,
-               'availability_time_offset_in_s' :self.cfg.availability_time_offset_in_s,
+               'availability_start_time_in_s': self.cfg.availability_start_time_in_s,
+               'availability_time_offset_in_s':
+                   self.cfg.availability_time_offset_in_s,
+               'suggested_presentation_delay_in_s':
+                   self.cfg.suggested_presentation_delay_in_s,
                'BaseURL' : self.cfg.base_url,
                'startNumber' : None,
                'periodsPerHour' : self.cfg.periods_per_hour,
@@ -454,6 +458,8 @@ class ConfigProcessor(object):
                         cfg.availability_time_offset_in_s = max(float(value), 0)
                     except ValueError: #wrong setting
                         cfg.availability_time_offset_in_s = 0
+            elif key == "spd":  #suggestedPresentationDelay
+                cfg.suggested_presentation_delay_in_s = int(value)
             else:
                 raise ConfigProcessorError("Cannot interpret option %s properly" % key)
             url_pos += 1
