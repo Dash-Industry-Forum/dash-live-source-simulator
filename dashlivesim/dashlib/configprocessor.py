@@ -78,6 +78,8 @@ class Config(object):
         self.mpd_callback = -1 # Number of periods per hour that have mpd callback events.
         self.cont_multiperiod = False # This flag should only be used when periods_per_hour is set
         self.seg_timeline = False # This flag is only true when there is /segtimeline_1/ in the URL
+        self.seg_timeline_nr = False # This flag is only true when there is
+        # /segtimelinenr_1/ in the URL
         self.multi_url = [] # If not empty, give multiple URLs in the BaseURL element
         self.period_offset = -1 # Make one period with an offset compared to ast
         self.scte35_per_minute = 0 # Number of 10s ads per minute. Maximum 3
@@ -247,6 +249,7 @@ class VodConfig(object):
         self.first_segment_in_loop = None
         self.nr_segments_in_loop = 0
         self.segment_duration_s = 0
+        self.segment_duration_ms = 0
         self.default_tsbd_secs = DEFAULT_TIMESHIFT_BUFFER_DEPTH_IN_SECS
         self.possible_media = ('video', 'audio', 'subtitles', 'image')
         self.media_data = {}
@@ -261,7 +264,23 @@ class VodConfig(object):
                 raise ConfigProcessorError("Bad config file version: %s (should be in %s)" % (version,
                                                                                               self.good_versions))
             self.first_segment_in_loop = config.getint("Setup", "first_segment_in_loop")
-            self.segment_duration_s = config.getint("Setup", "segment_duration_s")
+            try:
+                self.segment_duration_s = config.getint("Setup", "segment_duration_s")
+            except ConfigParser.NoOptionError:
+                pass
+            try:
+                self.segment_duration_ms = config.getint("Setup",
+                                                         "segment_duration_ms")
+            except ConfigParser.NoOptionError:
+                pass
+            else:
+                if self.segment_duration_s != 0:
+                    print("Both segment_duration_s and segment_duration_ms "
+                          "set")
+                self.segment_duration_s = 0
+            if self.segment_duration_s == 0 and self.segment_duration_ms == 0:
+                raise ConfigProcessorError("Neither segment_duration_s "
+                                           "or segment_duration_ms set")
             self.nr_segments_in_loop = config.getint("Setup", "nr_segments_in_loop")
             self.default_tsbd_secs = config.getint("Setup", "default_tsbd_secs")
             for media in self.possible_media:
@@ -316,6 +335,7 @@ class ConfigProcessor(object):
                     "timeoffset", "init", "tsbd", "mup", "modulo", "tfdt",
                     "cont", "periods", "xlink", "etp", "etpDuration",
                     "insertad", "mpdcallback", "continuous", "segtimeline",
+                    "segtimelinenr",
                     "baseurl", "peroff", "scte35", "utc", "snr", "ato")
 
     def __init__(self, vod_cfg_dir, base_url):
@@ -340,7 +360,8 @@ class ConfigProcessor(object):
                'insertAd' : self.cfg.insert_ad,
                'mpdCallback':self.cfg.mpd_callback,
                'continuous' : self.cfg.cont_multiperiod,
-               'segtimeline' : self.cfg.seg_timeline,
+               'segtimeline': self.cfg.seg_timeline,
+               'segtimeline_nr': self.cfg.seg_timeline_nr,
                'urls' : self.cfg.multi_url,
                'periodOffset' : self.cfg.period_offset,
                'publishTime' : self.cfg.publish_time,
@@ -411,6 +432,9 @@ class ConfigProcessor(object):
             elif key == "segtimeline": # Only valid when it's set to 1
                 if int(value) == 1:
                     cfg.seg_timeline = True
+            elif key == "segtimelinenr": # Only valid when it's set to 1
+                if int(value) == 1:
+                    cfg.seg_timeline_nr = True
             elif key == "baseurl": # Use multiple URLs, put all the configuration strings in multi_url
                 cfg.multi_url.append(value)
             elif key == "peroff": # Set the period offset
