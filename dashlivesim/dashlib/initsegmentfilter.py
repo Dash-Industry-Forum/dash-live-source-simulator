@@ -38,7 +38,7 @@ class InitFilter(MP4Filter):
     def __init__(self, filename=None, data=None):
         MP4Filter.__init__(self, filename, data)
         self.top_level_boxes_to_parse = ['moov']
-        self.composite_boxes_to_parse = ['moov', 'trak', 'mdia']
+        self.composite_boxes_to_parse = ['moov', 'trak', 'mdia', 'mvex']
         self._track_timescale = -1
         self._track_id = None
         self._handler_type = None
@@ -61,6 +61,14 @@ class InitFilter(MP4Filter):
     def process_mdhd(self, data):
         "Process mdhd to get track_timscale."
         self._track_timescale = str_to_uint32(data[20:24])
+        return data
+
+    def process_trex(self, data):
+        # track_id = str_to_uint32(data[12:16])
+        self.default_sample_description_index = str_to_uint32(data[16:20])
+        self.default_sample_duration = str_to_uint32(data[20:24])
+        self.default_sample_size = str_to_uint32(data[24:28])
+        self.default_sample_flags = str_to_uint32(data[28:32])
         return data
 
     @property
@@ -87,7 +95,7 @@ class InitLiveFilter(MP4Filter):
     def __init__(self, file_name=None, data=None):
         MP4Filter.__init__(self, file_name, data)
         self.top_level_boxes_to_parse = ['moov']
-        self.composite_boxes_to_parse = ['moov', 'trak', 'mdia']
+        self.composite_boxes_to_parse = ['moov', 'trak', 'mdia', 'mvex']
         self.movie_timescale = -1
 
     def process_mvhd(self, data):

@@ -47,7 +47,8 @@ class MediaSegmentFilter(MP4Filter):
 
     #pylint: disable=too-many-instance-attributes, too-many-arguments
     def __init__(self, file_name, seg_nr=None, seg_duration=1, offset=0, lmsg=False, track_timescale=None,
-                 scte35_per_minute=0, rel_path=None, is_ttml=False):
+                 scte35_per_minute=0, rel_path=None, is_ttml=False,
+                 default_sample_duration=None):
         MP4Filter.__init__(self, file_name)
         self.top_level_boxes_to_parse = ["styp", "sidx", "moof", "mdat"]
         self.composite_boxes_to_parse = ['moof', 'traf']
@@ -59,6 +60,7 @@ class MediaSegmentFilter(MP4Filter):
         self.lmsg = lmsg
         self.size_change = 0
         self.tfdt_value = None # For testing
+        self.default_sample_duration = default_sample_duration
         self.duration = None
         self.scte35_per_minute = scte35_per_minute
         self.is_ttml = is_ttml
@@ -93,27 +95,30 @@ class MediaSegmentFilter(MP4Filter):
 
     def process_tfhd(self, data):
         "Process tfhd (assuming that we know the ttml size size)."
-        if not self.is_ttml:
-            return data
         tf_flags = str_to_uint32(data[8:12]) & 0xffffff
         pos = 16
         if tf_flags & 0x01:
             raise MediaSegmentFilterError("base-data-offset-present not supported in ttml segments")
         if tf_flags & 0x02:
             pos += 4
-        if tf_flags & 0x08 == 0:
+        if tf_flags & 0x08:
+            self.default_sample_duration = str_to_uint32(data[pos:pos+4])
+            pos += 4
+        elif self.ttml_size:
             raise MediaSegmentFilterError("Cannot handle ttml segments with default_sample_duration absent")
-        else:
-            pos += 4
         output = data[:pos]
-        if tf_flags & 0x10:
-            #old_ttml__size = str_to_uint32(data[pos:pos+4])
-            output += uint32_to_str(self.ttml_size)
-            #print "Changed ttml sample size from %d to %d" % (old_ttml__size, self.ttml_size)
-            pos += 4
+        if self.ttml_size:
+            if tf_flags & 0x10:
+                #old_ttml__size = str_to_uint32(data[pos:pos+4])
+                output += uint32_to_str(self.ttml_size)
+                #print "Changed ttml sample size from %d to %d" % (old_ttml__size, self.ttml_size)
+                pos += 4
+            else:
+                raise MediaSegmentFilterError("Cannot handle ttml segments if default_sample_size_offset is absent")
+        if self.ttml_size:
+            output += data[pos:]
         else:
-            raise MediaSegmentFilterError("Cannot handle ttml segments if default_sample_size_offset is absent")
-        output += data[pos:]
+            output = data
         return output
 
     def process_mfhd(self, data):
@@ -143,6 +148,8 @@ class MediaSegmentFilter(MP4Filter):
             if sample_duration_present:
                 duration += str_to_uint32(data[pos:pos+4])
                 pos += 4
+            else:
+                duration += self.default_sample_duration
             if sample_size_present:
                 pos += 4
             if sample_flags_present:
