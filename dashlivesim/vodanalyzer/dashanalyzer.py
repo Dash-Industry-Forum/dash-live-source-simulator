@@ -107,6 +107,8 @@ class DashAnalyzer(object):
                 print "%s trackID = %d" % (content_type, rep_data['trackID'])
                 rep_data['relMediaPath'] = rep.get_media_path()
                 rep_data['absMediaPath'] = os.path.join(self.base_path, rep.get_media_path())
+                rep_data['default_sample_duration'] = \
+                    init_filter.default_sample_duration
 
                 self.getSegmentRange(rep_data)
                 track_timescale = init_filter.track_timescale
@@ -192,7 +194,9 @@ class DashAnalyzer(object):
                                     rep_id, rep_data['endNr'], rep_data['endTime'],
                                     rep_data['endTime']-rep_data['startTime'])
                             break
-                        msf = mediasegmentfilter.MediaSegmentFilter(segmentPath)
+                        msf = mediasegmentfilter.MediaSegmentFilter(
+                            segmentPath, default_sample_duration = rep_data[
+                                'default_sample_duration'])
                         msf.filter()
                         tfdt = msf.get_tfdt_value()
                         duration = msf.get_duration()
