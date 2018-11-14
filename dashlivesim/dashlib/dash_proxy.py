@@ -530,7 +530,9 @@ class DashProvider(object):
         scte35_per_minute = (rep['content_type'] == 'video') and cfg.scte35_per_minute or 0
         is_ttml = rep['content_type'] == 'subtitles'
         seg_filter = MediaSegmentFilter(media_seg_file, seg_nr, cfg.seg_duration, offset_at_loop_start, lmsg, timescale,
-                                        scte35_per_minute, rel_path, is_ttml)
+                                        scte35_per_minute, rel_path,
+                                        is_ttml,
+                                        insert_sidx=cfg.insert_sidx)
         seg_content = seg_filter.filter()
         self.new_tfdt_value = seg_filter.get_tfdt_value()
         return seg_content
