@@ -48,7 +48,7 @@ class MediaSegmentFilter(MP4Filter):
     #pylint: disable=too-many-instance-attributes, too-many-arguments
     def __init__(self, file_name, seg_nr=None, seg_duration=1, offset=0, lmsg=False, track_timescale=None,
                  scte35_per_minute=0, rel_path=None, is_ttml=False,
-                 default_sample_duration=None):
+                 default_sample_duration=None, insert_sidx=False):
         MP4Filter.__init__(self, file_name)
         self.top_level_boxes_to_parse = ["styp", "sidx", "moof", "mdat"]
         self.composite_boxes_to_parse = ['moof', 'traf']
@@ -61,13 +61,30 @@ class MediaSegmentFilter(MP4Filter):
         self.size_change = 0
         self.tfdt_value = None # For testing
         self.default_sample_duration = default_sample_duration
+        self.insert_sidx = insert_sidx
         self.duration = None
         self.scte35_per_minute = scte35_per_minute
         self.is_ttml = is_ttml
         self.ttml_size = None
-
         if self.is_ttml:
             self.data = self.find_and_process_mdat(self.data)
+
+    def finalize(self):
+        if self.insert_sidx:
+            seg_size = 0
+            pos = 0
+            moof_start = 0
+            for size, box in self.output_top_level_boxes:
+                if box == 'moof':
+                    moof_start = pos
+                    seg_size += size
+                elif box == 'mdat':
+                    seg_size += size
+                pos += size
+            sidx = self.create_sidx(seg_size)
+            self.output = (self.output[:moof_start] + sidx +
+                           self.output[moof_start:])
+
 
     #pylint: disable=no-self-use
     def process_styp(self, data):
@@ -198,6 +215,23 @@ class MediaSegmentFilter(MP4Filter):
             output += data[28:]
         else:
             output += data[36:]
+        return output
+
+    def create_sidx(self, seg_size):
+        """Return a sidx box which can be inserted right before the moof.
+
+        This is optional, but some clients require it to present."""
+        output = uint32_to_str(52)  # Size of box
+        output += 'sidx\x01\x00\x00\x00'  # type, version and flags
+        output += '\x00\x00\x00\x01'  # refID
+        output += uint32_to_str(self.track_timescale)
+        output += uint64_to_str(self.tfdt_value) # decode_time for now
+        output += uint64_to_str(0)  # first_offset = 0
+        output += '\x00\x00\x00\x01'  # reserved and reference_count
+        # Next 1 bit reference type + 31 bit size of segment
+        output += uint32_to_str(seg_size)
+        output += uint32_to_str(self.duration)
+        output += '\x90\x00\x00\x00'
         return output
 
     def process_tfdt_to_64bit(self, data, output):

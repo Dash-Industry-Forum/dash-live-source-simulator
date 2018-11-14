@@ -104,6 +104,7 @@ class Config(object):
         self.start_time = None
         self.stop_time = None
         self.timeoffset = None
+        self.insert_sidx = False
 
     def __str__(self):
         lines = ["%s=%s" % (k, v) for (k, v) in self.__dict__.items() if not k.startswith("_")]
@@ -337,7 +338,7 @@ class ConfigProcessor(object):
                     "cont", "periods", "xlink", "etp", "etpDuration",
                     "insertad", "mpdcallback", "continuous", "segtimeline",
                     "segtimelinenr", "baseurl", "peroff", "scte35", "utc",
-                    "snr", "ato", "spd")
+                    "snr", "ato", "spd", "sidx")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -460,6 +461,9 @@ class ConfigProcessor(object):
                         cfg.availability_time_offset_in_s = 0
             elif key == "spd":  #suggestedPresentationDelay
                 cfg.suggested_presentation_delay_in_s = int(value)
+            elif key == "sidx":  # Insert sidx
+                if int(value) == 1:
+                    cfg.insert_sidx = True
             else:
                 raise ConfigProcessorError("Cannot interpret option %s properly" % key)
             url_pos += 1
