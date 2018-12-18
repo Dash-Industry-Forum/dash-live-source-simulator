@@ -75,6 +75,7 @@ class MpdProcessor(object):
         self.utc_head_url = mpd_proc_cfg['utc_head_url']
         self.continuous = mpd_proc_cfg['continuous']
         self.segtimeline = mpd_proc_cfg['segtimeline']
+        self.segtimeline_nr = mpd_proc_cfg['segtimeline_nr']
         self.mpd_proc_cfg = mpd_proc_cfg
         self.cfg = cfg
         self.full_url = full_url
@@ -99,7 +100,8 @@ class MpdProcessor(object):
                 new_profiles = old_profiles + "," + scte35.PROFILE
                 mpd.set('profiles', new_profiles)
         key_list = ['availabilityStartTime', 'availabilityEndTime', 'timeShiftBufferDepth',
-                    'minimumUpdatePeriod', 'maxSegmentDuration', 'mediaPresentationDuration']
+                    'minimumUpdatePeriod', 'maxSegmentDuration',
+                    'mediaPresentationDuration', 'suggestedPresentationDelay']
         if mpd_data.get('type', 'dynamic') == 'static':
             key_list.remove('minimumUpdatePeriod')
         if (mpd_data.get('type', 'dynamic') == 'static' or
@@ -110,7 +112,7 @@ class MpdProcessor(object):
             del mpd.attrib['mediaPresentationDuration']
         mpd.set('publishTime', make_timestamp(self.mpd_proc_cfg['now'])) #TODO Correlate time with change in MPD
         mpd.set('id', 'Config part of url maybe?')
-        if self.segtimeline:
+        if self.segtimeline or self.segtimeline_nr:
             if mpd.attrib.has_key('maxSegmentDuration'):
                 del mpd.attrib['maxSegmentDuration']
             if mpd_data.get('type', 'dynamic') != 'static':
@@ -244,7 +246,7 @@ class MpdProcessor(object):
             "Create an EventStream element for MPD Callback."
             return self.create_descriptor_elem("EventStream", "urn:mpeg:dash:event:callback:2015", value=str(1),
                                                elem_id=None, messageData=BaseURLSegmented)
-        if self.segtimeline:
+        if self.segtimeline or self.segtimeline_nr:
             segtimeline_generators = {}
             for content_type in ('video', 'audio'):
                 segtimeline_generators[content_type] = SegmentTimeLineGenerator(self.cfg.media_data[content_type],
@@ -289,11 +291,12 @@ class MpdProcessor(object):
                 seg_templates = ad_set.findall(add_ns('SegmentTemplate'))
                 for seg_template in seg_templates:
                     set_attribs(seg_template, segmenttemplate_attribs, pdata)
-                    if pdata.get('startNumber') == '-1' or self.segtimeline: # Default to 1
+                    if pdata.get('startNumber') == '-1': # Default to 1
                         remove_attribs(seg_template, ['startNumber'])
 
-                    if self.segtimeline:
+                    if self.segtimeline or self.segtimeline_nr:
                         # add SegmentTimeline block in SegmentTemplate with timescale and window.
+                        segtime_gen = segtimeline_generators[content_type]
                         now = self.mpd_proc_cfg['now']
                         tsbd = self.cfg.timeshift_buffer_depth_in_s
                         ast = self.cfg.availability_start_time_in_s
@@ -309,19 +312,24 @@ class MpdProcessor(object):
                             start_time = self.cfg.start_time
                             end_time = min(now, self.cfg.stop_time)
                             use_closest = True
-                        seg_timeline = segtimeline_generators[
-                            content_type].create_segtimeline(start_time,
-                                                             end_time,
-                                                             use_closest)
+                        seg_timeline = segtime_gen.create_segtimeline(
+                            start_time, end_time, use_closest)
                         remove_attribs(seg_template, ['duration'])
-                        remove_attribs(seg_template, ['startNumber'])
                         seg_template.set('timescale', str(self.cfg.media_data[content_type]['timescale']))
                         if pto != "0" and not offset_at_period_level:
                             # rescale presentationTimeOffset based on the local timescale
                             seg_template.set('presentationTimeOffset',
                                              str(int(pto) * int(self.cfg.media_data[content_type]['timescale'])))
                         media_template = seg_template.attrib['media']
-                        media_template = media_template.replace('$Number$', 't$Time$')
+                        if self.segtimeline:
+                            media_template = media_template.replace('$Number$', 't$Time$')
+                            remove_attribs(seg_template, ['startNumber'])
+                        elif self.segtimeline_nr:
+                            # Set number to the first number listed
+                            set_attribs(seg_template,
+                                        ('startNumber',),
+                                        {'startNumber': segtime_gen.start_number})
+
                         seg_template.set('media', media_template)
                         seg_template.text = "\n"
                         seg_template.insert(0, seg_timeline)

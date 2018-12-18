@@ -129,7 +129,7 @@ def generate_period_data(mpd_data, now, cfg):
         period_duration = 3600 // nr_periods_per_hour
         half_period_duration = period_duration // 2
         minimum_update_period_s = (half_period_duration - 5)
-        if cfg.seg_timeline:
+        if cfg.seg_timeline or cfg.seg_timeline_nr:
             minimum_update_period_s = cfg.seg_duration
         minimum_update_period = "PT%dS" % minimum_update_period_s
         mpd_data['minimumUpdatePeriod'] = minimum_update_period
@@ -405,6 +405,10 @@ class DashProvider(object):
         pto = 0
         mpd_data['presentationTimeOffset'] = cfg.adjusted_pto(pto, timescale)
         mpd_data['availabilityTimeOffset'] = '%f' % in_data['availability_time_offset_in_s']
+        if mpd_data['suggested_presentation_delay_in_s'] is not None:
+            spd = in_data['suggested_presentation_delay_in_s']
+            mpd_data['suggestedPresentationDelay'] = \
+                seconds_to_iso_duration(spd)
         if in_data.has_key('availabilityEndTime'):
             mpd_data['availabilityEndTime'] = make_timestamp(in_data['availabilityEndTime'])
         if cfg.stop_time is not None and (now > cfg.stop_time):
@@ -412,6 +416,7 @@ class DashProvider(object):
         mpd_proc_cfg = {'scte35Present': (cfg.scte35_per_minute > 0),
                         'continuous': in_data['continuous'],
                         'segtimeline': in_data['segtimeline'],
+                        'segtimeline_nr': in_data['segtimeline_nr'],
                         'utc_timing_methods': cfg.utc_timing_methods,
                         'utc_head_url': self.utc_head_url,
                         'now': now}
@@ -525,7 +530,9 @@ class DashProvider(object):
         scte35_per_minute = (rep['content_type'] == 'video') and cfg.scte35_per_minute or 0
         is_ttml = rep['content_type'] == 'subtitles'
         seg_filter = MediaSegmentFilter(media_seg_file, seg_nr, cfg.seg_duration, offset_at_loop_start, lmsg, timescale,
-                                        scte35_per_minute, rel_path, is_ttml)
+                                        scte35_per_minute, rel_path,
+                                        is_ttml,
+                                        insert_sidx=cfg.insert_sidx)
         seg_content = seg_filter.filter()
         self.new_tfdt_value = seg_filter.get_tfdt_value()
         return seg_content

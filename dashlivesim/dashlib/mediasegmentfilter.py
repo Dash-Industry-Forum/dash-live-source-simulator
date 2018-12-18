@@ -47,7 +47,8 @@ class MediaSegmentFilter(MP4Filter):
 
     #pylint: disable=too-many-instance-attributes, too-many-arguments
     def __init__(self, file_name, seg_nr=None, seg_duration=1, offset=0, lmsg=False, track_timescale=None,
-                 scte35_per_minute=0, rel_path=None, is_ttml=False):
+                 scte35_per_minute=0, rel_path=None, is_ttml=False,
+                 default_sample_duration=None, insert_sidx=False):
         MP4Filter.__init__(self, file_name)
         self.top_level_boxes_to_parse = ["styp", "sidx", "moof", "mdat"]
         self.composite_boxes_to_parse = ['moof', 'traf']
@@ -59,13 +60,31 @@ class MediaSegmentFilter(MP4Filter):
         self.lmsg = lmsg
         self.size_change = 0
         self.tfdt_value = None # For testing
+        self.default_sample_duration = default_sample_duration
+        self.insert_sidx = insert_sidx
         self.duration = None
         self.scte35_per_minute = scte35_per_minute
         self.is_ttml = is_ttml
         self.ttml_size = None
-
         if self.is_ttml:
             self.data = self.find_and_process_mdat(self.data)
+
+    def finalize(self):
+        if self.insert_sidx:
+            seg_size = 0
+            pos = 0
+            moof_start = 0
+            for size, box in self.output_top_level_boxes:
+                if box == 'moof':
+                    moof_start = pos
+                    seg_size += size
+                elif box == 'mdat':
+                    seg_size += size
+                pos += size
+            sidx = self.create_sidx(seg_size)
+            self.output = (self.output[:moof_start] + sidx +
+                           self.output[moof_start:])
+
 
     #pylint: disable=no-self-use
     def process_styp(self, data):
@@ -93,27 +112,30 @@ class MediaSegmentFilter(MP4Filter):
 
     def process_tfhd(self, data):
         "Process tfhd (assuming that we know the ttml size size)."
-        if not self.is_ttml:
-            return data
         tf_flags = str_to_uint32(data[8:12]) & 0xffffff
         pos = 16
         if tf_flags & 0x01:
             raise MediaSegmentFilterError("base-data-offset-present not supported in ttml segments")
         if tf_flags & 0x02:
             pos += 4
-        if tf_flags & 0x08 == 0:
+        if tf_flags & 0x08:
+            self.default_sample_duration = str_to_uint32(data[pos:pos+4])
+            pos += 4
+        elif self.ttml_size:
             raise MediaSegmentFilterError("Cannot handle ttml segments with default_sample_duration absent")
-        else:
-            pos += 4
         output = data[:pos]
-        if tf_flags & 0x10:
-            #old_ttml__size = str_to_uint32(data[pos:pos+4])
-            output += uint32_to_str(self.ttml_size)
-            #print "Changed ttml sample size from %d to %d" % (old_ttml__size, self.ttml_size)
-            pos += 4
+        if self.ttml_size:
+            if tf_flags & 0x10:
+                #old_ttml__size = str_to_uint32(data[pos:pos+4])
+                output += uint32_to_str(self.ttml_size)
+                #print "Changed ttml sample size from %d to %d" % (old_ttml__size, self.ttml_size)
+                pos += 4
+            else:
+                raise MediaSegmentFilterError("Cannot handle ttml segments if default_sample_size_offset is absent")
+        if self.ttml_size:
+            output += data[pos:]
         else:
-            raise MediaSegmentFilterError("Cannot handle ttml segments if default_sample_size_offset is absent")
-        output += data[pos:]
+            output = data
         return output
 
     def process_mfhd(self, data):
@@ -143,6 +165,8 @@ class MediaSegmentFilter(MP4Filter):
             if sample_duration_present:
                 duration += str_to_uint32(data[pos:pos+4])
                 pos += 4
+            else:
+                duration += self.default_sample_duration
             if sample_size_present:
                 pos += 4
             if sample_flags_present:
@@ -191,6 +215,23 @@ class MediaSegmentFilter(MP4Filter):
             output += data[28:]
         else:
             output += data[36:]
+        return output
+
+    def create_sidx(self, seg_size):
+        """Return a sidx box which can be inserted right before the moof.
+
+        This is optional, but some clients require it to present."""
+        output = uint32_to_str(52)  # Size of box
+        output += 'sidx\x01\x00\x00\x00'  # type, version and flags
+        output += '\x00\x00\x00\x01'  # refID
+        output += uint32_to_str(self.track_timescale)
+        output += uint64_to_str(self.tfdt_value) # decode_time for now
+        output += uint64_to_str(0)  # first_offset = 0
+        output += '\x00\x00\x00\x01'  # reserved and reference_count
+        # Next 1 bit reference type + 31 bit size of segment
+        output += uint32_to_str(seg_size)
+        output += uint32_to_str(self.duration)
+        output += '\x90\x00\x00\x00'
         return output
 
     def process_tfdt_to_64bit(self, data, output):

@@ -2,7 +2,7 @@
 # included below. This software may be subject to other third party and contributor
 # rights, including patent rights, and no such rights are granted under this license.
 #
-# Copyright (c) 2015-2018, Dash Industry Forum.
+# Copyright (c) 2018, Dash Industry Forum.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without modification,
@@ -27,5 +27,25 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-SERVER_VERSION = "1.6.0"
-SERVER_AGENT = "DASH-IF live DASH simulator %s" % SERVER_VERSION
+import unittest
+
+from dashlivesim.dashlib import dash_proxy
+
+from dash_test_util import *
+
+class TestSuggestedPresentationDelay(unittest.TestCase):
+    "Test that MPD gets startNr changed in an appropriate way"
+
+    def testSuggestedPresentationDelayNotPresent(self):
+        "Check that suggestedPresentationDelayIsNotPresent."
+        urlParts = ['pdash', 'testpic', 'Manifest.mpd']
+        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
+        d = dp.handle_request()
+        self.assertTrue(d.find('suggestedPresentationDelay') < 0)
+
+    def testSuggestedPresentationDelayPresent(self):
+        "Check that suggestedPresentationDelay get the right value."
+        urlParts = ['pdash', 'spd_10', 'testpic', 'Manifest.mpd']
+        dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
+        d = dp.handle_request()
+        self.assertTrue(d.find('suggestedPresentationDelay="PT10S"') > 0)

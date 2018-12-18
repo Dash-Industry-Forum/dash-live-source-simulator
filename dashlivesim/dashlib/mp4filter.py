@@ -58,6 +58,7 @@ class MP4Filter(object):
         self.composite_boxes_to_parse = [] # Composite boxes to look into
         self.next_phase_data = {}
         self.nr_iterations_done = 0
+        self.output_top_level_boxes = []  # Boxes with size and type
         #print "MP4Filter with %s" % filename
 
     def check_box(self, data):
@@ -70,6 +71,7 @@ class MP4Filter(object):
         "Top level box parsing. The lower-level parsing is done in self.filter_box(). "
         self.output = ""
         pos = 0
+        prev_output_pos = 0
         while pos < len(self.data):
             size, boxtype = self.check_box(self.data[pos:pos+8])
             boxdata = self.data[pos:pos+size]
@@ -77,6 +79,11 @@ class MP4Filter(object):
                 self.output += self.filter_box(boxtype, boxdata, len(self.output))
             else:
                 self.output += boxdata
+            output_len = len(self.output)
+            if output_len > prev_output_pos:
+                output_box_len = output_len - prev_output_pos
+                self.output_top_level_boxes.append((output_box_len, boxtype))
+                prev_output_pos = output_len
             pos += size
         if self.next_phase_data:
             self.nr_iterations_done += 1

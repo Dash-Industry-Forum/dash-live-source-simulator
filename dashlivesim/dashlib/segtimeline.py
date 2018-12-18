@@ -64,6 +64,9 @@ class SegmentTimeLineGenerator(object):
                 data = ifh.read(12)
         self.interval_starts = [std.start_time for std in self.segtimedata]
         self.wrap_duration = cfg.vod_wrap_seconds * self.timescale
+        self.nr_segments_per_wrap = cfg.vod_nr_segments_in_loop
+        self.first_segment_number = cfg.vod_first_segment_in_loop
+        self.start_number = None
 
     def create_segtimeline(self, start_time, end_time, use_closest=False):
         "Create and insert a new <SegmentTimeline> element and S entries."
@@ -135,12 +138,20 @@ class SegmentTimeLineGenerator(object):
             nr_repeats = end_repeats - start_repeats
         s_elem = self.generate_s_elem(seg_start_time, seg_data.duration, nr_repeats)
         seg_timeline.insert(0, s_elem)
+        self.start_number = self.get_seg_number(nr_wraps, start_index,
+                                                start_repeats)
         return seg_timeline
 
     def get_seg_starttime(self, nr_wraps, index, repeats):
         "Get the segment starttime given repeats."
         seg_data = self.segtimedata[index]
         return nr_wraps*self.wrap_duration + seg_data.start_time + repeats*seg_data.duration
+
+    def get_seg_number(self, nr_wraps, index, repeats):
+        "Get the segment number given repeats."
+        seg_data = self.segtimedata[index]
+        return (nr_wraps*self.nr_segments_per_wrap + seg_data.start_nr +
+                repeats - self.first_segment_number)
 
     def get_seg_endtime(self, nr_wraps, index, repeats):
         "Get the end of a segment."

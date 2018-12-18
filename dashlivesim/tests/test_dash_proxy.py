@@ -256,6 +256,17 @@ class TestMediaSegments(unittest.TestCase):
         d = dp.handle_request()
         self.assertEqual(d[4:8], 'styp')
 
+    def testMediaSegmentWithSidx(self):
+        testOutputFile = "t1_sidx.m4s"
+        rm_outfile(testOutputFile)
+        now = 2101 # 1s after start of segment 350
+        segment = "349.m4s"
+        urlParts = ['pdash', 'sidx_1', 'testpic', 'A1', segment]
+        dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
+        d = dp.handle_request()
+        write_data_to_outfile(d, testOutputFile)
+
+
     def testMediaIntervalWithOffset(self):
         "Test that only segments 590-609 are available"
 
