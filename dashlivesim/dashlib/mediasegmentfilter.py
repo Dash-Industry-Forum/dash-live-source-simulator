@@ -34,6 +34,7 @@ from . import scte35
 from .mp4filter import MP4Filter
 from .structops import str_to_uint32, uint32_to_str, str_to_uint64, uint64_to_str, str_to_sint32, sint32_to_str
 from .ttml_timing_offset import adjust_ttml_content
+from timeformatconversions import make_timestamp
 
 KEEP_SIDX = False
 
@@ -49,7 +50,7 @@ class MediaSegmentFilter(MP4Filter):
     #pylint: disable=too-many-instance-attributes, too-many-arguments
     def __init__(self, file_name, seg_nr=None, seg_duration=1, offset=0, lmsg=False, track_timescale=None,
                  scte35_per_minute=0, rel_path=None, is_ttml=False,
-                 default_sample_duration=None, insert_sidx=False, emsg_last_seg=False):
+                 default_sample_duration=None, insert_sidx=False, emsg_last_seg=False , now=False):
         MP4Filter.__init__(self, file_name)
         self.top_level_boxes_to_parse = ["styp", "sidx", "moof", "mdat"]
         self.composite_boxes_to_parse = ['moof', 'traf']
@@ -68,6 +69,7 @@ class MediaSegmentFilter(MP4Filter):
         self.is_ttml = is_ttml
         self.ttml_size = None
         self.emsg_last_seg= emsg_last_seg
+        self.now=now
         if self.is_ttml:
             self.data = self.find_and_process_mdat(self.data)
 
@@ -373,6 +375,7 @@ class MediaSegmentFilter(MP4Filter):
         return uint32_to_str(out_size) + 'mdat' + ttml_out
 
     def create_emsg(self):
-        emsg_box=emsg.create_emsg(scheme_id_uri="urn:mpeg:dash:event:2012", value="", timescale=1, 
-                                  presentation_time_delta=0, event_duration=0, emsg_id=0, message_data="");
-        return emsg_box;
+        emsg_box=emsg.create_emsg(scheme_id_uri="urn:mpeg:dash:event:2012", value="1", timescale=1, 
+                                  presentation_time_delta=2, event_duration=0, emsg_id=0,
+                                  message_data=make_timestamp(self.now))
+        return emsg_box

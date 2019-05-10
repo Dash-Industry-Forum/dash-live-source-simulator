@@ -558,7 +558,7 @@ class DashProvider(object):
         seg_filter = MediaSegmentFilter(media_seg_file, seg_nr, cfg.seg_duration, offset_at_loop_start, lmsg, timescale,
                                         scte35_per_minute, rel_path,
                                         is_ttml,
-                                        insert_sidx=cfg.insert_sidx,emsg_last_seg=cfg.emsg_last_seg)
+                                        insert_sidx=cfg.insert_sidx,emsg_last_seg=cfg.emsg_last_seg,now=self.now)
         seg_content = seg_filter.filter()
         self.new_tfdt_value = seg_filter.get_tfdt_value()
         return seg_content
