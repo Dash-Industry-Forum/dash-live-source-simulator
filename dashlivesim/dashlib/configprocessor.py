@@ -105,6 +105,8 @@ class Config(object):
         self.stop_time = None
         self.timeoffset = None
         self.insert_sidx = False
+        self.segtimelineloss= False #This flag is true only when there is /segtimelineloss_1/
+        self.emsg_last_seg=False
 
     def __str__(self):
         lines = ["%s=%s" % (k, v) for (k, v) in self.__dict__.items() if not k.startswith("_")]
@@ -338,7 +340,7 @@ class ConfigProcessor(object):
                     "cont", "periods", "xlink", "etp", "etpDuration",
                     "insertad", "mpdcallback", "continuous", "segtimeline",
                     "segtimelinenr", "baseurl", "peroff", "scte35", "utc",
-                    "snr", "ato", "spd", "sidx")
+                    "snr", "ato", "spd", "sidx", "segtimelineloss")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -370,7 +372,8 @@ class ConfigProcessor(object):
                'urls' : self.cfg.multi_url,
                'periodOffset' : self.cfg.period_offset,
                'publishTime' : self.cfg.publish_time,
-               'mediaData' : self.cfg.media_data}
+               'mediaData' : self.cfg.media_data,
+               'segtimelineloss'  : self.cfg.segtimelineloss}
         if self.cfg.availability_end_time:
             mpd['availabilityEndTime'] = self.cfg.availability_end_time
         return mpd
@@ -464,6 +467,9 @@ class ConfigProcessor(object):
             elif key == "sidx":  # Insert sidx
                 if int(value) == 1:
                     cfg.insert_sidx = True
+            elif key == "segtimelineloss":  # If segment timeline loss case signalled.
+                if int(value) == 1:
+                    cfg.segtimelineloss = True
             else:
                 raise ConfigProcessorError("Cannot interpret option %s properly" % key)
             url_pos += 1

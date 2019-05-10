@@ -81,6 +81,8 @@ class MpdProcessor(object):
         self.full_url = full_url
         self.root = self.tree.getroot()
         self.availability_start_time_in_s = None
+        self.emsg_last_seg=cfg.emsg_last_seg if cfg is not None else False
+        self.segtimelineloss=cfg.segtimelineloss if cfg is not None else False
 
     def process(self, mpd_data, period_data):
         "Top-level call to process the XML."
@@ -98,6 +100,11 @@ class MpdProcessor(object):
             old_profiles = mpd.get('profiles')
             if not old_profiles.find(scte35.PROFILE) >= 0:
                 new_profiles = old_profiles + "," + scte35.PROFILE
+                mpd.set('profiles', new_profiles)
+        if self.segtimelineloss:
+            old_profiles = mpd.get('profiles')
+            if old_profiles.find("dash-if-simple") >= 0:
+                new_profiles=old_profiles.replace("dash-if-simple","dash-if-main")
                 mpd.set('profiles', new_profiles)
         key_list = ['availabilityStartTime', 'availabilityEndTime', 'timeShiftBufferDepth',
                     'minimumUpdatePeriod', 'maxSegmentDuration',
@@ -242,6 +249,10 @@ class MpdProcessor(object):
             "Create an InbandEventStream element for SCTE-35."
             return self.create_descriptor_elem("InbandEventStream", scte35.SCHEME_ID_URI, value=str(scte35.PID))
 
+        def create_inband_stream_elem():
+            "Create an InbandEventStream element for signalling emsg in Rep when encoder fails to generate new segments, IOP 4.11.4.3 scenario."
+            return self.create_descriptor_elem("InbandEventStream", "urn:mpeg:dash:event:2012", value=str(1))
+        
         def create_inline_mpdcallback_elem(BaseURLSegmented):
             "Create an EventStream element for MPD Callback."
             return self.create_descriptor_elem("EventStream", "urn:mpeg:dash:event:callback:2015", value=str(1),
@@ -280,6 +291,9 @@ class MpdProcessor(object):
             for ad_set in adaptation_sets:
                 ad_pos = 0
                 content_type = ad_set.get('contentType')
+                if self.emsg_last_seg:
+                    inband_event_elem = create_inband_stream_elem()
+                    ad_set.insert(0, inband_event_elem)
                 if content_type == 'video' and self.scte35_present:
                     scte35_elem = create_inband_scte35stream_elem()
                     ad_set.insert(0, scte35_elem)
@@ -313,7 +327,7 @@ class MpdProcessor(object):
                             end_time = min(now, self.cfg.stop_time)
                             use_closest = True
                         seg_timeline = segtime_gen.create_segtimeline(
-                            start_time, end_time, use_closest)
+                                start_time, end_time, use_closest)
                         remove_attribs(seg_template, ['duration'])
                         seg_template.set('timescale', str(self.cfg.media_data[content_type]['timescale']))
                         if pto != "0" and not offset_at_period_level:

@@ -29,6 +29,7 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
+from . import emsg
 from . import scte35
 from .mp4filter import MP4Filter
 from .structops import str_to_uint32, uint32_to_str, str_to_uint64, uint64_to_str, str_to_sint32, sint32_to_str
@@ -48,7 +49,7 @@ class MediaSegmentFilter(MP4Filter):
     #pylint: disable=too-many-instance-attributes, too-many-arguments
     def __init__(self, file_name, seg_nr=None, seg_duration=1, offset=0, lmsg=False, track_timescale=None,
                  scte35_per_minute=0, rel_path=None, is_ttml=False,
-                 default_sample_duration=None, insert_sidx=False):
+                 default_sample_duration=None, insert_sidx=False, emsg_last_seg=False):
         MP4Filter.__init__(self, file_name)
         self.top_level_boxes_to_parse = ["styp", "sidx", "moof", "mdat"]
         self.composite_boxes_to_parse = ['moof', 'traf']
@@ -66,6 +67,7 @@ class MediaSegmentFilter(MP4Filter):
         self.scte35_per_minute = scte35_per_minute
         self.is_ttml = is_ttml
         self.ttml_size = None
+        self.emsg_last_seg= emsg_last_seg
         if self.is_ttml:
             self.data = self.find_and_process_mdat(self.data)
 
@@ -84,8 +86,18 @@ class MediaSegmentFilter(MP4Filter):
             sidx = self.create_sidx(seg_size)
             self.output = (self.output[:moof_start] + sidx +
                            self.output[moof_start:])
-
-
+        if self.emsg_last_seg:
+            pos = 0
+            moof_start = 0
+            for size, box in self.output_top_level_boxes:
+                if box == 'moof':
+                    moof_start = pos
+                pos += size
+            emsg_box = self.create_emsg()
+            self.output = (self.output[:moof_start] + emsg_box +
+                           self.output[moof_start:])
+            
+        
     #pylint: disable=no-self-use
     def process_styp(self, data):
         "Process styp and make sure lmsg presence follows the lmsg flag parameter. Add scte35 box if appropriate"
@@ -359,3 +371,8 @@ class MediaSegmentFilter(MP4Filter):
         self.ttml_size = len(ttml_out)
         out_size = self.ttml_size + 8
         return uint32_to_str(out_size) + 'mdat' + ttml_out
+
+    def create_emsg(self):
+        emsg_box=emsg.create_emsg(scheme_id_uri="urn:mpeg:dash:event:2012", value="", timescale=1, 
+                                  presentation_time_delta=0, event_duration=0, emsg_id=0, message_data="");
+        return emsg_box;
