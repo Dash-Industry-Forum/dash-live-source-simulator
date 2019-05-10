@@ -393,8 +393,8 @@ class DashProvider(object):
                     if a_var[0] == 'u' and b_var[0] == 'd':  # parse server up or down information
                         for i in range(num_loop):
                             if i * total_dur + dur1 < now_mod_60 <= (i + 1) * total_dur:
-                                    response = self.error_response("BaseURL server down at %d" % (self.now))
-                                    break
+                                response = self.error_response("BaseURL server down at %d" % (self.now))
+                                break
                             elif now_mod_60 == i* total_dur +dur1:     #Just before down time starts, add emsg box to the segment.
                                 cfg.emsg_last_seg=True
                                 response = self.process_media_segment(cfg, self.now_float)

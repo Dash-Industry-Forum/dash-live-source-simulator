@@ -327,7 +327,7 @@ class MpdProcessor(object):
                             end_time = min(now, self.cfg.stop_time)
                             use_closest = True
                         seg_timeline = segtime_gen.create_segtimeline(
-                                start_time, end_time, use_closest)
+                            start_time, end_time, use_closest)
                         remove_attribs(seg_template, ['duration'])
                         seg_template.set('timescale', str(self.cfg.media_data[content_type]['timescale']))
                         if pto != "0" and not offset_at_period_level:
