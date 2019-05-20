@@ -44,7 +44,7 @@ SET_BASEURL = True
 
 UTC_TIMING_NTP_SERVER = '1.de.pool.ntp.org'
 UTC_TIMING_SNTP_SERVER = 'time.kfki.hu'
-
+UTC_TIMING_HTTP_SERVER = 'http://time.akamai.com/?iso'
 
 
 def set_value_from_dict(element, key, data):
@@ -367,6 +367,12 @@ class MpdProcessor(object):
             elif utc_method == "sntp":
                 time_elem = self.create_descriptor_elem('UTCTiming', 'urn:mpeg:dash:utc:sntp:2014',
                                                         UTC_TIMING_SNTP_SERVER)
+            elif utc_method == "httpxsdate":
+                time_elem = self.create_descriptor_elem('UTCTiming', 'urn:mpeg:dash:utc:http-xsdate:2014',
+                                                        UTC_TIMING_HTTP_SERVER)
+            elif utc_method == "httpiso":
+                time_elem = self.create_descriptor_elem('UTCTiming', 'urn:mpeg:dash:utc:http-iso:2014',
+                                                        UTC_TIMING_HTTP_SERVER)
             else: #Unknown or un-implemented UTCTiming method
                 raise MpdModifierError("Unknown UTCTiming method: %s" % utc_method)
             mpd.insert(pos, time_elem)
