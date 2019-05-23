@@ -335,6 +335,28 @@ class DashProvider(object):
                 raise Exception("Insert ad option can only be used in conjuction with the xlink option. To use the "
                                 "insert ad option, also set use xlink_m in your url.")
             response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, self.now)
+            #The following 'if' is for IOP 4.11.4.3 , deployment scenario when segments not found.
+            if len(cfg.multi_url) > 0 and cfg.segtimelineloss == True:  # There is one specific baseURL with losses specified
+                    a_var, b_var = cfg.multi_url[0].split("_")
+                    dur1 = int(a_var[1:])
+                    dur2 = int(b_var[1:])
+                    total_dur = dur1 + dur2
+                    num_loop = int(ceil(60.0 / (float(total_dur))))
+                    now_mod_60 = self.now % 60
+                    if a_var[0] == 'u' and b_var[0] == 'd':  # parse server up or down information
+                        for i in range(num_loop):
+                            if i * total_dur + dur1 < now_mod_60 <= (i + 1) * total_dur:
+                                #Generate and provide mpd with the latest up time, so that last generated segment is shown
+                                #and no new S element added to SegmentTimeline.
+                                latestUptime= self.now - now_mod_60 + (i * total_dur + dur1)
+                                response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, latestUptime)
+                                break
+                            elif now_mod_60 == i* total_dur +dur1:
+                                #Just before down time starts, add InbandEventStream to the MPD.
+                                cfg.emsg_last_seg=True
+                                response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, self.now)
+                                cfg.emsg_last_seg=False
+                           
             if nr_xlink_periods_per_hour > 0:
                 response = generate_response_with_xlink(response, cfg.ext, cfg.filename, nr_periods_per_hour,
                                                         nr_xlink_periods_per_hour, mpd_input_data['insertAd'])
@@ -373,6 +395,10 @@ class DashProvider(object):
                             if i * total_dur + dur1 < now_mod_60 <= (i + 1) * total_dur:
                                 response = self.error_response("BaseURL server down at %d" % (self.now))
                                 break
+                            elif now_mod_60 == i* total_dur +dur1:     #Just before down time starts, add emsg box to the segment.
+                                cfg.emsg_last_seg=True
+                                response = self.process_media_segment(cfg, self.now_float)
+                                cfg.emsg_last_seg=False
                     elif a_var[0] == 'd' and b_var[0] == 'u':
                         for i in range(num_loop):
                             if i * (total_dur) < now_mod_60 <= i * (total_dur) + dur1:
@@ -532,7 +558,7 @@ class DashProvider(object):
         seg_filter = MediaSegmentFilter(media_seg_file, seg_nr, cfg.seg_duration, offset_at_loop_start, lmsg, timescale,
                                         scte35_per_minute, rel_path,
                                         is_ttml,
-                                        insert_sidx=cfg.insert_sidx)
+                                        insert_sidx=cfg.insert_sidx,emsg_last_seg=cfg.emsg_last_seg,now=self.now)
         seg_content = seg_filter.filter()
         self.new_tfdt_value = seg_filter.get_tfdt_value()
         return seg_content
