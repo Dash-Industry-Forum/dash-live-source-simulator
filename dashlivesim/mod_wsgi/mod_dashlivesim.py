@@ -35,6 +35,7 @@
 from dashlivesim import SERVER_AGENT
 import httplib
 from os.path import splitext
+from urlparse import urlparse, parse_qs
 from time import time
 from dashlivesim.dashlib import dash_proxy
 
@@ -69,13 +70,15 @@ def application(environment, start_response):
 
     #pylint: disable=too-many-locals
     hostname = environment['HTTP_HOST']
-    url = environment['REQUEST_URI']
+    url = urlparse(environment['REQUEST_URI'])
     vod_conf_dir = environment['VOD_CONF_DIR']
     content_root = environment['CONTENT_ROOT']
     is_https = environment.get('HTTPS', 0)
-    path_parts = url.split('/')
+    path_parts = url.path.split('/')
     ext = splitext(path_parts[-1])[1]
-    args = None
+    query = url.query if url.query else environment.get('QUERY_STRING', '')
+    args = parse_qs(query)
+
     now = time()
     range_line = None
     if 'HTTP_RANGE' in environment:
@@ -94,8 +97,9 @@ def application(environment, start_response):
     payload_in = None
 
     try:
-        response = dash_proxy.handle_request(hostname, path_parts[1:], args, vod_conf_dir, content_root, now, None,
-                                             is_https)
+        response = dash_proxy.handle_request(hostname, path_parts[1:], args,
+                                             vod_conf_dir, content_root, now,
+                                             None, is_https)
         if isinstance(response, basestring):
             payload_in = response
             if not payload_in:
