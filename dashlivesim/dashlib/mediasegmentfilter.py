@@ -61,6 +61,7 @@ class MediaSegmentFilter(MP4Filter):
         self.rel_path = rel_path
         self.lmsg = lmsg
         self.size_change = 0
+        self.new_saio_value = None
         self.tfdt_value = None # For testing
         self.default_sample_duration = default_sample_duration
         self.insert_sidx = insert_sidx
@@ -198,6 +199,34 @@ class MediaSegmentFilter(MP4Filter):
         else:
             output += data[16:20]
         output += data[20:]
+        return output
+
+    def process_saio(self, data):
+        "Process saio and possibly change offset by size_change if needed."
+        version_flags = str_to_uint32(data[8:12])
+        version = version_flags >> 24
+        flags = version_flags & 0xffffff
+        pos = 12
+        if flags & 0x1:
+            pos += 8
+        entry_count = str_to_uint32(data[pos:pos + 4])
+        pos += 4
+        output = data[:pos]
+        delta_offset = self.size_change
+        if version == 0:
+            for i in range(entry_count):
+                offset = str_to_uint32(data[pos:pos + 4])
+                pos += 4
+                output += uint32_to_str(offset + delta_offset)
+                if i == 0:
+                    self.new_saio_value = offset + delta_offset
+        else:
+            for i in range(entry_count):
+                offset = str_to_uint64(data[pos:pos + 8])
+                pos += 8
+                output += uint64_to_str(offset + delta_offset)
+                if i == 0:
+                    self.new_saio_value = offset + delta_offset
         return output
 
     def process_sidx(self, data):
