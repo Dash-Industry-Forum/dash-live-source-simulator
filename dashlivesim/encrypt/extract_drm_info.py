@@ -18,8 +18,10 @@ def extract_data(file_name):
     for key in cp.content_keys:
         cek = key.cek
         kid = str(key.kid)
-        cp_data[kid] = {'cek': cek,
-                        'drm_data': OrderedDict()}
+        cp_data.append({'kid': kid,
+                        'cek': cek,
+                        'drm_data': []
+                        })
     for drm_system in cp.drm_systems:
         kid = str(drm_system.kid)
         system_id = str(drm_system.system_id)
@@ -29,10 +31,19 @@ def extract_data(file_name):
         mobj = PSSH_PATTERN.match(pssh_data)
         if mobj:
             pssh = mobj.groups(1)[0].decode('utf-8')
-        cp_data[kid]['drm_data'][system_id] = pssh
+        else:
+            raise ValueError("Did not find pssh data")
+        for cpd in cp_data:
+            if cpd['kid'] == kid:
+                cpd['drm_data'].append({'system_id': system_id,
+                                        'pssh': pssh})
+                break
+        else:
+            raise ValueError("Did not find {kid}")
 
     json_out = json.dumps(cp_data)
     print(json_out)
 
+
 if __name__ == "__main__":
     extract_data(sys.argv[1])

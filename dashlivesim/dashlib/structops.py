@@ -43,6 +43,10 @@ def str_to_uint64(string8):
     "8-character string to unsigned int64."
     return unpack(">Q", string8)[0]
 
+def uint8_to_str(uint8):
+    "Unsigned int8 to string."
+    return pack(">B", uint8)
+
 def uint32_to_str(uint32):
     "Unsigned int32 to string."
     return pack(">I", uint32)
