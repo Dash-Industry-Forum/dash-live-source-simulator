@@ -340,7 +340,8 @@ class ConfigProcessor(object):
                     "cont", "periods", "xlink", "etp", "etpDuration",
                     "insertad", "mpdcallback", "continuous", "segtimeline",
                     "segtimelinenr", "baseurl", "peroff", "scte35", "utc",
-                    "snr", "ato", "spd", "sidx", "segtimelineloss")
+                    "snr", "ato", "spd", "sidx", "segtimelineloss",
+                    "sts")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -470,6 +471,8 @@ class ConfigProcessor(object):
             elif key == "segtimelineloss":  # If segment timeline loss case signalled.
                 if int(value) == 1:
                     cfg.segtimelineloss = True
+            elif key == "sts":
+                session_start_time = int(value)
             else:
                 raise ConfigProcessorError("Cannot interpret option %s properly" % key)
             url_pos += 1
