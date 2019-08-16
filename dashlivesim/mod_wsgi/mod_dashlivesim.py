@@ -39,6 +39,8 @@ from urlparse import urlparse, parse_qs
 from time import time
 from dashlivesim.dashlib import dash_proxy
 
+MAX_SESSION_LENGTH = 3600  # If non-zero,  limit sessions via redirect
+
 # Helper for HTTP responses
 #pylint: disable=dangerous-default-value
 def reply(code, resp, body='', headers={}):
@@ -64,6 +66,18 @@ def reply(code, resp, body='', headers={}):
     resp(status, headers.items())
     return [body]
 
+def reply_404(start_response, status, msg):
+    "Return 404 with a body."
+    mimetype = "text/plain"
+    headers = {'Content-Type':mimetype}
+    return reply(status, start_response, msg, headers)
+
+
+def reply_redirect(start_response, new_url):
+    headers = {'Location': new_url}
+    return reply(302, start_response, "", headers)
+
+
 #pylint: disable=too-many-branches, too-many-locals
 def application(environment, start_response):
     "WSGI Entrypoint"
@@ -80,6 +94,36 @@ def application(environment, start_response):
     args = parse_qs(query)
 
     now = time()
+
+    if MAX_SESSION_LENGTH:  # Redirect and do limit sessions in time
+        # Check if there is a sts_xxx parameter.
+        start_time = None
+        for part in path_parts:
+            if part.startswith('sts_'):
+                try:
+                    start_time = int(part[4:])
+                except:
+                    pass
+
+        if ext == ".mpd" and start_time is None:
+            new_url = 'https://' if is_https else 'http://'
+            start_part = "sts_%d" % int(now)
+            path_parts = path_parts[:2] + [start_part] + path_parts[2:]
+            new_url += hostname + '/'.join(path_parts)
+            if query:
+                new_url += '?' + query
+            return reply(302, start_response, "", {'Location': new_url})
+        elif start_time is None:
+            return reply(404, start_response,
+                         'No start_time in non-manifest request')
+        else:
+            if now > start_time + MAX_SESSION_LENGTH:
+                return reply(410, start_response,
+                                  "Maximum session length %ds passed" %
+                                  MAX_SESSION_LENGTH)
+            elif start_time > now + 5: # Give some margin
+                return reply(404, start_response, 'start_time is in future')
+
     range_line = None
     if 'HTTP_RANGE' in environment:
         range_line = environment['HTTP_RANGE']
@@ -116,7 +160,6 @@ def application(environment, start_response):
         print "mod_dash_handler request error: %s" % exc
         payload_in = "DASH Proxy Error: %s\n URL=%s" % (exc, url)
 
-
     if not success:
         if payload_in == "":
             print "dash_proxy error: No body!"
@@ -143,6 +186,7 @@ def application(environment, start_response):
                 print "mod_dash_handler: Bad range %s" % (range_line)
 
     return reply(status, start_response, payload_out, headers)
+
 
 def get_mime_type(ext):
     "Get mime-type depending on extension."
