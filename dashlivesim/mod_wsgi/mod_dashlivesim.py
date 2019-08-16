@@ -32,12 +32,14 @@
 # Note that VOD_CONF_DIR and CONTENT_ROOT directories must be set in environment
 # For Apache mod_wsgi, this is done using setEnv
 
-from dashlivesim import SERVER_AGENT
+import traceback
 import httplib
 from os.path import splitext
 from urlparse import urlparse, parse_qs
 from time import time
+
 from dashlivesim.dashlib import dash_proxy
+from dashlivesim import SERVER_AGENT
 
 MAX_SESSION_LENGTH = 3600  # If non-zero,  limit sessions via redirect
 
@@ -65,17 +67,6 @@ def reply(code, resp, body='', headers={}):
 
     resp(status, headers.items())
     return [body]
-
-def reply_404(start_response, status, msg):
-    "Return 404 with a body."
-    mimetype = "text/plain"
-    headers = {'Content-Type':mimetype}
-    return reply(status, start_response, msg, headers)
-
-
-def reply_redirect(start_response, new_url):
-    headers = {'Location': new_url}
-    return reply(302, start_response, "", headers)
 
 
 #pylint: disable=too-many-branches, too-many-locals
@@ -158,6 +149,7 @@ def application(environment, start_response):
     except Exception, exc:
         success = False
         print "mod_dash_handler request error: %s" % exc
+        traceback.print_exc()
         payload_in = "DASH Proxy Error: %s\n URL=%s" % (exc, url)
 
     if not success:

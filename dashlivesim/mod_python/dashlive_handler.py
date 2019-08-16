@@ -33,12 +33,26 @@ HTTP_PARTIAL_CONTENT = 206
 
 from os.path import splitext
 from time import time
+import traceback
 
 try:
     from mod_python import apache
     import cgi
 except ImportError:
     pass
+
+MAX_SESSION_LENGTH = 3600  # If non-zero,  limit sessions via redirect
+
+def respond(req, status, headers, body, server_agent):
+    req.status = status
+    if headers:
+        for k,v in headers.items():
+            req.headers_out[k] = v
+    set_out_headers(req, server_agent)
+    req.headers_out['Content-Length'] = "%d" % len(body)
+    req.write(body)
+    return apache.OK
+
 
 #pylint: disable=too-many-branches
 def dash_handler(req, server_agent, request_handler):
@@ -52,6 +66,39 @@ def dash_handler(req, server_agent, request_handler):
     range_line = req.headers_in.get('range')
 
     now = time()
+
+    if MAX_SESSION_LENGTH:  # Redirect and do limit sessions in time
+        # Check if there is a sts_xxx parameter.
+        start_time = None
+        for part in path_parts:
+            if part.startswith('sts_'):
+                try:
+                    start_time = int(part[4:])
+                except:
+                    pass
+
+        if ext == ".mpd" and start_time is None:
+            new_url = 'https://' if req.is_https() else 'http://'
+            start_part = "sts_%d" % int(now)
+            path_parts = path_parts[:2] + [start_part] + path_parts[2:]
+            new_url += req.hostname + '/'.join(path_parts)
+            if req.args:
+                new_url += '?' + req.args
+            return respond(req, apache.HTTP_MOVED_TEMPORARILY,
+                           {'Location': new_url}, "", server_agent)
+        elif start_time is None:
+            return respond(req, apache.HTTP_NOT_FOUND, {},
+                           'No start_time in non-manifest request',
+                           server_agent)
+        else:
+            if now > start_time + MAX_SESSION_LENGTH:
+                return respond(req, apache.HTTP_GONE, {},
+                               "Maximum session length %ds passed" %
+                                MAX_SESSION_LENGTH, server_agent)
+            elif start_time > now + 5:  # Give some margin
+                return respond(req, apache.HTTP_FORBIDDEN, {},
+                               'start_time is in future', server_agent)
+
     success = True
     if req.args:
         args = cgi.parse_qs(req.args)
@@ -75,6 +122,7 @@ def dash_handler(req, server_agent, request_handler):
         payload_in = "DASH Proxy Error: %s\n URL=%s" % (exc, url)
         req.content_type = "text/plain"
         req.status = apache.HTTP_NOT_FOUND
+        traceback.print_exc()
 
     set_out_headers(req, server_agent)
 
