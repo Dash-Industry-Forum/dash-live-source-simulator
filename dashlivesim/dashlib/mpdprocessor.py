@@ -38,7 +38,8 @@ import time
 from timeformatconversions import make_timestamp
 import scte35
 from segtimeline import SegmentTimeLineGenerator
-from dash_namespace import add_ns
+from dash_namespace import add_ns, add_patch_ns
+import patch_ops
 
 SET_BASEURL = True
 
@@ -58,6 +59,13 @@ def set_values_from_dict(element, keys, data):
         if data.has_key(key):
             element.set(key, str(data[key]))
 
+def find_template_period(mpd, pos=0):
+    children = mpd.getchildren()
+    for ch_nr in range(pos, len(children)):
+        if children[ch_nr].tag == add_ns("Period"):
+            return (mpd.getchildren()[ch_nr], ch_nr)
+
+    raise MpdModifierError("No period found.")
 
 class MpdModifierError(Exception):
     "Generic MpdModifier error."
@@ -76,6 +84,8 @@ class MpdProcessor(object):
         self.continuous = mpd_proc_cfg['continuous']
         self.segtimeline = mpd_proc_cfg['segtimeline']
         self.segtimeline_nr = mpd_proc_cfg['segtimeline_nr']
+        self.patching = mpd_proc_cfg['patching']
+        self.patch_base = mpd_proc_cfg['patch_base']
         self.mpd_proc_cfg = mpd_proc_cfg
         self.cfg = cfg
         self.full_url = full_url
@@ -89,8 +99,21 @@ class MpdProcessor(object):
         mpd = self.root
         self.availability_start_time_in_s = mpd_data[
             'availability_start_time_in_s']
-        self.process_mpd(mpd, mpd_data)
-        self.process_mpd_children(mpd, mpd_data, period_data)
+
+        if self.patching:
+            # when patching we avoid announcing future periods, filter them out
+            period_data = list(filter(lambda pdata: pdata['presentationTimeOffset'] <= self.mpd_proc_cfg['now'], period_data))
+
+        if self.patch_base == -1:
+            # generate full manifest if patch base absent
+            self.process_mpd(mpd, mpd_data)
+            self.process_mpd_children(mpd, mpd_data, period_data)
+        else:
+            # replace existing manifest with patch
+            patch = ElementTree.Element(add_patch_ns('Patch'))
+            self.tree = ElementTree.ElementTree(patch)
+            self.root = self.tree.getroot()
+            self.process_patch(patch, mpd, mpd_data, period_data)
 
     def process_mpd(self, mpd, mpd_data):
         """Process the root element (MPD)"""
@@ -124,7 +147,6 @@ class MpdProcessor(object):
                 del mpd.attrib['maxSegmentDuration']
             if mpd_data.get('type', 'dynamic') != 'static':
                 mpd.set('minimumUpdatePeriod', "PT0S")
-
 
     #pylint: disable = too-many-branches
     def process_mpd_children(self, mpd, data, period_data):
@@ -179,19 +201,91 @@ class MpdProcessor(object):
             self.insert_location(mpd, pos, loc_url)
             pos += 1
 
-        children = mpd.getchildren()
-        for ch_nr in range(pos, len(children)):
-            if children[ch_nr].tag == add_ns("Period"):
-                period = mpd.getchildren()[pos]
-                pos = ch_nr
-                break
-        else:
-            raise MpdModifierError("No period found.")
+        if self.patching:
+            # replace the original patching key with the in-memory manifest publish time
+            patch_url = re.sub(r"/patching_[-\d]+", "/patch_%d" % 
+                               self.mpd_proc_cfg['now'], self.full_url)
+            # also change the extension type to be patch instead of mpd
+            patch_url = re.sub(r"\.mpd$", ".patch", patch_url)
+            self.insert_patch_location(mpd, pos, patch_url)
+            pos += 1
+
+        (period, pos) = find_template_period(mpd, pos)
+
         for i in range(1, len(period_data)):
             new_period = copy.deepcopy(period)
             mpd.insert(pos+i, new_period)
         self.insert_utc_timings(mpd, pos+len(period_data))
-        self.update_periods(mpd, period_data, data['periodOffset'] >= 0)
+
+        periods = mpd.findall(add_ns('Period'))
+        last_period_id = '-1'
+        segtimeline_generators = self.create_timeline_generators()
+        for (period, pdata) in zip(periods, period_data):
+            self.update_period(mpd, period, pdata, last_period_id, data['periodOffset'] >= 0, segtimeline_generators)
+            last_period_id = pdata.get('id')
+
+    def process_patch(self, patch, mpd, mpd_data, period_data):
+        """Process the root element (Patch)"""
+        patch.set('mpdId', mpd.get('id', 'Config part of url maybe?'))
+        patch.set('publishTime', make_timestamp(self.mpd_proc_cfg['now']))
+        patch.set('originalPublishTime', make_timestamp(self.patch_base))
+
+        # Insert publish time update node
+        publish_replace = patch_ops.insert_replace_op(patch, '/MPD/@publishTime')
+        publish_replace.text = make_timestamp(self.mpd_proc_cfg['now'])
+
+        # Insert patch location update node
+        patch_location = re.sub(r"/patch_[-\d]+", "/patch_%d" % 
+                                self.mpd_proc_cfg['now'], self.full_url)
+        patch_replace = patch_ops.insert_replace_op(patch, '/MPD/PatchLocation[1]')
+        self.insert_patch_location(patch_replace, 0, patch_location)
+
+        # For this simulator we assume patches will not be announcing new high level structures
+        # it is completely possible for them to do that, but this simulator only needs basic
+        # timeline extension ability
+        
+        # Find the base period
+        (original_period, _) = find_template_period(mpd)
+
+        # Go through periods defined for update:
+        # - Periods before the patch base that have new segments have the segments patched in
+        # - Periods after the patch base are completely added
+
+        segtimeline_generators = self.create_timeline_generators()
+        last_period_id = '-1'
+        for pdata in period_data:
+            if pdata.get('presentationTimeOffset') > self.patch_base:
+                # Period is new with this patch, clone original, setup like normal
+                period = copy.deepcopy(original_period)
+                self.update_period(mpd, period, pdata, last_period_id, mpd_data['periodOffset'] >= 0, segtimeline_generators)
+
+                # create the actual insertion operation
+                period_add = patch_ops.insert_add_op(patch, '/MPD')
+                period_add.append(period)
+
+            elif segtimeline_generators:
+                # Period already exists in memory and we use segment timeline
+                # We therefore have to generate extensions to the inmemory timeline
+                # Note only one previous period should ever be added to, not gating on that explicitly here
+                adaptation_sets = original_period.findall(add_ns('AdaptationSet'))
+                for ad_set in adaptation_sets:
+                    content_type = ad_set.get('contentType')
+                    segtime_gen = segtimeline_generators[content_type]
+                    seg_templates = ad_set.findall(add_ns('SegmentTemplate'))
+                    for seg_template in seg_templates:
+                        (start_time, end_time, use_closest) = self.compute_period_times(pdata)
+                        start_time = self.patch_base # always force start to patch base for consistency
+                        seg_timeline = segtime_gen.create_segtimeline(
+                                            start_time, end_time, use_closest)
+                        
+                        # only append if there are children
+                        s_elems = seg_timeline.getchildren()
+                        if len(s_elems) > 0:
+                            timeline_location = "/MPD/Period[@id='%s']/AdaptationSet[@id='%s']/SegmentTemplate/SegmentTimeline" % (pdata.get('id'), ad_set.get('id'))
+                            timeline_add = patch_ops.insert_add_op(patch, timeline_location)
+                            timeline_add.extend(s_elems)
+
+            last_period_id = pdata.get('id')
 
     def insert_baseurl(self, mpd, pos, new_baseurl, new_ato):
         "Create and insert a new <BaseURL> element."
@@ -218,8 +312,15 @@ class MpdProcessor(object):
         location_elem.tail = "\n"
         mpd.insert(pos, location_elem)
 
+    def insert_patch_location(self, mpd, pos, patch_location_url):
+        patch_location_elem = ElementTree.Element(add_ns('PatchLocation'))
+        patch_location_elem.text = patch_location_url
+        patch_location_elem.tail = "\n"
+        patch_location_elem.set('ttl', str(60)) # todo config patch validity duration
+        mpd.insert(pos, patch_location_elem)
+
     #pylint: disable = too-many-statements
-    def update_periods(self, mpd, period_data, offset_at_period_level=False):
+    def update_period(self, mpd, period, pdata, last_period_id, offset_at_period_level=False, segtimeline_generators=None):
         "Update periods to provide appropriate values."
 
         def set_attribs(elem, keys, data):
@@ -257,97 +358,93 @@ class MpdProcessor(object):
             "Create an EventStream element for MPD Callback."
             return self.create_descriptor_elem("EventStream", "urn:mpeg:dash:event:callback:2015", value=str(1),
                                                elem_id=None, messageData=BaseURLSegmented)
-        if self.segtimeline or self.segtimeline_nr:
-            segtimeline_generators = {}
-            for content_type in ('video', 'audio'):
-                segtimeline_generators[content_type] = SegmentTimeLineGenerator(self.cfg.media_data[content_type],
-                                                                                self.cfg)
-        periods = mpd.findall(add_ns('Period'))
         BaseURL = mpd.findall(add_ns('BaseURL'))
         if len(BaseURL) > 0:
             BaseURLParts = BaseURL[0].text.split('/')
             if len(BaseURLParts) > 3:
                 BaseURLSegmented = BaseURLParts[0] + '//' + BaseURLParts[2] + '/' + BaseURLParts[3] + '/mpdcallback/'
-        # From the Base URL
-        last_period_id = '-1'
-        for (period, pdata) in zip(periods, period_data):
-            set_attribs(period, ('id', 'start'), pdata)
-            if pdata.has_key('etpDuration'):
-                period.set('duration', "PT%dS" % pdata['etpDuration'])
-            if pdata.has_key('periodDuration'):
-                period.set('duration', pdata['periodDuration'])
-            segmenttemplate_attribs = ['startNumber']
-            pto = pdata['presentationTimeOffset']
-            if pto:
-                if offset_at_period_level:
-                    insert_segmentbase(period, pto)
-                else:
-                    segmenttemplate_attribs.append('presentationTimeOffset')
-            if pdata.has_key('mpdCallback'):
-                # Add the mpdCallback element only if the flag is raised.
-                mpdcallback_elem = create_inline_mpdcallback_elem(BaseURLSegmented)
-                period.insert(0, mpdcallback_elem)
-            adaptation_sets = period.findall(add_ns('AdaptationSet'))
-            for ad_set in adaptation_sets:
-                ad_pos = 0
-                content_type = ad_set.get('contentType')
-                if self.emsg_last_seg:
-                    inband_event_elem = create_inband_stream_elem()
-                    ad_set.insert(0, inband_event_elem)
-                if content_type == 'video' and self.scte35_present:
-                    scte35_elem = create_inband_scte35stream_elem()
-                    ad_set.insert(0, scte35_elem)
-                    ad_pos += 1
-                if self.continuous and last_period_id != '-1':
-                    supplementalprop_elem = self.create_descriptor_elem("SupplementalProperty", \
-                    "urn:mpeg:dash:period_continuity:2014", last_period_id)
-                    ad_set.insert(ad_pos, supplementalprop_elem)
-                seg_templates = ad_set.findall(add_ns('SegmentTemplate'))
-                for seg_template in seg_templates:
-                    set_attribs(seg_template, segmenttemplate_attribs, pdata)
-                    if pdata.get('startNumber') == '-1': # Default to 1
+
+        set_attribs(period, ('id', 'start'), pdata)
+        if pdata.has_key('etpDuration'):
+            period.set('duration', "PT%dS" % pdata['etpDuration'])
+        if pdata.has_key('periodDuration'):
+            period.set('duration', pdata['periodDuration'])
+        segmenttemplate_attribs = ['startNumber']
+        pto = pdata['presentationTimeOffset']
+        if pto:
+            if offset_at_period_level:
+                insert_segmentbase(period, pto)
+            else:
+                segmenttemplate_attribs.append('presentationTimeOffset')
+        if pdata.has_key('mpdCallback'):
+            # Add the mpdCallback element only if the flag is raised.
+            mpdcallback_elem = create_inline_mpdcallback_elem(BaseURLSegmented)
+            period.insert(0, mpdcallback_elem)
+        adaptation_sets = period.findall(add_ns('AdaptationSet'))
+        for ad_set in adaptation_sets:
+            ad_pos = 0
+            content_type = ad_set.get('contentType')
+            if self.emsg_last_seg:
+                inband_event_elem = create_inband_stream_elem()
+                ad_set.insert(0, inband_event_elem)
+            if content_type == 'video' and self.scte35_present:
+                scte35_elem = create_inband_scte35stream_elem()
+                ad_set.insert(0, scte35_elem)
+                ad_pos += 1
+            if self.continuous and last_period_id != '-1':
+                supplementalprop_elem = self.create_descriptor_elem("SupplementalProperty", \
+                "urn:mpeg:dash:period_continuity:2014", last_period_id)
+                ad_set.insert(ad_pos, supplementalprop_elem)
+            seg_templates = ad_set.findall(add_ns('SegmentTemplate'))
+            for seg_template in seg_templates:
+                set_attribs(seg_template, segmenttemplate_attribs, pdata)
+                if pdata.get('startNumber') == '-1': # Default to 1
+                    remove_attribs(seg_template, ['startNumber'])
+
+                if (self.segtimeline or self.segtimeline_nr) and segtimeline_generators:
+                    # add SegmentTimeline block in SegmentTemplate with timescale and window.
+                    segtime_gen = segtimeline_generators[content_type]
+                    (start_time, end_time, use_closest) = self.compute_period_times(pdata)
+                    seg_timeline = segtime_gen.create_segtimeline(
+                                        start_time, end_time, use_closest)
+                    remove_attribs(seg_template, ['duration'])
+                    seg_template.set('timescale', str(self.cfg.media_data[content_type]['timescale']))
+                    if pto != "0" and not offset_at_period_level:
+                        # rescale presentationTimeOffset based on the local timescale
+                        seg_template.set('presentationTimeOffset',
+                                         str(int(pto) * int(self.cfg.media_data[content_type]['timescale'])))
+                    media_template = seg_template.attrib['media']
+                    if self.segtimeline:
+                        media_template = media_template.replace('$Number$', 't$Time$')
                         remove_attribs(seg_template, ['startNumber'])
+                    elif self.segtimeline_nr:
+                        # Set number to the first number listed
+                        set_attribs(seg_template,
+                                    ('startNumber',),
+                                    {'startNumber': segtime_gen.start_number})
 
-                    if self.segtimeline or self.segtimeline_nr:
-                        # add SegmentTimeline block in SegmentTemplate with timescale and window.
-                        segtime_gen = segtimeline_generators[content_type]
-                        now = self.mpd_proc_cfg['now']
-                        tsbd = self.cfg.timeshift_buffer_depth_in_s
-                        ast = self.cfg.availability_start_time_in_s
-                        start_time = max(ast + pdata['start_s'], now - tsbd)
-                        if pdata.has_key('period_duration_s'):
-                            end_time = min(ast + pdata['start_s'] + pdata['period_duration_s'], now)
-                        else:
-                            end_time = now
-                        start_time -= self.cfg.availability_start_time_in_s
-                        end_time -= self.cfg.availability_start_time_in_s
-                        use_closest = False
-                        if self.cfg.stop_time and self.cfg.timeoffset == 0:
-                            start_time = self.cfg.start_time
-                            end_time = min(now, self.cfg.stop_time)
-                            use_closest = True
-                        seg_timeline = segtime_gen.create_segtimeline(
-                            start_time, end_time, use_closest)
-                        remove_attribs(seg_template, ['duration'])
-                        seg_template.set('timescale', str(self.cfg.media_data[content_type]['timescale']))
-                        if pto != "0" and not offset_at_period_level:
-                            # rescale presentationTimeOffset based on the local timescale
-                            seg_template.set('presentationTimeOffset',
-                                             str(int(pto) * int(self.cfg.media_data[content_type]['timescale'])))
-                        media_template = seg_template.attrib['media']
-                        if self.segtimeline:
-                            media_template = media_template.replace('$Number$', 't$Time$')
-                            remove_attribs(seg_template, ['startNumber'])
-                        elif self.segtimeline_nr:
-                            # Set number to the first number listed
-                            set_attribs(seg_template,
-                                        ('startNumber',),
-                                        {'startNumber': segtime_gen.start_number})
+                    seg_template.set('media', media_template)
+                    seg_template.text = "\n"
+                    seg_template.insert(0, seg_timeline)
 
-                        seg_template.set('media', media_template)
-                        seg_template.text = "\n"
-                        seg_template.insert(0, seg_timeline)
-            last_period_id = pdata.get('id')
+    def compute_period_times(self, pdata):
+        now = self.mpd_proc_cfg['now']
+        tsbd = self.cfg.timeshift_buffer_depth_in_s
+        ast = self.cfg.availability_start_time_in_s
+        start_time = max(ast + pdata['start_s'], now - tsbd)
+        if pdata.has_key('period_duration_s'):
+            end_time = min(ast + pdata['start_s'] + pdata['period_duration_s'], now)
+        else:
+            end_time = now
+        start_time -= self.cfg.availability_start_time_in_s
+        end_time -= self.cfg.availability_start_time_in_s
+        use_closest = False
+        if self.cfg.stop_time and self.cfg.timeoffset == 0:
+            start_time = self.cfg.start_time
+            end_time = min(now, self.cfg.stop_time)
+            use_closest = True
+
+        return (start_time, end_time, use_closest)
 
     def create_descriptor_elem(self, name, scheme_id_uri, value=None, elem_id=None, messageData=None):
         "Create an element of DescriptorType."
@@ -361,6 +458,15 @@ class MpdProcessor(object):
             elem.set("messageData", messageData)
         elem.tail = "\n"
         return elem
+
+    def create_timeline_generators(self):
+        segtimeline_generators = None
+        if self.segtimeline or self.segtimeline_nr:
+            segtimeline_generators = {}
+            for content_type in ('video', 'audio'):
+                segtimeline_generators[content_type] = SegmentTimeLineGenerator(self.cfg.media_data[content_type],
+                                                                                self.cfg)
+        return segtimeline_generators
 
     def insert_utc_timings(self, mpd, start_pos):
         """Insert UTCTiming elements right after program information in order given by self.utc_timing_methods.

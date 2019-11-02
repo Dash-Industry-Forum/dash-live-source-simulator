@@ -360,6 +360,14 @@ class DashProvider(object):
             if nr_xlink_periods_per_hour > 0:
                 response = generate_response_with_xlink(response, cfg.ext, cfg.filename, nr_periods_per_hour,
                                                         nr_xlink_periods_per_hour, mpd_input_data['insertAd'])
+
+        # Manifest patch update, separate out here as the xlink logic is unsafe in assuming all periods will
+        # be present in response to perform the replacement
+        elif cfg.ext == ".patch":
+            mpd_filename = "%s/%s/%s.mpd" % (self.content_dir, cfg.content_name, cfg.filename.split('.')[0])
+            mpd_input_data = cfg_processor.get_mpd_data()
+            response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, self.now)
+
         elif cfg.ext == ".mp4":  # Init segment
             if self.now < cfg.availability_start_time_in_s - cfg.init_seg_avail_offset:
                 diff = (cfg.availability_start_time_in_s - cfg.init_seg_avail_offset) - self.now_float
@@ -443,11 +451,13 @@ class DashProvider(object):
                         'continuous': in_data['continuous'],
                         'segtimeline': in_data['segtimeline'],
                         'segtimeline_nr': in_data['segtimeline_nr'],
+                        'patching': in_data['patching'],
                         'utc_timing_methods': cfg.utc_timing_methods,
                         'utc_head_url': self.utc_head_url,
-                        'now': now}
+                        'now': now,
+                        'patch_base': cfg.patch_base}
         full_url = self.base_url + '/'.join(self.url_parts)
-        mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg,
+        mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg, 
                                           full_url)
         period_data = generate_period_data(mpd_data, now, cfg)
         mpmod.process(mpd_data, period_data)

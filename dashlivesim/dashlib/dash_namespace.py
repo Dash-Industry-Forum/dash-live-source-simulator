@@ -32,9 +32,14 @@ import re
 
 RE_NAMESPACE_TAG = re.compile(r"({.*})?(.*)")
 DASH_NAMESPACE = "{urn:mpeg:dash:schema:mpd:2011}"
-
+DASH_PATCH_NAMESPACE = "{urn:mpeg:dash:schema:mpd-patch:2020}"
 
 def add_ns(element):
     "Add DASH namespace to element or to path."
     parts = element.split('/')
     return "/".join([DASH_NAMESPACE + e for e in parts])
+
+def add_patch_ns(element):
+    """Add Patch namespace to element or to path."""
+    parts = element.split('/')
+    return "/".join([DASH_PATCH_NAMESPACE + e for e in parts])
