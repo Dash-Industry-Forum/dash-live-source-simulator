@@ -12,7 +12,7 @@ def insert_replace_op(target, selector):
     target.append(replace_elem)
     return replace_elem
 
-def insert_add_op(target, selector, pos="after"):
+def insert_add_op(target, selector, pos):
     add_elem = ElementTree.Element(add_ns('add'))
     add_elem.tail = "\n"
     add_elem.set('sel', selector)

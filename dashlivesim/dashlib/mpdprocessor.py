@@ -237,7 +237,7 @@ class MpdProcessor(object):
         # Insert patch location update node
         patch_location = re.sub(r"/patch_[-\d]+", "/patch_%d" % 
                                 self.mpd_proc_cfg['now'], self.full_url)
-        patch_replace = patch_ops.insert_replace_op(patch, '/MPD/PatchLocation[1]')
+        patch_replace = patch_ops.insert_replace_op(patch, '/MPD/PatchLocation[0]')
         self.insert_patch_location(patch_replace, 0, patch_location)
 
         # For this simulator we assume patches will not be announcing new high level structures
@@ -260,7 +260,7 @@ class MpdProcessor(object):
                 self.update_period(mpd, period, pdata, last_period_id, mpd_data['periodOffset'] >= 0, segtimeline_generators)
 
                 # create the actual insertion operation
-                period_add = patch_ops.insert_add_op(patch, '/MPD')
+                period_add = patch_ops.insert_add_op(patch, '/MPD', 'append')
                 period_add.append(period)
 
             elif segtimeline_generators:
@@ -282,7 +282,7 @@ class MpdProcessor(object):
                         s_elems = seg_timeline.getchildren()
                         if len(s_elems) > 0:
                             timeline_location = "/MPD/Period[@id='%s']/AdaptationSet[@id='%s']/SegmentTemplate/SegmentTimeline" % (pdata.get('id'), ad_set.get('id'))
-                            timeline_add = patch_ops.insert_add_op(patch, timeline_location)
+                            timeline_add = patch_ops.insert_add_op(patch, timeline_location, 'append')
                             timeline_add.extend(s_elems)
 
             last_period_id = pdata.get('id')
