@@ -1,3 +1,4 @@
+# Generates nodes conformant with DASH restricted form of https://tools.ietf.org/html/rfc5261
 from xml.etree import ElementTree
 PATCH_OP_NAMESPACE = "{urn:ietf:params:xml:schema:patch-ops}"
 
@@ -19,3 +20,11 @@ def insert_add_op(target, selector, pos):
     add_elem.set('pos', pos)
     target.append(add_elem)
     return add_elem
+
+def insert_remove_op(target, selector):
+    remove_elem = ElementTree.Element(add_ns('remove'))
+    remove_elem.tail = "\n"
+    remove_elem.set('sel', selector)
+    # ws attribute omitted as it is not critical to MPDs
+    target.append(remove_elem)
+    return remove_elem

@@ -194,17 +194,14 @@ class MpdProcessor(object):
                 self.insert_baseurl(mpd, pos, data['BaseURL'], ato)
                 pos += 1
         if self.cfg and self.cfg.add_location and self.full_url is not None:
-            loc_url = re.sub(r"/startrel_[-\d]+", "/start_%d" %
-                             self.cfg.start_time, self.full_url)
-            loc_url = re.sub(r"/stoprel_[-\d]+", "/stop_%d" %
-                             self.cfg.stop_time, loc_url)
+            loc_url = self.update_proxy_url_parameters(self.full_url)
             self.insert_location(mpd, pos, loc_url)
             pos += 1
 
         if self.patching:
             # replace the original patching key with the in-memory manifest publish time
-            patch_url = re.sub(r"/patching_[-\d]+", "/patch_%d" %
-                               self.mpd_proc_cfg['now'], self.full_url)
+            patch_url = self.update_proxy_url_parameters(self.full_url, include_patch_base=True)
+
             # also change the extension type to be patch instead of mpd
             patch_url = re.sub(r"\.mpd$", ".patch", patch_url)
             self.insert_patch_location(mpd, pos, patch_url, self.mpd_proc_cfg['patch_ttl'])
@@ -234,11 +231,20 @@ class MpdProcessor(object):
         publish_replace = patch_ops.insert_replace_op(patch, '/MPD/@publishTime')
         publish_replace.text = make_timestamp(self.mpd_proc_cfg['now'])
 
-        # Insert patch location update node
-        patch_location = re.sub(r"/patch_[-\d]+", "/patch_%d" %
-                                self.mpd_proc_cfg['now'], self.full_url)
-        patch_replace = patch_ops.insert_replace_op(patch, '/MPD/PatchLocation[0]')
-        self.insert_patch_location(patch_replace, 0, patch_location, self.mpd_proc_cfg['patch_ttl'])
+        if mpd_data.get('type', 'dynamic') is 'dynamic':
+            # If MPD has remained dynamic update location update node
+            patch_location = self.update_proxy_url_parameters(self.full_url, include_patch_base=True)
+            patch_replace = patch_ops.insert_replace_op(patch, '/MPD/PatchLocation[0]')
+            self.insert_patch_location(patch_replace, 0, patch_location, self.mpd_proc_cfg['patch_ttl'])
+        else:
+            # otherwise the presentation has ended, update the MPD attributes
+            type_update = patch_ops.insert_replace_op(patch, '/MPD/@type')
+            type_update.text = 'static'
+            patch_ops.insert_remove_op(patch, '/MPD/@minimumUpdatePeriod')
+
+            # Additionally remove the previous patch locations, no updates necessary now
+            patch_ops.insert_remove_op(patch, '/MPD/PatchLocation[0]')
+
 
         # For this simulator we assume patches will not be announcing new high level structures
         # it is completely possible for them to do that, but this simulator only needs basic
@@ -458,6 +464,16 @@ class MpdProcessor(object):
             elem.set("messageData", messageData)
         elem.tail = "\n"
         return elem
+
+    def update_proxy_url_parameters(self, loc_url, include_patch_base=False):
+        loc_url = re.sub(r"/startrel_[-\d]+", "/start_%d" %
+                         self.cfg.start_time, loc_url)
+        loc_url = re.sub(r"/stoprel_[-\d]+", "/stop_%d" %
+                         self.cfg.stop_time, loc_url)
+        if include_patch_base:
+            loc_url = re.sub(r"/patching_[-\d]+", "/patch_%d" %
+                             self.mpd_proc_cfg['now'], loc_url)
+        return loc_url
 
     def create_timeline_generators(self):
         segtimeline_generators = None
