@@ -75,8 +75,10 @@ from xml.etree import ElementTree as ET
 
 SECS_IN_DAY = 24 * 3600
 DEFAULT_MINIMUM_UPDATE_PERIOD = "P100Y"
+DEFAULT_MINIMUM_UPDATE_PERIOD_IN_S = SECS_IN_DAY * 365 * 100
 DEFAULT_PUBLISH_ADVANCE_IN_S = 7200
 EXTRA_TIME_AFTER_END_IN_S = 60
+PATCHING_MAXIMUM_UPDATE_LATENCY = 10
 
 UTC_HEAD_PATH = "dash/time.txt"
 
@@ -356,7 +358,7 @@ class DashProvider(object):
                                 cfg.emsg_last_seg=True
                                 response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, self.now)
                                 cfg.emsg_last_seg=False
-                           
+
             if nr_xlink_periods_per_hour > 0:
                 response = generate_response_with_xlink(response, cfg.ext, cfg.filename, nr_periods_per_hour,
                                                         nr_xlink_periods_per_hour, mpd_input_data['insertAd'])
@@ -424,10 +426,14 @@ class DashProvider(object):
         mpd_data = in_data.copy()
         if cfg.minimum_update_period_in_s is not None:
             mpd_data['minimumUpdatePeriod'] = seconds_to_iso_duration(cfg.minimum_update_period_in_s)
+            minimum_update_period_in_s = cfg.minimum_update_period_in_s
         else:
             mpd_data['minimumUpdatePeriod'] = DEFAULT_MINIMUM_UPDATE_PERIOD
+            minimum_update_period_in_s = DEFAULT_MINIMUM_UPDATE_PERIOD_IN_S
+
         if cfg.media_presentation_duration is not None:
             mpd_data['mediaPresentationDuration'] = seconds_to_iso_duration(cfg.media_presentation_duration)
+        mpd_data['id'] = cfg.content_name # default in case content has none, required for patching
         mpd_data['timeShiftBufferDepth'] = seconds_to_iso_duration(cfg.timeshift_buffer_depth_in_s)
         mpd_data['timeShiftBufferDepthInS'] = cfg.timeshift_buffer_depth_in_s
         mpd_data['startNumber'] = cfg.adjusted_start_number
@@ -455,9 +461,10 @@ class DashProvider(object):
                         'utc_timing_methods': cfg.utc_timing_methods,
                         'utc_head_url': self.utc_head_url,
                         'now': now,
-                        'patch_base': cfg.patch_base}
+                        'patch_base': cfg.patch_base,
+                        'patch_ttl': minimum_update_period_in_s * PATCHING_MAXIMUM_UPDATE_LATENCY}
         full_url = self.base_url + '/'.join(self.url_parts)
-        mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg, 
+        mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg,
                                           full_url)
         period_data = generate_period_data(mpd_data, now, cfg)
         mpmod.process(mpd_data, period_data)

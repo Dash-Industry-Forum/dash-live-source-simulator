@@ -141,7 +141,7 @@ class MpdProcessor(object):
         if mpd.attrib.has_key('mediaPresentationDuration') and not mpd_data.has_key('mediaPresentationDuration'):
             del mpd.attrib['mediaPresentationDuration']
         mpd.set('publishTime', make_timestamp(self.mpd_proc_cfg['now'])) #TODO Correlate time with change in MPD
-        mpd.set('id', 'Config part of url maybe?')
+        mpd.set('id', mpd.get('id', mpd_data.get('id')))
         if self.segtimeline or self.segtimeline_nr:
             if mpd.attrib.has_key('maxSegmentDuration'):
                 del mpd.attrib['maxSegmentDuration']
@@ -203,11 +203,11 @@ class MpdProcessor(object):
 
         if self.patching:
             # replace the original patching key with the in-memory manifest publish time
-            patch_url = re.sub(r"/patching_[-\d]+", "/patch_%d" % 
+            patch_url = re.sub(r"/patching_[-\d]+", "/patch_%d" %
                                self.mpd_proc_cfg['now'], self.full_url)
             # also change the extension type to be patch instead of mpd
             patch_url = re.sub(r"\.mpd$", ".patch", patch_url)
-            self.insert_patch_location(mpd, pos, patch_url)
+            self.insert_patch_location(mpd, pos, patch_url, self.mpd_proc_cfg['patch_ttl'])
             pos += 1
 
         (period, pos) = find_template_period(mpd, pos)
@@ -226,7 +226,7 @@ class MpdProcessor(object):
 
     def process_patch(self, patch, mpd, mpd_data, period_data):
         """Process the root element (Patch)"""
-        patch.set('mpdId', mpd.get('id', 'Config part of url maybe?'))
+        patch.set('mpdId', mpd.get('id', mpd_data.get('id')))
         patch.set('publishTime', make_timestamp(self.mpd_proc_cfg['now']))
         patch.set('originalPublishTime', make_timestamp(self.patch_base))
 
@@ -235,15 +235,15 @@ class MpdProcessor(object):
         publish_replace.text = make_timestamp(self.mpd_proc_cfg['now'])
 
         # Insert patch location update node
-        patch_location = re.sub(r"/patch_[-\d]+", "/patch_%d" % 
+        patch_location = re.sub(r"/patch_[-\d]+", "/patch_%d" %
                                 self.mpd_proc_cfg['now'], self.full_url)
         patch_replace = patch_ops.insert_replace_op(patch, '/MPD/PatchLocation[0]')
-        self.insert_patch_location(patch_replace, 0, patch_location)
+        self.insert_patch_location(patch_replace, 0, patch_location, self.mpd_proc_cfg['patch_ttl'])
 
         # For this simulator we assume patches will not be announcing new high level structures
         # it is completely possible for them to do that, but this simulator only needs basic
         # timeline extension ability
-        
+
         # Find the base period
         (original_period, _) = find_template_period(mpd)
 
@@ -277,7 +277,7 @@ class MpdProcessor(object):
                         start_time = self.patch_base # always force start to patch base for consistency
                         seg_timeline = segtime_gen.create_segtimeline(
                                             start_time, end_time, use_closest)
-                        
+
                         # only append if there are children
                         s_elems = seg_timeline.getchildren()
                         if len(s_elems) > 0:
@@ -312,11 +312,11 @@ class MpdProcessor(object):
         location_elem.tail = "\n"
         mpd.insert(pos, location_elem)
 
-    def insert_patch_location(self, mpd, pos, patch_location_url):
+    def insert_patch_location(self, mpd, pos, patch_location_url, ttl):
         patch_location_elem = ElementTree.Element(add_ns('PatchLocation'))
         patch_location_elem.text = patch_location_url
         patch_location_elem.tail = "\n"
-        patch_location_elem.set('ttl', str(60)) # todo config patch validity duration
+        patch_location_elem.set('ttl', str(ttl))
         mpd.insert(pos, patch_location_elem)
 
     #pylint: disable = too-many-statements
@@ -353,7 +353,7 @@ class MpdProcessor(object):
         def create_inband_stream_elem():
             "Create an InbandEventStream element for signalling emsg in Rep when encoder fails to generate new segments, IOP 4.11.4.3 scenario."
             return self.create_descriptor_elem("InbandEventStream", "urn:mpeg:dash:event:2012", value=str(1))
-        
+
         def create_inline_mpdcallback_elem(BaseURLSegmented):
             "Create an EventStream element for MPD Callback."
             return self.create_descriptor_elem("EventStream", "urn:mpeg:dash:event:callback:2015", value=str(1),
