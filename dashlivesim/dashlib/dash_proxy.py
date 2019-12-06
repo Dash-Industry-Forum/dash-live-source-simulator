@@ -336,6 +336,20 @@ class DashProvider(object):
             if mpd_input_data['insertAd'] > 0 and nr_xlink_periods_per_hour < 0:
                 raise Exception("Insert ad option can only be used in conjuction with the xlink option. To use the "
                                 "insert ad option, also set use xlink_m in your url.")
+
+            # based on simulator implementation there are a few option combinations with patching that have not
+            # been directly implemented, implementation can be requested with a github issue but we would prefer
+            # the scenario fail than improperly work
+            if mpd_input_data['patching']:
+                base_text = "The patching option cannot be used in conjunction with the %s option currently, please file a github issue to request implementation."
+                if nr_xlink_periods_per_hour != -1:
+                    raise Exception(base_text % "xlink")
+                if cfg.segtimelineloss:
+                    raise Exception(base_text % "segtimelineloss")
+                print cfg.modulo_period
+                if cfg.modulo_period:
+                    raise Exception(base_text % "modulo")
+
             response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, self.now)
             #The following 'if' is for IOP 4.11.4.3 , deployment scenario when segments not found.
             if len(cfg.multi_url) > 0 and cfg.segtimelineloss == True:  # There is one specific baseURL with losses specified

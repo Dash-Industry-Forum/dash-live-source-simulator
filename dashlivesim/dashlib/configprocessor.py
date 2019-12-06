@@ -66,7 +66,7 @@ class Config(object):
         self.media_presentation_duration = None
         self.timeshift_buffer_depth_in_s = None
         self.minimum_update_period_in_s = None
-        self.modulo_period = None
+        self.modulo_period = False # True if modulo behavior active
         self.last_segment_numbers = [] # The last segment number in every period.
         self.init_seg_avail_offset = 0 # The number of secs before AST that one can fetch the init segments
         self.tfdt32_flag = False # Restart every 3 hours make tfdt fit into 32 bits.
@@ -430,6 +430,7 @@ class ConfigProcessor(object):
                 cfg.minimum_update_period_in_s = int(value)
             elif key == "modulo": # Make a number of time-limited sessions every hour
                 modulo_period = ModuloPeriod(int(value), now_int)
+                cfg.modulo_period = True
             elif key == "tfdt": # Use 32-bit tfdt (which means that AST must be more recent as well)
                 cfg.tfdt32_flag = True
             elif key == "cont": # Continuous update of MPD AST and seg_nr.
