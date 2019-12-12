@@ -41,6 +41,8 @@ try:
 except ImportError:
     pass
 
+from dashlivesim.dashlib import sessionid
+
 MAX_SESSION_LENGTH = 3600  # If non-zero,  limit sessions via redirect
 
 def respond(req, status, headers, body, server_agent):
@@ -80,7 +82,9 @@ def dash_handler(req, server_agent, request_handler):
         if ext == ".mpd" and start_time is None:
             new_url = 'https://' if req.is_https() else 'http://'
             start_part = "sts_%d" % int(now)
-            path_parts = path_parts[:2] + [start_part] + path_parts[2:]
+            session_id_path = "sid_%s" % sessionid.generate_session_id()
+            path_parts = (path_parts[:2] + [start_part] +
+                          [session_id_path]+ path_parts[2:])
             new_url += req.hostname + '/'.join(path_parts)
             if req.args:
                 new_url += '?' + req.args

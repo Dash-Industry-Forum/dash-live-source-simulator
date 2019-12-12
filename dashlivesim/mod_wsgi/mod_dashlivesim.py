@@ -38,7 +38,7 @@ from os.path import splitext
 from urlparse import urlparse, parse_qs
 from time import time
 
-from dashlivesim.dashlib import dash_proxy
+from dashlivesim.dashlib import dash_proxy, sessionid
 from dashlivesim import SERVER_AGENT
 
 MAX_SESSION_LENGTH = 3600  # If non-zero,  limit sessions via redirect
@@ -99,7 +99,9 @@ def application(environment, start_response):
         if ext == ".mpd" and start_time is None:
             new_url = 'https://' if is_https else 'http://'
             start_part = "sts_%d" % int(now)
-            path_parts = path_parts[:2] + [start_part] + path_parts[2:]
+            session_id_path = "sid_%s" % sessionid.generate_session_id()
+            path_parts = (path_parts[:2] + [start_part] +
+                          [session_id_path]+ path_parts[2:])
             new_url += hostname + '/'.join(path_parts)
             if query:
                 new_url += '?' + query
