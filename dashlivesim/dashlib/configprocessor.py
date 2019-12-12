@@ -341,7 +341,7 @@ class ConfigProcessor(object):
                     "insertad", "mpdcallback", "continuous", "segtimeline",
                     "segtimelinenr", "baseurl", "peroff", "scte35", "utc",
                     "snr", "ato", "spd", "sidx", "segtimelineloss",
-                    "sts")
+                    "sts", "sid")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -397,7 +397,14 @@ class ConfigProcessor(object):
             if cfg_parts[0] not in self.url_cfg_keys: #Must handle content like testpic_2s
                 break
             key, value = cfg_parts
-            if key == "start" or key == "ast": # Change availability start time in s.
+            if key == "sts":  # Non-used session_start_time
+                # session_start_time = int(value)
+                pass
+            elif key == "sid":  # Non-used session_id
+                # session_id = value
+                pass
+            elif key == "start" or key == "ast": # Change availability start
+                # time in s.
                 start_time = int(value)
             elif key == "stop":
                 stop_time = int(value)
@@ -471,8 +478,6 @@ class ConfigProcessor(object):
             elif key == "segtimelineloss":  # If segment timeline loss case signalled.
                 if int(value) == 1:
                     cfg.segtimelineloss = True
-            elif key == "sts":
-                session_start_time = int(value)
             else:
                 raise ConfigProcessorError("Cannot interpret option %s properly" % key)
             url_pos += 1
