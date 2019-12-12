@@ -134,6 +134,9 @@ class SegmentTimeLineGenerator(object):
         seg_start_time = self.get_seg_starttime(nr_wraps, start_index, start_repeats)
         if start_index != end_index:
             nr_repeats = seg_data.repeats - start_repeats
+        elif len(self.segtimedata) == 1 and end_repeats < start_repeats:
+            nr_repeats = (self.segtimedata[0].repeats + end_repeats -
+                          start_repeats)
         else: # There was only one entry which was repeated
             nr_repeats = end_repeats - start_repeats
         s_elem = self.generate_s_elem(seg_start_time, seg_data.duration, nr_repeats)

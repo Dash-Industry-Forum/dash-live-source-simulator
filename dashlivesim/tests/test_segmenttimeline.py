@@ -133,6 +133,51 @@ class TestMPDWithSegmentTimeline(unittest.TestCase):
             self.assertGreater(start_time_plus_duration, self.now - self.tsbd)
 
 
+class TestMPDWithSegmentTimelineWrap(unittest.TestCase):
+    "Test that the MPD looks correct when wrapping."
+
+    def testAfterWrap(self):
+        self.now = 3610
+        self.tsbd = 60
+        urlParts = ['livesim', 'segtimeline_1', 'tsbd_%d' % self.tsbd, 'testpic', 'Manifest.mpd']
+        dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
+        self.d = dp.handle_request()
+        self.root = ElementTree.fromstring(self.d)
+        nrSegments = self.getNrSegments(self.root)
+        self.assertEqual(2*10, nrSegments)
+        write_data_to_outfile(self.d, "AfterWrap.mpd")
+
+    def testBefore(self):
+        self.now = 3590
+        self.tsbd = 60
+        urlParts = ['livesim', 'segtimeline_1', 'tsbd_%d' % self.tsbd,
+                    'testpic', 'Manifest.mpd']
+        dp = dash_proxy.DashProvider("server.org", urlParts, None,
+                                     VOD_CONFIG_DIR, CONTENT_ROOT,
+                                     now=self.now)
+        self.d = dp.handle_request()
+        self.root = ElementTree.fromstring(self.d)
+        nrSegments = self.getNrSegments(self.root)
+        self.assertEqual(2*10, nrSegments)
+        write_data_to_outfile(self.d, "BeforeWrap.mpd")
+
+    def getNrSegments(self, root):
+        nrSegments = 0
+        period = root.find(node_ns('Period'))
+        aSets = period.findall(node_ns('AdaptationSet'))
+        for aSet in aSets:
+            sTempl = aSet.find(node_ns('SegmentTemplate'))
+            sLines = sTempl.findall(node_ns('SegmentTimeline'))
+            for sLine in sLines:
+                sElems = sLine.findall(node_ns('S'))
+                for sElem in sElems:
+                    if sElem.attrib.has_key('r'):
+                        nrSegments += int(sElem.attrib['r']) + 1
+                    else:
+                        nrSegments += 1
+        return nrSegments
+
+
 class TestSegmentTimelineInterval(unittest.TestCase):
     """SegmentTimeline with start, stop, timeoffset"""
 
@@ -168,7 +213,6 @@ class TestSegmentTimelineInterval(unittest.TestCase):
             self.assertLess(last_end_time, self.now)
             last_end_time_plus_duration = (seg_end_time + duration)/timescale
             self.assertGreater(last_end_time_plus_duration, self.now)
-
 
 
 class TestMultiPeriodSegmentTimeline(unittest.TestCase):
