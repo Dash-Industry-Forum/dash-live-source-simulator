@@ -245,6 +245,12 @@ Some examples of this are the modifiers:
 In addition, one can turn on signalling of continuous periods, but adding the flag /continuous_1/`.
 
 ## Changelog
+1.7.0 - Dec. 12 2019: Added two more UTCTiming modes, new mode
+segtimelineloss, query-strings are neglected, possible session time limit and
+id via redirect, fixed bug in segmenttimeline wraparound
+1.6.0 - Dec. 18, 2018: Support for SegmentTimeline with Number, added suggestedPresentationDelay, propagates default-sample-duration from trex and tfhd, and can now generate sidx boxes.
+1.5.1 - June 3, 2018: Fix: Removed timeShiftBufferDepth in start-over case.
+1.5 - May 17, 2018: Added support for thumbnails and start-over use case.
 * 1.4 - Sep. 29 2016: Added support for SegmentTimeline manifests, xlink periods for ad insertion, ntp and sntp UTC timing, early-terminated periods, availabilityTimeOffset, and MPD callback.
 * 1.3 - Oct. 13, 2015: Added support for continuous periods (continuous_1) and https protocol fo`r BaseURL & UTCTiming. Moved some configuration to mod_wsgi. Also made the stand-alone wsgi server much better.
 * 1.2 - Aug. 18, 2015: Added support for live subtitles in TTML format. Beyond segment renumbering, the content will also be changed. A tool for generating a sequence of such segments is also provided. Support for choosing the starNr. Added support for running using mod_wsgi and not only mod_python.
