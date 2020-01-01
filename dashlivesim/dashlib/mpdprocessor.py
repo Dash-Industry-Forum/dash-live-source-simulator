@@ -473,6 +473,8 @@ class MpdProcessor(object):
             loc_url = re.sub(r"/stoprel_[-\d]+", "/stop_%d" %
                              self.cfg.stop_time, loc_url)
         if include_patch_base:
+            loc_url = re.sub(r"/patch_[-\d]+", "/patch_%d" %
+                             self.mpd_proc_cfg['now'], loc_url)
             loc_url = re.sub(r"/patching_[-\d]+", "/patch_%d" %
                              self.mpd_proc_cfg['now'], loc_url)
         return loc_url
