@@ -29,12 +29,12 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-from . import emsg
-from . import scte35
-from .mp4filter import MP4Filter
-from .structops import str_to_uint32, uint32_to_str, str_to_uint64, uint64_to_str, str_to_sint32, sint32_to_str
-from .ttml_timing_offset import adjust_ttml_content
-from timeformatconversions import make_timestamp
+from dashlivesim.dashlib import emsg
+from dashlivesim.dashlib import scte35
+from dashlivesim.dashlib.mp4filter import MP4Filter
+from dashlivesim.dashlib.structops import str_to_uint32, uint32_to_str, str_to_uint64, uint64_to_str, str_to_sint32, sint32_to_str
+from dashlivesim.dashlib.ttml_timing_offset import adjust_ttml_content
+from dashlivesim.dashlib.timeformatconversions import make_timestamp
 
 KEEP_SIDX = False
 
@@ -52,8 +52,8 @@ class MediaSegmentFilter(MP4Filter):
                  scte35_per_minute=0, rel_path=None, is_ttml=False,
                  default_sample_duration=None, insert_sidx=False, emsg_last_seg=False , now=False):
         MP4Filter.__init__(self, file_name)
-        self.top_level_boxes_to_parse = ["styp", "sidx", "moof", "mdat"]
-        self.composite_boxes_to_parse = ['moof', 'traf']
+        self.top_level_boxes_to_parse = [b'styp', b'sidx', b'moof', b'mdat']
+        self.composite_boxes_to_parse = [b'moof', b'traf']
         self.seg_nr = seg_nr
         self.seg_duration = seg_duration
         self.offset = offset
@@ -80,10 +80,10 @@ class MediaSegmentFilter(MP4Filter):
             pos = 0
             moof_start = 0
             for size, box in self.output_top_level_boxes:
-                if box == 'moof':
+                if box == b'moof':
                     moof_start = pos
                     seg_size += size
-                elif box == 'mdat':
+                elif box == b'mdat':
                     seg_size += size
                 pos += size
             sidx = self.create_sidx(seg_size)
@@ -93,7 +93,7 @@ class MediaSegmentFilter(MP4Filter):
             pos = 0
             moof_start = 0
             for size, box in self.output_top_level_boxes:
-                if box == 'moof':
+                if box == b'moof':
                     moof_start = pos
                 pos += size
             emsg_box = self.create_emsg()
@@ -105,20 +105,20 @@ class MediaSegmentFilter(MP4Filter):
     def process_styp(self, data):
         "Process styp and make sure lmsg presence follows the lmsg flag parameter. Add scte35 box if appropriate"
         lmsg = self.lmsg
-        output = ""
+        output = b""
         size = str_to_uint32(data[:4])
         pos = 8
         brands = []
         while pos < size:
             brand = data[pos:pos+4]
-            if brand != "lmsg":
+            if brand != b"lmsg":
                 brands.append(brand)
             pos += 4
         if lmsg:
-            brands.append("lmsg")
+            brands.append(b"lmsg")
         new_size = 8 + 4*len(brands)
         output += uint32_to_str(new_size)
-        output += "styp"
+        output += b"styp"
         for brand in brands:
             output += brand
         scte35box = self.create_scte35box()
@@ -232,9 +232,9 @@ class MediaSegmentFilter(MP4Filter):
     def process_sidx(self, data):
         "Process sidx data and add to output."
         if not KEEP_SIDX:
-            return ""
-        output = ""
-        version = ord(data[8])
+            return b""
+        output = b""
+        version = data[8]
         timescale = str_to_uint32(data[16:20])
         if version == 0:
             #print "Changing sidx version to 1"
@@ -243,7 +243,7 @@ class MediaSegmentFilter(MP4Filter):
             sidx_size_expansion = 8
             output += uint32_to_str(size+sidx_size_expansion)
             output += data[4:8]
-            output += chr(1)
+            output += b'\x01'
             output += data[9:20]
             earliest_presentation_time = str_to_uint32(data[20:24])
             first_offset = str_to_uint32(data[24:28])
@@ -265,29 +265,29 @@ class MediaSegmentFilter(MP4Filter):
 
         This is optional, but some clients require it to present."""
         output = uint32_to_str(52)  # Size of box
-        output += 'sidx\x01\x00\x00\x00'  # type, version and flags
-        output += '\x00\x00\x00\x01'  # refID
+        output += b'sidx\x01\x00\x00\x00'  # type, version and flags
+        output += b'\x00\x00\x00\x01'  # refID
         output += uint32_to_str(self.track_timescale)
         output += uint64_to_str(self.tfdt_value) # decode_time for now
         output += uint64_to_str(0)  # first_offset = 0
-        output += '\x00\x00\x00\x01'  # reserved and reference_count
+        output += b'\x00\x00\x00\x01'  # reserved and reference_count
         # Next 1 bit reference type + 31 bit size of segment
         output += uint32_to_str(seg_size)
         output += uint32_to_str(self.duration)
-        output += '\x90\x00\x00\x00'
+        output += b'\x90\x00\x00\x00'
         return output
 
     def process_tfdt_to_64bit(self, data, output):
         """Generate new timestamps for tfdt and change size of boxes above if needed.
 
         Note that the input output will be returned and can have another size."""
-        version = ord(data[8])
+        version = data[8]
         tfdt_offset = self.offset*self.track_timescale
         if version == 0: # 32-bit baseMediaDecodeTime
             self.size_change = 4
             output = uint32_to_str(str_to_uint32(data[:4]) + self.size_change)
             output += data[4:8]
-            output += chr(1)
+            output += b'\x01'
             output += data[9:12]
             base_media_decode_time = str_to_uint32(data[12:16])
         else: # 64-bit
@@ -318,7 +318,7 @@ class MediaSegmentFilter(MP4Filter):
                 self.size_change = 4
                 output = uint32_to_str(str_to_uint32(data[:4]) + self.size_change)
                 output += data[4:8]
-                output += chr(1)
+                output += b'\x01'
                 output += data[9:12]
                 output += uint64_to_str(new_base_media_decode_time)
         else: # 64-bit
@@ -349,7 +349,7 @@ class MediaSegmentFilter(MP4Filter):
         """
         ad_duration = 10
         if self.scte35_per_minute < 1 or self.scte35_per_minute > 8:
-            return ""
+            return b""
         seg_starttime = self.seg_nr*self.seg_duration # StartTime in seconds
         sec_modulo_minute = seg_starttime % 60
         minute_start = seg_starttime - sec_modulo_minute
@@ -373,7 +373,7 @@ class MediaSegmentFilter(MP4Filter):
             if found_splice_time >= 0:
                 break
         if found_splice_time < 0:
-            return "" # Nothing for this segment
+            return b"" # Nothing for this segment
         timescale = 90000 # Timescale
         emsg_id = splice_id = splice_time//10
         emsg = scte35.create_scte35_emsg(timescale, seg_starttime*timescale, found_splice_time*timescale,
@@ -384,11 +384,11 @@ class MediaSegmentFilter(MP4Filter):
     def find_and_process_mdat(self, data):
         "Change the ttml part of mdat and update mdat size. Return full new data."
         pos = 0
-        output = ""
+        output = b""
         while pos < len(data):
             size = str_to_uint32(data[pos:pos+4])
             boxtype = data[pos+4:pos+8]
-            if boxtype != 'mdat':
+            if boxtype != b'mdat':
                 output += data[pos:pos+size]
             else:
                 output += self.update_ttml_mdat(data[pos:pos+size])
@@ -401,7 +401,7 @@ class MediaSegmentFilter(MP4Filter):
         ttml_out = adjust_ttml_content(ttml_xml, self.offset, self.seg_nr)
         self.ttml_size = len(ttml_out)
         out_size = self.ttml_size + 8
-        return uint32_to_str(out_size) + 'mdat' + ttml_out
+        return uint32_to_str(out_size) + b'mdat' + ttml_out
 
     def create_emsg(self):
         emsg_box=emsg.create_emsg(scheme_id_uri="urn:mpeg:dash:event:2012", value="1", timescale=1, 

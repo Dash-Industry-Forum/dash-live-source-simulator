@@ -31,7 +31,7 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-from . import emsg
+from dashlivesim.dashlib import emsg
 
 # The scheme_id_uri is a bit unsure. There is also a binary format, which may be preferred (...:2014:bin)
 SCHEME_ID_URI = "urn:scte:scte35:2013:xml"
