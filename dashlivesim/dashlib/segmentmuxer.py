@@ -41,8 +41,8 @@ class InitSegmentStructure(MP4Filter):
 
     def __init__(self, filename=None, data=None):
         MP4Filter.__init__(self, filename, data)
-        self.top_level_boxes_to_parse = ['ftyp', 'moov']
-        self.composite_boxes_to_parse = ['moov', 'mvex']
+        self.top_level_boxes_to_parse = [b'ftyp', b'moov']
+        self.composite_boxes_to_parse = [b'moov', b'mvex']
         self._ftyp = None
         self._mvhd = None
         self._trex = None
@@ -108,16 +108,16 @@ class MultiplexInits(object):
         moov_size = 8 + len(self.istruct1.mvhd) + mvex_size + len(self.istruct1.trak) + len(self.istruct2.trak)
 
         data.append(uint32_to_str(moov_size))
-        data.append('moov')
+        data.append(b'moov')
         data.append(self.istruct1.mvhd)
         data.append(uint32_to_str(mvex_size))
-        data.append('mvex')
+        data.append(b'mvex')
         data.append(self.istruct1.trex)
         data.append(self.istruct2.trex)
         data.append(self.istruct1.trak)
         data.append(self.istruct2.trak)
 
-        return "".join(data)
+        return b"".join(data)
 
 
 class MediaSegmentStructure(MP4Filter):
@@ -126,7 +126,7 @@ class MediaSegmentStructure(MP4Filter):
 
     def __init__(self, filename=None, data=None):
         MP4Filter.__init__(self, filename, data)
-        self.top_level_boxes_to_parse = ['styp', 'moof', 'mdat']
+        self.top_level_boxes_to_parse = [b'styp', b'moof', b'mdat']
         self.trun_data_offset = None
         self.trun_data_offset_in_traf = None
         self.traf_start = None
@@ -144,27 +144,27 @@ class MediaSegmentStructure(MP4Filter):
             self.trun_data_offset = str_to_uint32(data[16:20])
             self.trun_data_offset_in_traf = pos + 16 - self.traf_start
 
-    def filter_box(self, boxtype, data, file_pos, path=""):
+    def filter_box(self, boxtype, data, file_pos, path=b""):
         "Filter box or tree of boxes recursively."
-        if boxtype == "styp":
+        if boxtype == b"styp":
             self.styp = data
-        elif boxtype == "moof":
+        elif boxtype == b"moof":
             self.moof = data
-        elif boxtype == "mdat":
+        elif boxtype == b"mdat":
             self.mdat = data
-        elif boxtype == "mfhd":
+        elif boxtype == b"mfhd":
             self.mfhd = data
-        elif boxtype == "traf":
+        elif boxtype == b"traf":
             self.traf = data
             self.traf_start = file_pos
-        elif boxtype == "trun":
+        elif boxtype == b"trun":
             self.parse_trun(data, file_pos)
-        if path == "":
+        if path == b"":
             path = boxtype
         else:
-            path = "%s.%s" % (path, boxtype)
-        output = ""
-        if path in ("moof", "moof.traf"): # Go deeper
+            path = b"%s.%s" % (path, boxtype)
+        output = b""
+        if path in (b"moof", b"moof.traf"): # Go deeper
             output += data[:8]
             pos = 8
             while pos < len(data):
@@ -195,7 +195,7 @@ class MultiplexMediaSegments(object):
         data.append(self.mstruct1.mdat)
         data.append(self.mstruct2.moof)
         data.append(self.mstruct2.mdat)
-        return "".join(data)
+        return b"".join(data)
 
     def mux_on_sample_level(self):
         "Mux media samples into one mdata. This is done by simple concatenation."
@@ -220,13 +220,13 @@ class MultiplexMediaSegments(object):
         data = []
         data.append(self.mstruct1.styp)
         data.append(uint32_to_str(moof_size))
-        data.append('moof')
+        data.append(b'moof')
         data.append(self.mstruct1.mfhd)
         data.append(traf1)
         data.append(traf2)
         data.append(uint32_to_str(mdat_size))
-        data.append('mdat')
+        data.append(b'mdat')
         data.append(self.mstruct1.mdat[8:])
         data.append(self.mstruct2.mdat[8:])
 
-        return "".join(data)
+        return b"".join(data)
