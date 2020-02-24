@@ -32,6 +32,7 @@
 from .structops import str_to_uint32
 from .mp4filter import MP4Filter
 
+
 class InitFilter(MP4Filter):
     "Filter init segment file and extract track timescale."
 
@@ -105,26 +106,26 @@ class InitLiveFilter(MP4Filter):
         if version == 1:
             self.movie_timescale = str_to_uint32(data[28:32])
             output += data[:32]
-            output += b'\x00'*8 # duration
+            output += b'\x00' * 8  # duration
             output += data[40:]
-        else: # version = 0
+        else:  # version = 0
             self.movie_timescale = str_to_uint32(data[20:24])
             output += data[:24]
-            output += b'\x00'*4 # duration
+            output += b'\x00' * 4  # duration
             output += data[28:]
         return output
 
     def process_tkhd(self, data):
         "Set track duration."
         version = data[8]
-        output = ""
+        output = b""
         if version == 1:
             output += data[:36]
-            output += b'\x00'*8 # duration
+            output += b'\x00' * 8  # duration
             output += data[44:]
-        else: # version = 0
+        else:  # version = 0
             output += data[:28]
-            output += b'\x00'*4 # duration
+            output += b'\x00' * 4  # duration
             output += data[32:]
         return output
 
@@ -134,10 +135,10 @@ class InitLiveFilter(MP4Filter):
         version = data[8]
         if version == 1:
             output += data[:32]
-            output += b'\x00'*8 # duration
+            output += b'\x00' * 8  # duration
             output += data[40:]
-        else: # version = 0
+        else:  # version = 0
             output += data[:24]
-            output += b'\x00'*4 # duration
+            output += b'\x00' * 4  # duration
             output += data[28:]
         return output

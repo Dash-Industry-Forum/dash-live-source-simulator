@@ -91,7 +91,7 @@ class InitSegmentStructure(MP4Filter):
 
 class MultiplexInits(object):
     "Takes two init segments and multiplexes them. The ftyp and mvhd is taken from the first."
-    #pylint: disable=too-few-public-methods
+    # pylint: disable=too-few-public-methods
 
     def __init__(self, filename1=None, filename2=None, data1=None, data2=None):
         self.istruct1 = InitSegmentStructure(filename1, data1)
@@ -164,7 +164,7 @@ class MediaSegmentStructure(MP4Filter):
         else:
             path = b"%s.%s" % (path, boxtype)
         output = b""
-        if path in (b"moof", b"moof.traf"): # Go deeper
+        if path in (b"moof", b"moof.traf"):  # Go deeper
             output += data[:8]
             pos = 8
             while pos < len(data):
@@ -174,6 +174,7 @@ class MediaSegmentStructure(MP4Filter):
         else:
             output = data
         return output
+
 
 class MultiplexMediaSegments(object):
     """Takes two media segments and multiplexes them like [mdat1][moof1][mdat2][moof2].
@@ -185,7 +186,6 @@ class MultiplexMediaSegments(object):
         self.mstruct1.filter()
         self.mstruct2 = MediaSegmentStructure(filename2, data2)
         self.mstruct2.filter()
-
 
     def mux_on_fragment_level(self):
         "Multiplex on frgment level."
