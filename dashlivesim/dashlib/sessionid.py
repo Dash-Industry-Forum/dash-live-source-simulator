@@ -2,7 +2,8 @@
 
 import random
 
-MAX_NUMBER = 2**32 -1
+MAX_NUMBER = 2**32 - 1
+
 
 def generate_session_id():
     "Generate a session ID as hex string."
