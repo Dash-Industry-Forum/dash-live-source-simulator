@@ -32,7 +32,7 @@
 
 from os.path import join, splitext
 from collections import namedtuple
-from configparser import ConfigParser
+import configparser
 
 from dashlivesim.dashlib.moduloperiod import ModuloPeriod
 
@@ -54,7 +54,7 @@ class ConfigProcessorError(Exception):
 
 def quantize(number, step):
     "Quantize number to a multiple of step."
-    return (int(number)/step)*step
+    return (int(number)//step)*step
 
 
 class Config(object):
@@ -152,7 +152,7 @@ class Config(object):
         self.availability_start_time_in_s = quantize(now_int, 10800)
         self.availability_end_time = self.availability_start_time_in_s + 10800
         self.media_presentation_duration = 10800
-        self.minimum_update_period_in_s = 10800/2
+        self.minimum_update_period_in_s = 10800//2
 
     def update_for_cont_update(self, now_int):
         "Set values for case of continuous MPD updates (3hours session)."
@@ -263,51 +263,47 @@ class VodConfig(object):
 
     def read_config(self, config_file):
         "Read VoD config data."
-        config = ConfigParser.RawConfigParser()
-        with open(config_file, 'rb') as cfg_file:
-            config.readfp(cfg_file)
-            version = config.get('General', 'version')
-            if version not in self.good_versions:
-                raise ConfigProcessorError("Bad config file version: %s (should be in %s)" % (version,
-                                                                                              self.good_versions))
-            self.first_segment_in_loop = config.getint("Setup", "first_segment_in_loop")
+        config = configparser.RawConfigParser()
+        config.read(config_file)
+        version = config.get('General', 'version')
+        if version not in self.good_versions:
+            raise ConfigProcessorError("Bad config file version: %s (should be in %s)" %
+                                       (version, self.good_versions))
+        self.first_segment_in_loop = config.getint("Setup", "first_segment_in_loop")
+        try:
+            self.segment_duration_s = config.getint("Setup", "segment_duration_s")
+        except configparser.NoOptionError:
+            pass
+        try:
+            self.segment_duration_ms = config.getint("Setup", "segment_duration_ms")
+        except configparser.NoOptionError:
+            pass
+        else:
+            if self.segment_duration_s != 0:
+                print("Both segment_duration_s and segment_duration_ms set")
+            self.segment_duration_s = 0
+        if self.segment_duration_s == 0 and self.segment_duration_ms == 0:
+            raise ConfigProcessorError("Neither segment_duration_s or segment_duration_ms set")
+        self.nr_segments_in_loop = config.getint("Setup", "nr_segments_in_loop")
+        self.default_tsbd_secs = config.getint("Setup", "default_tsbd_secs")
+        for media in self.possible_media:
             try:
-                self.segment_duration_s = config.getint("Setup", "segment_duration_s")
-            except ConfigParser.NoOptionError:
+                reps = config.get(media, "representations")
+                timescale = config.getint(media, "timescale")
+                representations = [rep.strip() for rep in reps.split(",")]
+                self.media_data[media] = {'timescale': timescale, 'representations': representations}
+                if version == "1.1":
+                    self.media_data[media]['total_duration'] = config.getint(media, "total_duration")
+                    self.media_data[media]['dat_file'] = config.get(media, 'dat_file')
+            except (configparser.NoOptionError, configparser.NoSectionError):
                 pass
-            try:
-                self.segment_duration_ms = config.getint("Setup",
-                                                         "segment_duration_ms")
-            except ConfigParser.NoOptionError:
-                pass
-            else:
-                if self.segment_duration_s != 0:
-                    print("Both segment_duration_s and segment_duration_ms "
-                          "set")
-                self.segment_duration_s = 0
-            if self.segment_duration_s == 0 and self.segment_duration_ms == 0:
-                raise ConfigProcessorError("Neither segment_duration_s "
-                                           "or segment_duration_ms set")
-            self.nr_segments_in_loop = config.getint("Setup", "nr_segments_in_loop")
-            self.default_tsbd_secs = config.getint("Setup", "default_tsbd_secs")
-            for media in self.possible_media:
-                try:
-                    reps = config.get(media, "representations")
-                    timescale = config.getint(media, "timescale")
-                    representations = [rep.strip() for rep in reps.split(",")]
-                    self.media_data[media] = {'timescale': timescale, 'representations': representations}
-                    if version == "1.1":
-                        self.media_data[media]['total_duration'] = config.getint(media, "total_duration")
-                        self.media_data[media]['dat_file'] = config.get(media, 'dat_file')
-                except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
-                    pass
 
     # pylint: disable=dangerous-default-value
 
     def write_config(self, config_file, data={}):
         "Write a config file for the analyzed content, that can then be used to serve it efficiently."
         # Note that one needs to write in reverse order
-        config = ConfigParser.RawConfigParser()
+        config = configparser.RawConfigParser()
         config.add_section('General')
         config.set('General', 'version', '1.1')
         config.add_section('Setup')
