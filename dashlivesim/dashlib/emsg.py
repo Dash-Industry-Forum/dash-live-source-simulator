@@ -49,6 +49,7 @@ from dashlivesim.dashlib.structops import uint32_to_str
 
 DASH_SCHEME = "urn:mpeg:dash:event:2012"
 
+
 class Emsg(object):
     "EMSG MP4 box."
 
@@ -70,7 +71,7 @@ class Emsg(object):
         parts.append(b"emsg")
         parts.append(b"\x00\x00\x00\x00")
         parts.append(self.scheme_id_uri.encode("utf-8") + b"\x00")
-        parts.append(self.value + b"\x00")
+        parts.append(self.value.encode('utf-8') + b"\x00")
         parts.append(uint32_to_str(self.timescale))
         parts.append(uint32_to_str(self.presentation_time_delta))
         parts.append(uint32_to_str(self.event_duration))
@@ -83,8 +84,8 @@ class Emsg(object):
         return self.messagedata
 
     def __str__(self):
-        return "EMSG: %(scheme_id_uri)s %(value)s %(timescale)d %(presentation_time_delta)d %(event_duration)d" +\
-        " %(emsg_id)d" % self.__dict__
+        return ("EMSG: %(scheme_id_uri)s %(value)s %(timescale)d %(presentation_time_delta)d %(event_duration)d" +
+                " %(emsg_id)d" % self.__dict__)
 
 
 def create_emsg(scheme_id_uri="", value="", timescale=1, presentation_time_delta=0, event_duration=0, emsg_id=0,
