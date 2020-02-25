@@ -33,6 +33,7 @@ from os.path import join
 from dashlivesim.tests.dash_test_util import CONTENT_ROOT
 from dashlivesim.dashlib import initsegmentfilter
 
+
 class TestInitParsing(unittest.TestCase):
 
     def setUp(self):

@@ -36,11 +36,13 @@ VOD_CONFIG_DIR = join(thisDir, "vod_cfg")
 CONTENT_ROOT = thisDir
 OUT_DIR = join(thisDir, "out_test")
 
+
 def rm_outfile(filename):
     "Remove file from OUT_DIR if it exists."
     path = join(OUT_DIR, filename)
     if exists(path):
         unlink(path)
+
 
 def write_data_to_outfile(data, filename):
     "Write data to a file in OUT_DIR."
@@ -49,6 +51,7 @@ def write_data_to_outfile(data, filename):
     ofh = open(join(OUT_DIR, filename), "wb")
     ofh.write(data)
     ofh.close()
+
 
 def findAllIndexes(needle, haystack):
     """Find the index for the beginning of each occurrence of ``needle`` in ``haystack``. Overlaps are allowed."""

@@ -28,11 +28,11 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 
 import unittest
+import xml.etree.ElementTree as ET
 
-from dash_test_util import *
+from dashlivesim.tests.dash_test_util import VOD_CONFIG_DIR, CONTENT_ROOT
 from dashlivesim.dashlib import dash_proxy
 from dashlivesim.dashlib import mpdprocessor
-import xml.etree.ElementTree as ET
 
 
 class TestXlinkPeriod(unittest.TestCase):
@@ -45,7 +45,7 @@ class TestXlinkPeriod(unittest.TestCase):
         mpdprocessor.SET_BASEURL = self.old_set_baseurl_value
 
     def testMpdPeriodReplaced(self):
-        " Check whether before every xlink period, duration attribute has been inserted"
+        "Check whether before every xlink period, duration attribute has been inserted."
         collect_result = []
         urlParts = ['livesim', 'periods_60', 'xlink_30', 'insertad_1', 'testpic_2s', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("10.4.247.98", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10000)
@@ -55,10 +55,10 @@ class TestXlinkPeriod(unittest.TestCase):
         # In the following, we will check if for every period before every xlink period, duration attribute has been
         # added or not.
         prev_child = []
-        for child in xml.findall('{urn:mpeg:dash:schema:mpd:2011}Period'): # Collect all period elements first
-            if child.attrib.has_key('{http://www.w3.org/1999/xlink}actuate'):
+        for child in xml.findall('{urn:mpeg:dash:schema:mpd:2011}Period'):  # Collect all period elements first
+            if '{http://www.w3.org/1999/xlink}actuate' in child.attrib:
                 # If the period element has the duration attribute.
-                collect_result.append(prev_child.attrib.has_key('duration')) # Then collect its period id in this
+                collect_result.append('duration' in prev_child.attrib)  # Then collect its period id in this
             prev_child = child
         # Ideally, at the periods should have a duration attribute, if no then the test fails.
-        self.assertTrue((False in collect_result) == False)
+        self.assertFalse(False in collect_result)

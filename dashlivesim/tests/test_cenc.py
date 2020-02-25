@@ -28,8 +28,9 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 
 import unittest
+from os.path import join
 
-from dash_test_util import *
+from dashlivesim.tests.dash_test_util import CONTENT_ROOT
 from dashlivesim.dashlib import mediasegmentfilter
 
 

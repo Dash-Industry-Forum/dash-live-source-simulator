@@ -28,16 +28,19 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 
 import unittest
+from os.path import join
 
-from dash_test_util import *
+from dashlivesim.tests.dash_test_util import CONTENT_ROOT
 from dashlivesim.dashlib import mpdprocessor
 
 vodMPD = join(CONTENT_ROOT, "testpic", "Manifest.mpd")
+
 
 class FakeConfig(object):
 
     def __init__(self):
         pass
+
 
 class TestMpdProcessor(unittest.TestCase):
     "Test of MPD parsing and writing"

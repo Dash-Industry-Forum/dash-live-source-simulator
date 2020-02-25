@@ -30,7 +30,7 @@
 import unittest
 from xml.etree import ElementTree
 
-from dash_test_util import *
+from dashlivesim.tests.dash_test_util import VOD_CONFIG_DIR, CONTENT_ROOT, rm_outfile, write_data_to_outfile
 from dashlivesim.dashlib import dash_proxy
 
 NAMESPACE = 'urn:mpeg:dash:schema:mpd:2011'
@@ -54,28 +54,28 @@ class TestMPDWithSegmentTimeline(unittest.TestCase):
     def testThatNumberTemplateFeaturesAreAbsent(self):
         testOutputFile = "segtimeline.mpd"
         rm_outfile(testOutputFile)
-        write_data_to_outfile(self.d, testOutputFile)
-        self.assertTrue(self.d.find("startNumber") == -1) # There should be no startNumber in the MPD
-        self.assertTrue(self.d.find("duration") == -1) # There should be no duration in the segmentTemplate
-        self.assertTrue(self.d.find("$Number$") == -1) # There should be no $Number$ in template
-        self.assertTrue(self.d.find("maxSegmentDuration") == -1) # There should be no maxSegmentDuration in MPD
+        write_data_to_outfile(self.d.encode('utf-8'), testOutputFile)
+        self.assertTrue(self.d.find("startNumber") == -1)  # There should be no startNumber in the MPD
+        self.assertTrue(self.d.find("duration") == -1)  # There should be no duration in the segmentTemplate
+        self.assertTrue(self.d.find("$Number$") == -1)  # There should be no $Number$ in template
+        self.assertTrue(self.d.find("maxSegmentDuration") == -1)  # There should be no maxSegmentDuration in MPD
 
     def testThatSegmentTimeLineDataIsPresent(self):
         testOutputFile = "segtimeline.mpd"
         rm_outfile(testOutputFile)
-        write_data_to_outfile(self.d, testOutputFile)
-        self.assertTrue(self.d.find("$Time$") > 0) # There should be $Time$ in the MPD
+        write_data_to_outfile(self.d.encode('utf-8'), testOutputFile)
+        self.assertTrue(self.d.find("$Time$") > 0)  # There should be $Time$ in the MPD
 
     def testThatTheLastSegmentReallyIsTheLatest(self):
         "Check that the last segment's end is less than one duration from now."
         period = self.root.find(node_ns('Period'))
         for adaptation_set in period.findall(node_ns('AdaptationSet')):
-            content_type = adaptation_set.attrib['contentType']
             segment_template = adaptation_set.find(node_ns('SegmentTemplate'))
             timescale = int(segment_template.attrib['timescale'])
             segment_timeline = segment_template.find(node_ns('SegmentTimeline'))
             s_elements = segment_timeline.findall(node_ns('S'))
             seg_start_time = None
+            seg_end_time = None
             for s_elem in s_elements:
                 if seg_start_time is None:
                     seg_start_time = int(s_elem.attrib['t'])
@@ -99,12 +99,12 @@ class TestMPDWithSegmentTimeline(unittest.TestCase):
         self.root = ElementTree.fromstring(self.d)
         period = self.root.find(node_ns('Period'))
         for adaptation_set in period.findall(node_ns('AdaptationSet')):
-            content_type = adaptation_set.attrib['contentType']
             segment_template = adaptation_set.find(node_ns('SegmentTemplate'))
             timescale = int(segment_template.attrib['timescale'])
             segment_timeline = segment_template.find(node_ns('SegmentTimeline'))
             s_elements = segment_timeline.findall(node_ns('S'))
             seg_start_time = None
+            seg_end_time = None
             for s_elem in s_elements:
                 if seg_start_time is None:
                     seg_start_time = int(s_elem.attrib['t'])
@@ -122,7 +122,6 @@ class TestMPDWithSegmentTimeline(unittest.TestCase):
         "Check that the first segment starts less than one period before now-tsbd."
         period = self.root.find(node_ns('Period'))
         for adaptation_set in period.findall(node_ns('AdaptationSet')):
-            content_type = adaptation_set.attrib['contentType']
             segment_template = adaptation_set.find(node_ns('SegmentTemplate'))
             timescale = int(segment_template.attrib['timescale'])
             segment_timeline = segment_template.find(node_ns('SegmentTimeline'))
@@ -189,7 +188,7 @@ class TestMPDWithSegmentTimelineWrap(unittest.TestCase):
         self.root = ElementTree.fromstring(self.d)
         nrSegments = self.getNrSegments(self.root)
         self.assertEqual(2*10, nrSegments)
-        write_data_to_outfile(self.d, "AfterWrap.mpd")
+        write_data_to_outfile(self.d.encode('utf-8'), "AfterWrap.mpd")
 
     def testBefore(self):
         self.now = 3590
@@ -203,7 +202,7 @@ class TestMPDWithSegmentTimelineWrap(unittest.TestCase):
         self.root = ElementTree.fromstring(self.d)
         nrSegments = self.getNrSegments(self.root)
         self.assertEqual(2*10, nrSegments)
-        write_data_to_outfile(self.d, "BeforeWrap.mpd")
+        write_data_to_outfile(self.d.encode('utf-8'), "BeforeWrap.mpd")
 
     def getNrSegments(self, root):
         nrSegments = 0
@@ -215,7 +214,7 @@ class TestMPDWithSegmentTimelineWrap(unittest.TestCase):
             for sLine in sLines:
                 sElems = sLine.findall(node_ns('S'))
                 for sElem in sElems:
-                    if sElem.attrib.has_key('r'):
+                    if 'r' in sElem.attrib:
                         nrSegments += int(sElem.attrib['r']) + 1
                     else:
                         nrSegments += 1
@@ -228,7 +227,7 @@ class TestSegmentTimelineInterval(unittest.TestCase):
     def setUp(self):
         self.now = 100
         urlParts = ['livesim', 'segtimeline_1', 'start_60', 'stop_120',
-                   'timeoffset_0', 'testpic', 'Manifest.mpd']
+                    'timeoffset_0', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
         self.d = dp.handle_request()
         self.root = ElementTree.fromstring(self.d)
@@ -244,6 +243,7 @@ class TestSegmentTimelineInterval(unittest.TestCase):
             segment_timeline = segment_template.find(node_ns('SegmentTimeline'))
             s_elements = segment_timeline.findall(node_ns('S'))
             seg_start_time = None
+            seg_end_time = None
             for s_elem in s_elements:
                 if seg_start_time is None:
                     seg_start_time = int(s_elem.attrib['t'])
@@ -269,12 +269,11 @@ class TestMultiPeriodSegmentTimeline(unittest.TestCase):
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
         self.d = dp.handle_request()
 
-
     def testThatThereAreMultiplePeriods(self):
         "Check that the first segment starts less than one period before now-tsbd."
         testOutputFile = "segtimeline_periods.mpd"
         rm_outfile(testOutputFile)
-        write_data_to_outfile(self.d, testOutputFile)
+        write_data_to_outfile(self.d.encode('utf-8'), testOutputFile)
         self.root = ElementTree.fromstring(self.d)
         periods = self.root.findall(node_ns('Period'))
         self.assertGreater(len(periods), 1)
@@ -294,7 +293,7 @@ class TestMediaSegments(unittest.TestCase):
         urlParts = ['livesim', 'segtimeline_1', 'testpic', 'A1', 't%d.m4s' % self.seg_time]
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
         d = dp.handle_request()
-        self.assertTrue(isinstance(d, basestring), "A segment is returned")
+        self.assertTrue(isinstance(d, bytes), "A segment is returned")
 
     def testThatTimeSegmentIsSameAsNumber(self):
         urlParts = ['livesim', 'segtimeline_1', 'testpic', 'A1', 't%d.m4s' % self.seg_time]
@@ -322,16 +321,16 @@ class TestMPDWithSegmentTimelineNumber(unittest.TestCase):
     def testThatSomeFeaturesAreAbsent(self):
         testOutputFile = "segtimelinenr.mpd"
         rm_outfile(testOutputFile)
-        write_data_to_outfile(self.d, testOutputFile)
-        self.assertTrue(self.d.find("duration") == -1) # There should be no duration in the segmentTemplate
-        self.assertTrue(self.d.find("$Time$") == -1) # There should be no
+        write_data_to_outfile(self.d.encode('utf-8'), testOutputFile)
+        self.assertTrue(self.d.find("duration") == -1)  # There should be no duration in the segmentTemplate
+        self.assertTrue(self.d.find("$Time$") == -1)  # There should be no
         # $Number$ in template
-        self.assertTrue(self.d.find("maxSegmentDuration") == -1) # There should be no maxSegmentDuration in MPD
+        self.assertTrue(self.d.find("maxSegmentDuration") == -1)  # There should be no maxSegmentDuration in MPD
 
     def testThatSegmentTimeLineDataIsPresent(self):
         testOutputFile = "segtimelinenr.mpd"
         rm_outfile(testOutputFile)
-        write_data_to_outfile(self.d, testOutputFile)
+        write_data_to_outfile(self.d.encode('utf-8'), testOutputFile)
         self.assertTrue(self.d.find("$Number$") > 0, "$Number$ missing")
 
     def testThatFirstSegmentHasRightNumber(self):
@@ -339,7 +338,6 @@ class TestMPDWithSegmentTimelineNumber(unittest.TestCase):
         duration_in_s = 6
         period = self.root.find(node_ns('Period'))
         for adaptation_set in period.findall(node_ns('AdaptationSet')):
-            content_type = adaptation_set.attrib['contentType']
             segment_template = adaptation_set.find(node_ns('SegmentTemplate'))
             timescale = int(segment_template.attrib['timescale'])
             start_number = int(segment_template.attrib['startNumber'])

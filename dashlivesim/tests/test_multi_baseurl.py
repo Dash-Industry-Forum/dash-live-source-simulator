@@ -1,12 +1,16 @@
 import unittest
 
-from dash_test_util import *
+from dashlivesim.tests.dash_test_util import VOD_CONFIG_DIR, CONTENT_ROOT
+from dashlivesim.tests.dash_test_util import rm_outfile, write_data_to_outfile, findAllIndexes
+
 from dashlivesim.dashlib import dash_proxy
 from dashlivesim.dashlib import mpdprocessor
 
+
 def isMediaSegment(data):
     "Check if response is a segment."
-    return type(data) == type("") and data[4:8] == "styp"
+    return isinstance(data, bytes) and data[4:8] == b"styp"
+
 
 class TestMultipleBaseUrls(unittest.TestCase):
     "Test of redundant baseURLs with failing availability. Note that BASEURL must be set."
@@ -24,7 +28,7 @@ class TestMultipleBaseUrls(unittest.TestCase):
         urlParts = ['livesim', 'baseurl_u40_d20', 'baseurl_d40_u20', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = dp.handle_request()
-        write_data_to_outfile(d, testOutputFile)
+        write_data_to_outfile(d.encode('utf-8'), testOutputFile)
         baseURLindexes = findAllIndexes("<BaseURL>", d)
         ud_indexes = findAllIndexes("baseurl_u40_d20", d)
         du_indexes = findAllIndexes("baseurl_d40_u20", d)
