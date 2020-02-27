@@ -33,9 +33,9 @@
 # For Apache mod_wsgi, this is done using setEnv
 
 import traceback
-import httplib
+import http.client
 from os.path import splitext
-from urlparse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs
 from time import time
 
 from dashlivesim.dashlib import dash_proxy, sessionid
@@ -44,10 +44,12 @@ from dashlivesim import SERVER_AGENT
 MAX_SESSION_LENGTH = 3600  # If non-zero,  limit sessions via redirect
 
 # Helper for HTTP responses
-#pylint: disable=dangerous-default-value
+# pylint: disable=dangerous-default-value
+
+
 def reply(code, resp, body='', headers={}):
     "Create reply."
-    status = str(code) + ' ' + httplib.responses[code]
+    status = str(code) + ' ' + http.client.responses[code]
 
     # Add default headers to all requests
     headers['Accept-Ranges'] = 'bytes'
@@ -62,18 +64,17 @@ def reply(code, resp, body='', headers={}):
 
     if body:
         headers['Content-Length'] = str(len(body))
-        if not 'Content-Type' in headers:
+        if 'Content-Type' not in headers:
             headers['Content-Type'] = 'text/plain'
 
-    resp(status, headers.items())
+    resp(status, list(headers.items()))
     return [body]
 
 
-#pylint: disable=too-many-branches, too-many-locals
+# pylint: disable=too-many-branches, too-many-locals
 def application(environment, start_response):
     "WSGI Entrypoint"
 
-    #pylint: disable=too-many-locals
     hostname = environment['HTTP_HOST']
     url = urlparse(environment['REQUEST_URI'])
     vod_conf_dir = environment['VOD_CONF_DIR']
@@ -93,7 +94,7 @@ def application(environment, start_response):
             if part.startswith('sts_'):
                 try:
                     start_time = int(part[4:])
-                except:
+                except Exception:
                     pass
 
         if ext == ".mpd" and start_time is None:
@@ -101,7 +102,7 @@ def application(environment, start_response):
             start_part = "sts_%d" % int(now)
             session_id_path = "sid_%s" % sessionid.generate_session_id()
             path_parts = (path_parts[:2] + [start_part] +
-                          [session_id_path]+ path_parts[2:])
+                          [session_id_path] + path_parts[2:])
             new_url += hostname + '/'.join(path_parts)
             if query:
                 new_url += '?' + query
@@ -112,32 +113,28 @@ def application(environment, start_response):
         else:
             if now > start_time + MAX_SESSION_LENGTH:
                 return reply(410, start_response,
-                                  "Maximum session length %ds passed" %
-                                  MAX_SESSION_LENGTH)
-            elif start_time > now + 5: # Give some margin
+                             "Maximum session length %ds passed" % MAX_SESSION_LENGTH)
+            elif start_time > now + 5:  # Give some margin
                 return reply(404, start_response, 'start_time is in future')
 
     range_line = None
     if 'HTTP_RANGE' in environment:
         range_line = environment['HTTP_RANGE']
 
-    # Print debug information
-    #print hostname
-    #print url
-    #print path_parts
-    #print ext
-    #print range_line
-
     success = True
     mimetype = get_mime_type(ext)
-    status = httplib.OK
+    status = http.client.OK
     payload_in = None
 
     try:
         response = dash_proxy.handle_request(hostname, path_parts[1:], args,
                                              vod_conf_dir, content_root, now,
                                              None, is_https)
-        if isinstance(response, basestring):
+        if isinstance(response, str):
+            payload_in = response.encode('utf-8')
+            if not payload_in:
+                success = False
+        elif isinstance(response, bytes):
             payload_in = response
             if not payload_in:
                 success = False
@@ -147,37 +144,37 @@ def application(environment, start_response):
 
             payload_in = response['pl']
 
-    #pylint: disable=broad-except
-    except Exception, exc:
+    # pylint: disable=broad-except
+    except Exception as exc:
         success = False
-        print "mod_dash_handler request error: %s" % exc
+        print("mod_dash_handler request error: {0}".format(exc))
         traceback.print_exc()
-        payload_in = "DASH Proxy Error: %s\n URL=%s" % (exc, url)
+        payload_in = "DASH Proxy Error: {0}\n URL={1}".format(exc, url)
 
     if not success:
         if payload_in == "":
-            print "dash_proxy error: No body!"
+            print("dash_proxy error: No body!")
             payload_in = "Now found (now)"
         elif payload_in is None:
-            print "dash_proxy: No content found"
+            print("dash_proxy: No content found")
             payload_in = "Not found (now)"
 
-        status = httplib.NOT_FOUND
+        status = http.client.NOT_FOUND
         mimetype = "text/plain"
 
     payload_out = payload_in
 
     # Setup response headers
-    headers = {'Content-Type':mimetype}
+    headers = {'Content-Type': mimetype}
 
-    if status != httplib.NOT_FOUND:
+    if status != http.client.NOT_FOUND:
         if range_line:
             payload_out, range_out = handle_byte_range(payload_in, range_line)
-            if range_out != "": # OK
+            if range_out != "":  # OK
                 headers['Content-Range'] = range_out
-                status = httplib.PARTIAL_CONTENT
-            else: # Bad range, drop it
-                print "mod_dash_handler: Bad range %s" % (range_line)
+                status = http.client.PARTIAL_CONTENT
+            else:  # Bad range, drop it
+                print("mod_dash_handler: Bad range {0}".format(range_line))
 
     return reply(status, start_response, payload_out, headers)
 
@@ -208,7 +205,7 @@ def handle_byte_range(payload, range_line):
     if range_start == "" and range_end != "":
         # This is the rangeStart lasts bytes
         range_start = length - int(range_end)
-        range_end = length -1
+        range_end = length - 1
     elif range_start != "":
         range_start = int(range_start)
         if range_end != "":
@@ -225,12 +222,9 @@ def handle_byte_range(payload, range_line):
     range_response = "bytes %d-%d/%d" % (range_start, range_end, len(payload))
     return (ranged_payload, range_response)
 
-#
-# Local wsgi server for testing
-#
 
 def main():
-    "Run stand-alone wsgi server for testing."
+    "Local stand-alone wsgi server for testing."
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument("-d", "--config_dir", dest="vod_conf_dir", type=str,
@@ -241,10 +235,9 @@ def main():
     parser.add_argument("--port", dest="port", type=int, help="IPv4 port", default=8059)
     args = parser.parse_args()
 
-
     def application_wrapper(env, resp):
         "Wrapper around application for local webserver."
-        env['REQUEST_URI'] = env['PATH_INFO'] # Set REQUEST_URI from PATH_INFO
+        env['REQUEST_URI'] = env['PATH_INFO']  # Set REQUEST_URI from PATH_INFO
         env['VOD_CONF_DIR'] = args.vod_conf_dir
         env['CONTENT_ROOT'] = args.content_dir
         return application(env, resp)
@@ -252,11 +245,12 @@ def main():
     def run_local_webserver(wrapper, host, port):
         "Local webserver."
         from wsgiref.simple_server import make_server
-        print 'Waiting for requests at "{0}:{1}"'.format(host, port)
+        print('Waiting for requests at "{0}:{1}"'.format(host, port))
         httpd = make_server(host, port, wrapper)
         httpd.serve_forever()
 
     run_local_webserver(application_wrapper, args.host, args.port)
+
 
 if __name__ == '__main__':
     main()
