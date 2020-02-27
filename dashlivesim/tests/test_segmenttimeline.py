@@ -35,8 +35,10 @@ from dashlivesim.dashlib import dash_proxy
 
 NAMESPACE = 'urn:mpeg:dash:schema:mpd:2011'
 
+
 def node_ns(name):
     return '{%s}%s' % (NAMESPACE, name)
+
 
 class TestMPDWithSegmentTimeline(unittest.TestCase):
     "Test that the MPD looks correct when segtimeline_1 is defined."
@@ -131,6 +133,47 @@ class TestMPDWithSegmentTimeline(unittest.TestCase):
             start_time_plus_duration = (first_start + duration) / timescale
             self.assertLess(start_time, self.now - self.tsbd)
             self.assertGreater(start_time_plus_duration, self.now - self.tsbd)
+
+
+def find_first_audio_t(root):
+    """Return t and d from the first audio segment."""
+    period = root.find(node_ns('Period'))
+    for adaptation_set in period.findall(node_ns('AdaptationSet')):
+        content_type = adaptation_set.attrib['contentType']
+        if content_type != 'audio':
+            continue
+        segment_template = adaptation_set.find(node_ns('SegmentTemplate'))
+        timescale = int(segment_template.attrib['timescale'])
+        segment_timeline = segment_template.find(node_ns('SegmentTimeline'))
+        first_s_elem = segment_timeline.find(node_ns('S'))
+        first_t = int(first_s_elem.attrib['t'])
+        first_d = int(first_s_elem.attrib['d'])
+        return first_t, first_d
+    raise ValueError("Could not find audio adaptation set")
+
+
+
+class TestAvoidJump(unittest.TestCase):
+
+    def testThatTimesDontJump(self):
+        "Test that times don't jump as reported in ISSUE #91."
+
+        # First get the MPD corresponding to 5.mpd.txt
+        now = 1578681199
+        urlParts = ['livesim', 'segtimeline_1', 'testpic', 'Manifest.mpd']
+        dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
+        d = dp.handle_request()
+        root = ElementTree.fromstring(d)
+        first_t, first_d = find_first_audio_t(root)
+        self.assertEqual(first_t, 75776683106304, "Did not get right audio start time.")
+
+        later = now + 6
+        urlParts = ['livesim', 'segtimeline_1', 'testpic', 'Manifest.mpd']
+        dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=later)
+        d = dp.handle_request()
+        root = ElementTree.fromstring(d)
+        second_t, second_d = find_first_audio_t(root)
+        self.assertEqual(second_t, first_t + first_d, "Second t is not first t + first d ")
 
 
 class TestMPDWithSegmentTimelineWrap(unittest.TestCase):
