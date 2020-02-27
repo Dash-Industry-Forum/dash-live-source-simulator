@@ -29,8 +29,6 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-HTTP_PARTIAL_CONTENT = 206
-
 from os.path import splitext
 from time import time
 import traceback
@@ -43,12 +41,14 @@ except ImportError:
 
 from dashlivesim.dashlib import sessionid
 
+HTTP_PARTIAL_CONTENT = 206
 MAX_SESSION_LENGTH = 3600  # If non-zero,  limit sessions via redirect
+
 
 def respond(req, status, headers, body, server_agent):
     req.status = status
     if headers:
-        for k,v in headers.items():
+        for k, v in headers.items():
             req.headers_out[k] = v
     set_out_headers(req, server_agent)
     req.headers_out['Content-Length'] = "%d" % len(body)
@@ -56,7 +56,6 @@ def respond(req, status, headers, body, server_agent):
     return apache.OK
 
 
-#pylint: disable=too-many-branches
 def dash_handler(req, server_agent, request_handler):
     "This is the mod_python handler."
 
@@ -76,7 +75,7 @@ def dash_handler(req, server_agent, request_handler):
             if part.startswith('sts_'):
                 try:
                     start_time = int(part[4:])
-                except:
+                except Exception:
                     pass
 
         if ext == ".mpd" and start_time is None:
@@ -84,7 +83,7 @@ def dash_handler(req, server_agent, request_handler):
             start_part = "sts_%d" % int(now)
             session_id_path = "sid_%s" % sessionid.generate_session_id()
             path_parts = (path_parts[:2] + [start_part] +
-                          [session_id_path]+ path_parts[2:])
+                          [session_id_path] + path_parts[2:])
             new_url += req.hostname + '/'.join(path_parts)
             if req.args:
                 new_url += '?' + req.args
@@ -97,8 +96,7 @@ def dash_handler(req, server_agent, request_handler):
         else:
             if now > start_time + MAX_SESSION_LENGTH:
                 return respond(req, apache.HTTP_GONE, {},
-                               "Maximum session length %ds passed" %
-                                MAX_SESSION_LENGTH, server_agent)
+                               "Maximum session length %ds passed" % MAX_SESSION_LENGTH, server_agent)
             elif start_time > now + 5:  # Give some margin
                 return respond(req, apache.HTTP_FORBIDDEN, {},
                                'start_time is in future', server_agent)
@@ -111,7 +109,7 @@ def dash_handler(req, server_agent, request_handler):
         args = {}
     try:
         response = request_handler(req.hostname, path_parts, args, now, req)
-        if isinstance(response, basestring):
+        if isinstance(response, str):
             payload_in = response
             if not payload_in:
                 success = False
@@ -119,8 +117,8 @@ def dash_handler(req, server_agent, request_handler):
             if not response["ok"]:
                 success = False
             payload_in = response["pl"]
-    #pylint: disable=broad-except
-    except Exception, exc:
+    # pylint: disable=broad-except
+    except Exception as exc:
         success = False
         req.log_error("mod_dash_handler request error: %s" % exc)
         payload_in = "DASH Proxy Error: %s\n URL=%s" % (exc, url)
@@ -145,15 +143,16 @@ def dash_handler(req, server_agent, request_handler):
     if req.status != apache.HTTP_NOT_FOUND:
         if range_line:
             payload_out, range_out = handle_byte_range(payload_in, range_line)
-            if range_out != "": # OK
+            if range_out != "":  # OK
                 req.headers_out['Content-Range'] = range_out
                 req.status = HTTP_PARTIAL_CONTENT
-            else: # Bad range, drop it.
+            else:  # Bad range, drop it.
                 req.log_error("mod_dash_handler: Bad range %s" % (range_line))
 
     req.headers_out['Content-Length'] = "%d" % len(payload_out)
     req.write(payload_out)
     return apache.OK
+
 
 def set_mime_type(req, ext):
     "Set mime-type depending on extension."
@@ -164,6 +163,7 @@ def set_mime_type(req, ext):
         req.content_type = "video/iso.segment"
     elif ext == ".mp4":
         req.content_type = "video/mp4"
+
 
 def set_out_headers(req, server_agent):
     "Set the response headers."
@@ -176,6 +176,7 @@ def set_out_headers(req, server_agent):
     req.headers_out['Access-Control-Allow-Methods'] = 'GET,HEAD,OPTIONS'
     req.headers_out['Access-Control-Allow-Origin'] = '*'
     req.headers_out['Access-Control-Expose-Headers'] = 'Server,range,Content-Length,Content-Range,Date'
+
 
 def handle_byte_range(payload, range_line):
     """Handle byte range and return data and range-header value.
@@ -192,7 +193,7 @@ def handle_byte_range(payload, range_line):
     if range_start == "" and range_end != "":
         # This is the rangeStart lasts bytes
         range_start = length - int(range_end)
-        range_end = length -1
+        range_end = length - 1
     elif range_start != "":
         range_start = int(range_start)
         if range_end != "":
