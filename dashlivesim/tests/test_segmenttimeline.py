@@ -165,7 +165,8 @@ class TestAvoidJump(unittest.TestCase):
         d = dp.handle_request()
         root = ElementTree.fromstring(d)
         first_t, first_d = find_first_audio_t(root)
-        self.assertEqual(first_t, 75776683106304, "Did not get right audio start time.")
+        tsbd = 300 # TimeShiftBufferDepth
+        self.assertTrue(now - first_t/48000 > 300, "Did not get before timeshift window start")
 
         later = now + 6
         urlParts = ['livesim', 'segtimeline_1', 'testpic', 'Manifest.mpd']
