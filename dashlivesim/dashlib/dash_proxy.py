@@ -75,8 +75,10 @@ from xml.etree import ElementTree as ET
 
 SECS_IN_DAY = 24 * 3600
 DEFAULT_MINIMUM_UPDATE_PERIOD = "P100Y"
+DEFAULT_MINIMUM_UPDATE_PERIOD_IN_S = SECS_IN_DAY * 365 * 100
 DEFAULT_PUBLISH_ADVANCE_IN_S = 7200
 EXTRA_TIME_AFTER_END_IN_S = 60
+PATCHING_MAXIMUM_UPDATE_LATENCY = 10
 
 UTC_HEAD_PATH = "dash/time.txt"
 
@@ -334,6 +336,20 @@ class DashProvider(object):
             if mpd_input_data['insertAd'] > 0 and nr_xlink_periods_per_hour < 0:
                 raise Exception("Insert ad option can only be used in conjuction with the xlink option. To use the "
                                 "insert ad option, also set use xlink_m in your url.")
+
+            # based on simulator implementation there are a few option combinations with patching that have not
+            # been directly implemented, implementation can be requested with a github issue but we would prefer
+            # the scenario fail than improperly work
+            if mpd_input_data['patching']:
+                base_text = "The patching option cannot be used in conjunction with the %s option currently, please file a github issue to request implementation."
+                if nr_xlink_periods_per_hour != -1:
+                    raise Exception(base_text % "xlink")
+                if cfg.segtimelineloss:
+                    raise Exception(base_text % "segtimelineloss")
+                print cfg.modulo_period
+                if cfg.modulo_period:
+                    raise Exception(base_text % "modulo")
+
             response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, self.now)
             #The following 'if' is for IOP 4.11.4.3 , deployment scenario when segments not found.
             if len(cfg.multi_url) > 0 and cfg.segtimelineloss == True:  # There is one specific baseURL with losses specified
@@ -356,10 +372,18 @@ class DashProvider(object):
                                 cfg.emsg_last_seg=True
                                 response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, self.now)
                                 cfg.emsg_last_seg=False
-                           
+
             if nr_xlink_periods_per_hour > 0:
                 response = generate_response_with_xlink(response, cfg.ext, cfg.filename, nr_periods_per_hour,
                                                         nr_xlink_periods_per_hour, mpd_input_data['insertAd'])
+
+        # Manifest patch update, separate out here as the xlink logic is unsafe in assuming all periods will
+        # be present in response to perform the replacement
+        elif cfg.ext == ".patch":
+            mpd_filename = "%s/%s/%s.mpd" % (self.content_dir, cfg.content_name, cfg.filename.split('.')[0])
+            mpd_input_data = cfg_processor.get_mpd_data()
+            response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, self.now)
+
         elif cfg.ext == ".mp4":  # Init segment
             if self.now < cfg.availability_start_time_in_s - cfg.init_seg_avail_offset:
                 diff = (cfg.availability_start_time_in_s - cfg.init_seg_avail_offset) - self.now_float
@@ -416,10 +440,14 @@ class DashProvider(object):
         mpd_data = in_data.copy()
         if cfg.minimum_update_period_in_s is not None:
             mpd_data['minimumUpdatePeriod'] = seconds_to_iso_duration(cfg.minimum_update_period_in_s)
+            minimum_update_period_in_s = cfg.minimum_update_period_in_s
         else:
             mpd_data['minimumUpdatePeriod'] = DEFAULT_MINIMUM_UPDATE_PERIOD
+            minimum_update_period_in_s = DEFAULT_MINIMUM_UPDATE_PERIOD_IN_S
+
         if cfg.media_presentation_duration is not None:
             mpd_data['mediaPresentationDuration'] = seconds_to_iso_duration(cfg.media_presentation_duration)
+        mpd_data['id'] = cfg.content_name # default in case content has none, required for patching
         mpd_data['timeShiftBufferDepth'] = seconds_to_iso_duration(cfg.timeshift_buffer_depth_in_s)
         mpd_data['timeShiftBufferDepthInS'] = cfg.timeshift_buffer_depth_in_s
         mpd_data['startNumber'] = cfg.adjusted_start_number
@@ -443,9 +471,12 @@ class DashProvider(object):
                         'continuous': in_data['continuous'],
                         'segtimeline': in_data['segtimeline'],
                         'segtimeline_nr': in_data['segtimeline_nr'],
+                        'patching': in_data['patching'],
                         'utc_timing_methods': cfg.utc_timing_methods,
                         'utc_head_url': self.utc_head_url,
-                        'now': now}
+                        'now': now,
+                        'patch_base': cfg.patch_base,
+                        'patch_ttl': minimum_update_period_in_s * PATCHING_MAXIMUM_UPDATE_LATENCY}
         full_url = self.base_url + '/'.join(self.url_parts)
         mpmod = mpdprocessor.MpdProcessor(mpd_filename, mpd_proc_cfg, cfg,
                                           full_url)

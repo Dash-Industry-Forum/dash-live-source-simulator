@@ -66,7 +66,7 @@ class Config(object):
         self.media_presentation_duration = None
         self.timeshift_buffer_depth_in_s = None
         self.minimum_update_period_in_s = None
-        self.modulo_period = None
+        self.modulo_period = False # True if modulo behavior active
         self.last_segment_numbers = [] # The last segment number in every period.
         self.init_seg_avail_offset = 0 # The number of secs before AST that one can fetch the init segments
         self.tfdt32_flag = False # Restart every 3 hours make tfdt fit into 32 bits.
@@ -107,6 +107,8 @@ class Config(object):
         self.insert_sidx = False
         self.segtimelineloss= False #This flag is true only when there is /segtimelineloss_1/
         self.emsg_last_seg=False
+        self.patching = False # This flag is only true when there is /patching_1/ in the URL
+        self.patch_base = -1
 
     def __str__(self):
         lines = ["%s=%s" % (k, v) for (k, v) in self.__dict__.items() if not k.startswith("_")]
@@ -341,7 +343,7 @@ class ConfigProcessor(object):
                     "insertad", "mpdcallback", "continuous", "segtimeline",
                     "segtimelinenr", "baseurl", "peroff", "scte35", "utc",
                     "snr", "ato", "spd", "sidx", "segtimelineloss",
-                    "sts", "sid")
+                    "sts", "sid", "patching", "patch")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -374,7 +376,9 @@ class ConfigProcessor(object):
                'periodOffset' : self.cfg.period_offset,
                'publishTime' : self.cfg.publish_time,
                'mediaData' : self.cfg.media_data,
-               'segtimelineloss'  : self.cfg.segtimelineloss}
+               'segtimelineloss'  : self.cfg.segtimelineloss,
+               'patching': self.cfg.patching,
+               'originalPublishTime': self.cfg.patch_base}
         if self.cfg.availability_end_time:
             mpd['availabilityEndTime'] = self.cfg.availability_end_time
         return mpd
@@ -426,6 +430,7 @@ class ConfigProcessor(object):
                 cfg.minimum_update_period_in_s = int(value)
             elif key == "modulo": # Make a number of time-limited sessions every hour
                 modulo_period = ModuloPeriod(int(value), now_int)
+                cfg.modulo_period = True
             elif key == "tfdt": # Use 32-bit tfdt (which means that AST must be more recent as well)
                 cfg.tfdt32_flag = True
             elif key == "cont": # Continuous update of MPD AST and seg_nr.
@@ -478,6 +483,12 @@ class ConfigProcessor(object):
             elif key == "segtimelineloss":  # If segment timeline loss case signalled.
                 if int(value) == 1:
                     cfg.segtimelineloss = True
+            elif key == "patching":
+                if int(value) == 1: # Only valid when it's set to 1
+                    cfg.patching = True
+            elif key == "patch":
+                cfg.patch_base = int(value)
+                cfg.patching = True # patch base will imply patching
             else:
                 raise ConfigProcessorError("Cannot interpret option %s properly" % key)
             url_pos += 1

@@ -170,7 +170,7 @@ class SegmentTimeLineGenerator(object):
         seg_data = self.segtimedata[index]
         repeats = 0
         accumulated_end_time = seg_data.start_time + seg_data.duration
-        while accumulated_end_time < rel_time:
+        while accumulated_end_time <= rel_time:
             accumulated_end_time += seg_data.duration
             repeats += 1
         return index, repeats, nr_wraps
