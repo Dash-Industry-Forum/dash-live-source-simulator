@@ -1,2 +1,2 @@
 export PYTHONPATH=${PYTHONPATH}:..
-python -m dashlivesim.cc_inserter.cc_inserter $@
+python3 -m dashlivesim.cc_inserter.cc_inserter $@

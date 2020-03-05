@@ -30,11 +30,12 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 
 import os
-from .stpp_creator import StppInitFilter, create_media_segment, TTML_TEMPLATE
 from argparse import ArgumentParser
 from jinja2 import Template
 
-BODY_TEMPLATE = u'''
+from stpp_creator import StppInitFilter, create_media_segment, TTML_TEMPLATE
+
+BODY_TEMPLATE = '''
     <div region="r0">
       {% for p in paragraph %}
       <p xml:id="{{p.id}}" begin="{{p.begin}}" end="{{p.end}}" >
@@ -67,10 +68,10 @@ class SegmentCreator(object):
         self.output_path = output_path
         self.resolution = resolution
 
-    #pylint: disable=too-many-locals
+    # pylint: disable=too-many-locals
     def create_segments(self):
         "Create init and media segments."
-        print "Creating: %dx%d"%(self.number_of_segments, self.segment_duration)
+        print("Creating: %dx%d"%(self.number_of_segments, self.segment_duration))
 
         # Create output directory if it doesn't exist
         if not os.path.exists(self.output_path):
@@ -93,20 +94,20 @@ class SegmentCreator(object):
 
             r1_start_time = self.create_time_string(time)
             r1_end_time = self.create_time_string(time + self.segment_duration)
-            r1_text = "Segment: %d"%(seg_nr)
+            r1_text = "Segment: %d" % (seg_nr)
             # Create paragraph info
             pars = []
             for rel_time in range(0, self.segment_duration, self.resolution):
                 start_time = self.create_time_string(time + rel_time)
                 end_time = self.create_time_string(time + rel_time + self.resolution)
 
-                id_str = "sub%05d"%(time+rel_time)
+                id_str = "sub%05d" % (time+rel_time)
 
-                text = '%s : %s'%(self.language, start_time)
+                text = '%s : %s' % (self.language, start_time)
 
                 pars.append({'begin':start_time, 'end':end_time, 'id':id_str, 'text':text})
 
-            ttml_data = ttml_template.render(paragraph=pars, r1_id="%010d"%(time), r1_begin=r1_start_time,
+            ttml_data = ttml_template.render(paragraph=pars, r1_id="%010d" % (time), r1_begin=r1_start_time,
                                              r1_end=r1_end_time, r1_text=r1_text, lang=self.language)
             #print ttml_data.encode('utf-8')
 
