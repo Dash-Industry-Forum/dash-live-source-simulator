@@ -320,7 +320,7 @@ class VodConfig(object):
                 config.set(content_type, 'timescale', mdata['timescale'])
                 config.set(content_type, 'total_duration', mdata['totalDuration'])
                 config.set(content_type, 'dat_file', mdata['datFile'])
-        with open(config_file, 'wb') as cfg_file:
+        with open(config_file, 'w') as cfg_file:
             config.write(cfg_file)
 
     def content_type_for_rep(self, representation):
