@@ -35,20 +35,22 @@ import os
 import time
 import re
 import struct
+import argparse
 
-from ..dashlib import initsegmentfilter, mediasegmentfilter
-from ..dashlib.mp4filter import MP4Filter
-from ..dashlib.structops import uint32_to_str, str_to_uint32
-from .mpdprocessor import MpdProcessor
+from dashlivesim.dashlib import initsegmentfilter, mediasegmentfilter
+from dashlivesim.dashlib.mp4filter import MP4Filter
+from dashlivesim.dashlib.structops import uint32_to_str, str_to_uint32
+from mpdprocessor import MpdProcessor
 
 DEFAULT_DASH_NAMESPACE = "urn:mpeg:dash:schema:mpd:2011"
 MUX_TYPE_NONE = 0
 MUX_TYPE_FRAGMENT = 1
 MUX_TYPE_SAMPLES = 2
 
+
 def generate_data(scc_data):
-    """Function to generate scc data"""
-    output = ""
+    """Function to generate scc data byte string."""
+    output = b""
 
     for data in scc_data:
         cea608_bytes = data['cea608']
@@ -56,7 +58,7 @@ def generate_data(scc_data):
         nal_unit = [0x66, 0x04, payload_size, 0xb5, 0x00, 0x31, ord('G'), ord('A'), ord('9'),
                     ord('4'), 0x03, 0xc0 + len(cea608_bytes), 0xff]
 
-        #print len(cea608_bytes), payload_size
+        # print(len(cea608_bytes), payload_size)
 
         for i in cea608_bytes:
             cc_byte1 = (int(i, 16) & 0xff00) >> 8
@@ -72,29 +74,22 @@ def generate_data(scc_data):
 
         nal_unit.append(0xff)
 
-        #print nal_unit
         output += struct.pack('>I', len(nal_unit))
-        nal_unit_string = "".join(chr(i) for i in nal_unit)
-        output += nal_unit_string
-
-    #print [b for b in output]
+        output += bytes(nal_unit)
 
     return output
-
 
 
 class CCInsertFilter(MP4Filter):
     """CC Insert filter"""
     def __init__(self, segmentFile, scc_data, time_scale, tfdt):
         MP4Filter.__init__(self, segmentFile)
-        self.top_level_boxes_to_parse = ["styp", "sidx", "moof", "mdat"]
-        self.composite_boxes_to_parse = ["moof", "traf"]
+        self.top_level_boxes_to_parse = [b"styp", b"sidx", b"moof", b"mdat"]
+        self.composite_boxes_to_parse = [b"moof", b"traf"]
         self.scc_data = scc_data
         self.time_scale = time_scale
         self.tfdt = tfdt
-
         self.trun_offset = 0
-
         self.scc_map = []
 
     def process_trun(self, data):
@@ -105,15 +100,15 @@ class CCInsertFilter(MP4Filter):
         flags = str_to_uint32(data[8:12]) & 0xffffff
         sample_count = str_to_uint32(data[12:16])
         pos = 16
-        #data_offset_present = False
+        # data_offset_present = False
 
         if flags & 0x1: # Data offset present
-            #data_offset_present = True
+            # data_offset_present = True
             self.trun_offset = str_to_uint32(data[16:20])
             output += uint32_to_str(self.trun_offset)
             pos += 4
         if flags & 0x4:
-            pos += 4 # First sample flags present
+            pos += 4  # First sample flags present
 
         sample_duration_present = flags & 0x100
         sample_size_present = flags & 0x200
@@ -149,21 +144,19 @@ class CCInsertFilter(MP4Filter):
                 start_time = (sample_time_tfdt + comp_time) / float(self.time_scale)
 
             end_time = (sample_time_tfdt + comp_time + duration) / float(self.time_scale)
-            #start_time = (sample_time_tfdt) / float(self.time_scale)
-            #end_time = (sample_time_tfdt + duration) / float(self.time_scale)
+            # start_time = (sample_time_tfdt) / float(self.time_scale)
+            # end_time = (sample_time_tfdt + duration) / float(self.time_scale)
 
-            #print "startTime:", start_time, "(", comp_time, ")", ", endTime:", end_time
+            # print("startTime:", start_time, "(", comp_time, ")", ", endTime:", end_time)
 
             scc_samples = self.get_scc_data(start_time, end_time)
             orig_sample_pos += size
             if len(scc_samples):
-                #print " ", i, "SampleTime: " + str((sample_time_tfdt + comp_time) / float(self.time_scale)),
-                #      "num samples to add: ", len(scc_samples)
-                print " ", i, "SampleTime: " + str((sample_time_tfdt) / float(self.time_scale)), \
-                      "num samples to add: ", len(scc_samples)
+                print(" ", i, "SampleTime: " + str((sample_time_tfdt) / float(self.time_scale)),
+                      "num samples to add: ", len(scc_samples))
                 scc_generated_data = generate_data(scc_samples)
-                self.scc_map.append({'pos':orig_sample_pos, 'scc':scc_generated_data, 'len': len(scc_generated_data)})
-                #print size, size+len(scc_generated_data)
+                self.scc_map.append({'pos': orig_sample_pos, 'scc': scc_generated_data,
+                                     'len': len(scc_generated_data)})
                 size += len(scc_generated_data)
 
             if sample_duration_present:
@@ -177,15 +170,10 @@ class CCInsertFilter(MP4Filter):
 
             sample_time_tfdt += duration
 
-        #print data == output
-
-        #print self.scc_map
-
         return output
 
     def process_mdat(self, data):
         """Process mdat box."""
-        #print "processing mdat"
         pos = 0
         offset = self.trun_offset - (self.mdat_start - self.moof_start)
 
@@ -193,25 +181,14 @@ class CCInsertFilter(MP4Filter):
 
         pos = offset
 
-        #total_bytes_added = 0
-
         for i in self.scc_map:
             size = int(i['pos'])
             scc_data = i['scc']
-            #with open('nal.dat', 'wb') as f:
-            #    f.write(scc_data)
-            #exit(1)
-            #total_bytes_added += len(scc_data)
             output += data[pos:(offset+size)]
             output += scc_data
             pos = (offset + size)
 
         output += data[pos:]
-
-        #print "total_bytes_added:", total_bytes_added
-        #print output == data
-
-        #print len(data), len(output)
 
         return struct.pack('>I', len(output)) + output[4:]
 
@@ -224,14 +201,16 @@ class CCInsertFilter(MP4Filter):
         return result
 
 
-## Utility functions
+# Utility functions
 def make_time_stamp(tim):
-    """Maske timestamp in ISO format from UTC time in seconds."""
+    """Make timestamp in ISO format from UTC time in seconds."""
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(tim))
+
 
 def make_duration_from_seconds(nr_seconds):
     """Create ISO duration as PTxS string from seconds."""
     return "PT%dS" % nr_seconds
+
 
 def transform_time(tim):
     """Transform from hh:mm:ss:fn or pts to hh:mm:ss:ms."""
@@ -241,13 +220,14 @@ def transform_time(tim):
         milis = min(int(frame_nr*1000/29.97), 999)
         newtime = "%s.%03d" % (":".join(parts[:-1]), milis)
     except AttributeError: # pts time
-        seconds = tim/90000
+        seconds = tim//90000
         milis = int((tim % 90000)/90.0)
-        hours = seconds/3600
-        minutes = seconds/60
+        hours = seconds//3600
+        minutes = seconds//60
         seconds -= hours*3600 + minutes*60
         newtime = "%02d:%02d:%02d.%03d" % (hours, minutes, seconds, milis)
     return newtime
+
 
 def transform_time_to_ms(tim):
     """Transform from hh:mm:ss.ms to sss.sss"""
@@ -261,19 +241,23 @@ def transform_time_to_ms(tim):
     newtime += int(timems[1])
     return newtime
 
+
 def convert_time(tim):
-    """Convert time (in format hh:mm:ss:fn or hh:mm:ss:ms) into miliseconds"""
+    """Convert time (in format hh:mm:ss:fn or hh:mm:ss:ms) into seconds"""
     return transform_time_to_ms(transform_time(tim)) / 1000.0
+
 
 def chunks(data, num):
     """Yield successive n-sized chunks from l."""
-    for i in xrange(0, len(data), num):
+    for i in range(0, len(data), num):
         yield data[i:i+num]
+
 
 class CCInserterError(Exception):
     "Error in CCInserter."
 
-## Searches the directory for a representation
+
+# Search the directory for a representation
 def get_segment_range(rep_data):
     "Search the directory for the first and last segment and set firstNumber and lastNumber for this MediaType."
     rep_id = rep_data['id']
@@ -291,10 +275,9 @@ def get_segment_range(rep_data):
     for i in range(1, len(numbers)):
         if numbers[i] != numbers[i-1] + 1:
             raise CCInserterError("%s segment missing between %d and %d" % rep_id, numbers[i], numbers[i-1])
-    print "Found %s segments %d - %d" % (rep_id, numbers[0], numbers[-1])
+    print("Found %s segments %d - %d" % (rep_id, numbers[0], numbers[-1]))
     rep_data['firstNumber'] = numbers[0]
     rep_data['lastNumber'] = numbers[-1]
-
 
 
 ## CC Inserter class, does all the heavy lifting
@@ -308,14 +291,13 @@ class CCInserter(object):
         self.scc_filepath = scc_filepath
         self.out_path = out_path
         path_parts = mpd_filepath.split('/')
-        #print path_parts
         if len(path_parts) >= 2:
             self.config_filename = '%s.cfg' % path_parts[-2]
         else:
             self.config_filename = 'content.cfg'
         self.base_path = os.path.split(mpd_filepath)[0]
         self.verbose = verbose
-        self.as_data = {} # List of adaptation sets (one for each media)
+        self.as_data = {}  # List of adaptation sets (one for each media)
         self.muxed_rep = None
         self.muxed_paths = {}
         self.mpd_seg_start_nr = -1
@@ -338,9 +320,9 @@ class CCInserter(object):
         for adaptation_set in self.mpd_processor.get_adaptation_sets():
             content_type = adaptation_set.content_type
             if content_type is None:
-                print "No contentType for adaptation set"
+                print("No contentType for adaptation set")
                 sys.exit(1)
-            if self.as_data.has_key(content_type):
+            if content_type in self.as_data:
                 raise CCInserterError("Multiple adaptation sets for contentType " + content_type)
             as_data = {'as' : adaptation_set, 'reps' : []}
             as_data['presentationDurationInS'] = self.mpd_processor.media_presentation_duration_in_s
@@ -354,20 +336,20 @@ class CCInserter(object):
                 init_filter = initsegmentfilter.InitFilter(rep_data['absInitPath'])
                 init_filter.filter()
                 rep_data['trackID'] = init_filter.track_id
-                print "%s trackID = %d" % (content_type, rep_data['trackID'])
+                print("%s trackID = %d" % (content_type, rep_data['trackID']))
                 rep_data['relMediaPath'] = rep.get_media_path()
                 rep_data['absMediaPath'] = os.path.join(self.base_path, rep.get_media_path())
 
                 get_segment_range(rep_data)
                 track_timescale = init_filter.track_timescale
-                if not as_data.has_key('track_timescale'):
+                if 'track_timescale' not in as_data:
                     as_data['track_timescale'] = track_timescale
                 elif track_timescale != as_data['track_timescale']:
                     raise CCInserterError("Timescales not consistent between %s tracks" % content_type)
-                #if self.verbose:
-                #    print "%s data: " % content_type
-                #    for (k,v) in rep_data.items():
-                #        print "  %s=%s" % (k, v)
+                if self.verbose:
+                    print("%s data: " % content_type)
+                    for (k, v) in rep_data.items():
+                        print("  %s=%s" % (k, v))
 
     def get_scc_data(self, start_time, end_time):
         """This fuction takes the sccdata and returns only the parts between start_time and end_time"""
@@ -382,13 +364,13 @@ class CCInserter(object):
         # pylint: disable=too-many-locals,too-many-branches,too-many-statements
         #lastGoodSegments = []
         seg_duration = None
-        print "Checking all the media segment durations for deviations."
+        print("Checking all the media segment durations for deviations.")
 
         for content_type in self.as_data.keys():
             if content_type == "video":
                 as_data = self.as_data[content_type]
                 adaptation_set = as_data['as']
-                print "Checking %s with timescale %d" % (content_type, as_data['track_timescale'])
+                print("Checking %s with timescale %d" % (content_type, as_data['track_timescale']))
                 if self.seg_duration is None:
                     seg_duration = adaptation_set.duration
                     self.seg_duration = seg_duration
@@ -401,7 +383,6 @@ class CCInserter(object):
                 scc_parser = SCCParser(self.scc_filepath, track_timescale)
                 scc_parser.parse()
                 self.scc_data = scc_parser.result
-
 
                 for rep_data in as_data['reps']:
                     rep_id = rep_data['id']
@@ -423,11 +404,11 @@ class CCInserter(object):
                         segment_path = rep_data['absMediaPath'] % seg_nr
                         if not os.path.exists(segment_path):
                             if self.verbose:
-                                print "\nLast good %s segment is %d, endTime=%.3fs, totalTime=%.3fs" % (
-                                    rep_id, rep_data['endNr'], rep_data['endTime'],
-                                    rep_data['endTime']-rep_data['startTime'])
+                                print("\nLast good %s segment is %d, endTime=%.3fs, totalTime=%.3fs" % (
+                                      rep_id, rep_data['endNr'], rep_data['endTime'],
+                                      rep_data['endTime']-rep_data['startTime']))
                             break
-                        #print "Parsing segment: " + segment_path
+                        # print "Parsing segment: " + segment_path
                         msf = mediasegmentfilter.MediaSegmentFilter(segment_path)
                         msf.filter()
                         tfdt = msf.get_tfdt_value()
@@ -435,17 +416,17 @@ class CCInserter(object):
 
                         start_time = tfdt / float(track_timescale)
                         end_time = start_time + (duration / float(track_timescale))
-                        print "Segment " + str(seg_nr) + ", start:" + str(start_time) + ", end:" + str(end_time)
+                        print("Segment " + str(seg_nr) + ", start:" + str(start_time) + ", end:" + str(end_time))
                         scc_data_for_segment = self.get_scc_data(start_time, end_time)
                         if len(scc_data_for_segment):
-                            #for i in scc_data_for_segment:
+                            # for i in scc_data_for_segment:
                             #    print " ",i['start_time'], 'bytes:', len(i['cea608'])
 
                             # Insert data into segment
                             cc_filter = CCInsertFilter(segment_path, scc_data_for_segment, track_timescale, tfdt)
                             output = cc_filter.filter()
 
-                            print os.path.join(self.out_path, "%d.m4s"%seg_nr)
+                            print(os.path.join(self.out_path, "%d.m4s"%seg_nr))
                             with open(os.path.join(self.out_path, "%d.m4s"%seg_nr), "wb") as fil:
                                 fil.write(output)
                                 fil.close()
@@ -453,7 +434,7 @@ class CCInserter(object):
                         if rep_data['startTick'] is None:
                             rep_data['startTick'] = tfdt
                             rep_data['startTime'] = rep_data['startTick']/float(track_timescale)
-                            #print "First %s segment is %d starting at time %.3fs" % (rep_id, seg_nr,
+                            # print "First %s segment is %d starting at time %.3fs" % (rep_id, seg_nr,
                             #                                                         rep_data['startTime'])
                         # Check that there is not too much drift. We want to end with at most max_diff_in_ticks
                         end_tick = tfdt + duration
@@ -469,7 +450,7 @@ class CCInserter(object):
                         if self.verbose:
                             sys.stdout.write(".")
 
-## Scc parser class
+
 class SCCParser(object):
     """Parser for scc files, that returns an array with time and scc data objects"""
     # pylint: disable=too-few-public-methods
@@ -494,26 +475,16 @@ class SCCParser(object):
                         self.result.append(data)
 
 
-## Main function
 def main():
-    """main function does all the argument parsing"""
-    from optparse import OptionParser
-    verbose = 0
-    usage = "usage: %prog [options] mpdPath sccPath outPath"
-    parser = OptionParser(usage)
-    parser.add_option("-v", "--verbose", dest="verbose", action="store_true")
+    parser = argparse.ArgumentParser("cc_inserter")
+    parser.add_argument("-v", "--verbose", dest="verbose", action="count", default=0)
+    parser.add_argument("mpd_path")
+    parser.add_argument("scc_file")
+    parser.add_argument("out_path")
 
-    (options, args) = parser.parse_args()
-    if options.verbose:
-        verbose = 1
-    if len(args) != 3:
-        parser.error("incorrect number of arguments")
+    args = parser.parse_args()
 
-    mpd_file = args[0]
-    scc_file = args[1]
-    out_path = args[2]
-
-    cc_inserter = CCInserter(mpd_file, scc_file, out_path, verbose)
+    cc_inserter = CCInserter(args.mpd_path, args.scc_file, args.out_path, args.verbose)
     cc_inserter.analyze()
 
 
