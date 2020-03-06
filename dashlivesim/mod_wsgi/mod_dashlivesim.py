@@ -33,7 +33,6 @@
 # For Apache mod_wsgi, this is done using setEnv
 
 import traceback
-import http.client
 from os.path import splitext
 from urllib.parse import urlparse, parse_qs
 from time import time
@@ -46,10 +45,18 @@ MAX_SESSION_LENGTH = 3600  # If non-zero,  limit sessions via redirect
 # Helper for HTTP responses
 # pylint: disable=dangerous-default-value
 
+status_string = {
+    200: 'OK',
+    206: 'Partial Content',
+    302: 'Found',
+    404: 'Not Found',
+    410: 'Gone'
+    }
 
-def reply(code, resp, body='', headers={}):
+
+def reply(status_code, resp, body='', headers={}):
     "Create reply."
-    status = str(code) + ' ' + http.client.responses[code]
+    status = "%d %s" % (status_code, status_string[status_code])
 
     # Add default headers to all requests
     headers['Accept-Ranges'] = 'bytes'
@@ -61,6 +68,9 @@ def reply(code, resp, body='', headers={}):
     headers['Access-Control-Allow-Methods'] = 'GET,HEAD,OPTIONS'
     headers['Access-Control-Allow-Origin'] = '*'
     headers['Access-Control-Expose-Headers'] = 'Server,range,Content-Length,Content-Range,Date'
+
+    if isinstance(body, str):
+        body = body.encode('utf-8')  # Ensure that output is bytes
 
     if body:
         headers['Content-Length'] = str(len(body))
@@ -106,7 +116,7 @@ def application(environment, start_response):
             new_url += hostname + '/'.join(path_parts)
             if query:
                 new_url += '?' + query
-            return reply(302, start_response, "", {'Location': new_url})
+            return reply(302, start_response, b"", {'Location': new_url})
         elif start_time is None:
             return reply(404, start_response,
                          'No start_time in non-manifest request')
@@ -123,43 +133,33 @@ def application(environment, start_response):
 
     success = True
     mimetype = get_mime_type(ext)
-    status = http.client.OK
+    status_code = 200
     payload_in = None
 
     try:
         response = dash_proxy.handle_request(hostname, path_parts[1:], args,
                                              vod_conf_dir, content_root, now,
                                              None, is_https)
-        if isinstance(response, str):
-            payload_in = response.encode('utf-8')
-            if not payload_in:
-                success = False
-        elif isinstance(response, bytes):
+        if isinstance(response, bytes) or isinstance(response, str):
             payload_in = response
             if not payload_in:
                 success = False
         else:
             if not response['ok']:
                 success = False
-
             payload_in = response['pl']
 
     # pylint: disable=broad-except
     except Exception as exc:
         success = False
-        print("mod_dash_handler request error: {0}".format(exc))
         traceback.print_exc()
         payload_in = "DASH Proxy Error: {0}\n URL={1}".format(exc, url)
 
     if not success:
-        if payload_in == "":
-            print("dash_proxy error: No body!")
-            payload_in = "Now found (now)"
-        elif payload_in is None:
-            print("dash_proxy: No content found")
+        if not payload_in:
             payload_in = "Not found (now)"
 
-        status = http.client.NOT_FOUND
+        status_code = 404
         mimetype = "text/plain"
 
     payload_out = payload_in
@@ -167,16 +167,16 @@ def application(environment, start_response):
     # Setup response headers
     headers = {'Content-Type': mimetype}
 
-    if status != http.client.NOT_FOUND:
+    if status_code != 404:
         if range_line:
             payload_out, range_out = handle_byte_range(payload_in, range_line)
             if range_out != "":  # OK
                 headers['Content-Range'] = range_out
-                status = http.client.PARTIAL_CONTENT
+                status_code = 206
             else:  # Bad range, drop it
                 print("mod_dash_handler: Bad range {0}".format(range_line))
 
-    return reply(status, start_response, payload_out, headers)
+    return reply(status_code, start_response, payload_out, headers)
 
 
 def get_mime_type(ext):
