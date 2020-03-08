@@ -41,9 +41,11 @@ The phases depends on now wrt to modulo minutes
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
+
 def quantize(number, step):
     "Quantize number to a multiple of step."
     return (int(number)//step)*step
+
 
 class ModuloPeriod(object):
     "Provide the timing data needed for the MPD which has periods of available data."
@@ -55,8 +57,8 @@ class ModuloPeriod(object):
         self._availability_start_time = self.calc_availability_start_time()
         self._minimum_update_period = self.mod_secs/20
         self._media_presentation_duration = self.calc_media_pres_dur()
-        self._availability_end_time = self._availability_start_time + self._media_presentation_duration +\
-                                     self._minimum_update_period
+        self._availability_end_time = (self._availability_start_time + self._media_presentation_duration +
+                                       self._minimum_update_period)
 
     @property
     def availability_start_time(self):
@@ -80,14 +82,14 @@ class ModuloPeriod(object):
 
     def calc_percent(self):
         "Return the percent in the current period."
-        seconds = self.now%self.mod_secs
+        seconds = self.now % self.mod_secs
         return (seconds*100)/self.mod_secs
 
     def calc_availability_start_time(self):
         "Get the availability startTime for this or coming period."
         period_start = quantize(self.now, self.mod_secs)
         if self.percent >= 90:
-            period_start += self.mod_secs # Next period
+            period_start += self.mod_secs  # Next period
         return period_start
 
     def calc_media_pres_dur(self):
@@ -101,7 +103,7 @@ class ModuloPeriod(object):
         elif self.percent < 90:
             mpd = 8*self.mod_secs/10
         else:
-            mpd = 2*self.mod_secs/10 # This is in the next period
+            mpd = 2*self.mod_secs/10  # This is in the next period
         return mpd
 
     def get_start_number(self, segment_duration):

@@ -28,10 +28,13 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 
 import unittest
+from os.path import join
 
+from dashlivesim.tests.dash_test_util import OUT_DIR
 from dashlivesim.dashlib import dash_proxy
+from dashlivesim.tests.dash_test_util import VOD_CONFIG_DIR, CONTENT_ROOT
+from dashlivesim.tests.dash_test_util import findAllIndexes
 
-from dash_test_util import *
 
 class TestMpdChange(unittest.TestCase):
     "Test that MPD gets startNr changed in an appropriate way"
@@ -41,6 +44,8 @@ class TestMpdChange(unittest.TestCase):
         urlParts = ['pdash', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = dp.handle_request()
+        with open(join(OUT_DIR, 'tmp.mpd'), 'wb') as ofh:
+            ofh.write(d.encode('utf-8'))
         self.assertEqual(len(findAllIndexes('startNumber="0"', d)), 2)
         self.assertTrue(d.find('availabilityStartTime="1970-01-01T00:00:00Z"') > 0)
 
@@ -65,7 +70,7 @@ class TestMpdChange(unittest.TestCase):
         urlParts = ['pdash', 'snr_-1', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = dp.handle_request()
-        self.assertTrue(d.find('startNumber=') < 0) #
+        self.assertTrue(d.find('startNumber=') < 0)
         self.assertTrue(d.find('availabilityStartTime="1970-01-01T00:00:00Z"') > 0)
 
 # Could add tests to check availability time of segments depending on startNr

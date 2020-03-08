@@ -29,7 +29,7 @@
 
 import unittest
 
-from dash_test_util import *
+from dashlivesim.tests.dash_test_util import VOD_CONFIG_DIR, CONTENT_ROOT
 from dashlivesim.dashlib import dash_proxy
 from dashlivesim.dashlib import mpdprocessor
 import xml.etree.ElementTree as ET
@@ -50,8 +50,8 @@ class TestXlinkPeriod(unittest.TestCase):
         for k in [1, 2, 5, 10, 20, 30]:
             nr_period_per_hour = 60
             nr_etp_periods_per_hour = k
-            urlParts = ['livesim', 'periods_%s' %nr_period_per_hour, 'etp_%s' %nr_etp_periods_per_hour, 'testpic_2s',
-                        'Manifest.mpd']
+            urlParts = ['livesim', 'periods_%s' % nr_period_per_hour, 'etp_%s' % nr_etp_periods_per_hour,
+                        'testpic_2s', 'Manifest.mpd']
             dp = dash_proxy.DashProvider("10.4.247.98", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10000)
             d = dp.handle_request()
             xml = ET.fromstring(d)
@@ -59,8 +59,8 @@ class TestXlinkPeriod(unittest.TestCase):
             periods_containing_duration_attribute = []
             # This array would contain all the period id that have duration attributes.
             # In the following, we will check if the correct period element have been assigned duration attributes.
-            for child in xml.findall('{urn:mpeg:dash:schema:mpd:2011}Period'): # Collect all period elements first
-                if child.attrib.has_key('duration'): # If the period element has the duration attribute.
+            for child in xml.findall('{urn:mpeg:dash:schema:mpd:2011}Period'):  # Collect all period elements first
+                if 'duration' in child.attrib:  # If the period element has the duration attribute.
                     periods_containing_duration_attribute.append(child.attrib['id'])
                     # Then collect its period id in this array
             one_etp_for_how_many_periods = nr_period_per_hour/nr_etp_periods_per_hour

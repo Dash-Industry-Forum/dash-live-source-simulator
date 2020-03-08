@@ -31,8 +31,8 @@ Start from template (which has timescale=1000)."""
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-from ..mp4filter import MP4Filter
-from ..structops import uint32_to_str, str_to_uint32, uint64_to_str
+from dashlivesim.dashlib.mp4filter import MP4Filter
+from dashlivesim.dashlib.structops import uint32_to_str, str_to_uint32, uint64_to_str
 
 
 TTML_MEDIA_TMPL = '\x00\x00\x00\x18stypmsdh\x00\x00\x00\x00msdhdash\x00\x00\x00`moof\x00\x00\x00\x10mfhd\x00\x00\
@@ -40,7 +40,7 @@ TTML_MEDIA_TMPL = '\x00\x00\x00\x18stypmsdh\x00\x00\x00\x00msdhdash\x00\x00\x00`
 \x00\x00\t\x00\x00\x00\x14tfdt\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x14trun\x00\x00\x00\
 \x01\x00\x00\x00\x01\x00\x00\x00h\x00\x00\x00\x08mdat'
 
-TIMESCALE = 1000 # This is the units for tfdt time and durations.
+TIMESCALE = 1000  # This is the units for tfdt time and durations.
 TRACK_ID = 3
 # The init has sample_time_scale and trackID according to the values above
 TTML_INIT = '\x00\x00\x00\x18ftypiso6\x00\x00\x00\x01isomdash\x00\x00\x02\x9dmoov\x00\x00\x00lmvhd\x00\x00\x00\x00\
@@ -62,8 +62,8 @@ sthd\x00\x00\x00\x00\x00\x00\x00$dinf\x00\x00\x00\x1cdref\x00\x00\x00\x00\x00\x0
 \x00\x00\x00\x00\x00\x00\x10stco\x00\x00\x00\x00\x00\x00\x00\x00'
 
 
-#EBU-TT-D sample
-TTML_TEMPLATE = u'''
+# EBU-TT-D sample
+TTML_TEMPLATE = '''
 <?xml version="1.0" encoding="UTF-8"?>
 <tt xmlns:ttp="http://www.w3.org/ns/ttml#parameter" xmlns="http://www.w3.org/ns/ttml"
     xmlns:tts="http://www.w3.org/ns/ttml#styling" xmlns:ttm="http://www.w3.org/ns/ttml#metadata"
@@ -94,7 +94,7 @@ TTML_TEMPLATE = u'''
 </tt>
 '''
 
-BODY_TEMPLATE = u'''
+BODY_TEMPLATE = '''
     <div region="r0">
       <p xml:id="s0" begin="00:00:00.00" end="00:00:01.00">
         <span style="s2">The time is 00:00:00</span>
@@ -122,8 +122,8 @@ class StppMediaFilter(MP4Filter):
         self.default_sample_duration = sample_duration
         self.tfdt_time = tfdt_time
         self.ttml_data = ttml_data
-        self.top_level_boxes_to_parse = ['styp', 'moof', 'mdat', 'sidx']
-        self.composite_boxes_to_parse = ['moof', 'traf']
+        self.top_level_boxes_to_parse = [b'styp', b'moof', b'mdat', b'sidx']
+        self.composite_boxes_to_parse = [b'moof', b'traf']
 
     # pylint: disable=unused-argument, no-self-use
     def process_sidx(self, data):
@@ -155,7 +155,7 @@ class StppMediaFilter(MP4Filter):
     def process_mdat(self, data):
         "Make an mdat box with the right size to contain the one-and-only ttml sample."
         size = len(self.ttml_data) + 8
-        return uint32_to_str(size) + 'mdat' + self.ttml_data
+        return uint32_to_str(size) + b'mdat' + self.ttml_data
 
 
 class StppInitFilter(MP4Filter):
@@ -168,22 +168,22 @@ class StppInitFilter(MP4Filter):
         self.lang = lang
         self.track_id = track_id
         self.timescale = timescale
-        self.creation_modfication_time = creation_modfication_time # Measured from 1904-01-01 in seconds
+        self.creation_modfication_time = creation_modfication_time  # Measured from 1904-01-01 in seconds
         self.handler_name = hdlr_name
-        self.top_level_boxes_to_parse = ['moov']
-        self.composite_boxes_to_parse = ['moov', 'trak', 'mdia', 'minf', 'dinf']
+        self.top_level_boxes_to_parse = [b'moov']
+        self.composite_boxes_to_parse = [b'moov', b'trak', b'mdia', b'minf', b'dinf']
 
     def process_mvhd(self, data):
         "Set nextTrackId and time and movie timescale."
         output = self._insert_timing_data(data)
         pos = len(output)
         output += data[pos:-4]
-        output += uint32_to_str(self.track_id + 1) # next_track_ID
+        output += uint32_to_str(self.track_id + 1)  # next_track_ID
         return output
 
     def process_tkhd(self, data):
         "Set trackID and time."
-        version = ord(data[8])
+        version = data[8]
         output = data[:12]
         if version == 1:
             if self.creation_modfication_time:
@@ -193,7 +193,7 @@ class StppInitFilter(MP4Filter):
                 output += data[12:28]
             output += uint32_to_str(self.track_id)
             output += uint32_to_str(0)
-            output += uint64_to_str(0) # duration
+            output += uint64_to_str(0)  # duration
             pos = 44
         else:
             if self.creation_modfication_time:
@@ -203,7 +203,7 @@ class StppInitFilter(MP4Filter):
                 output += data[12:20]
             output += uint32_to_str(self.track_id)
             output += uint32_to_str(0)
-            output += uint32_to_str(0) #duration
+            output += uint32_to_str(0)  # duration
             pos = 32
         output += data[pos:]
         return output
@@ -225,18 +225,18 @@ class StppInitFilter(MP4Filter):
     def process_hdlr(self, data):
         "Set handler name, if desired."
         hdlr = data[16:20]
-        hdlr_name = data[32:-1] # Actually UTF-8 encoded
-        print "Found hdlr %s: %s" % (hdlr, hdlr_name)
+        hdlr_name = data[32:-1]  # Actually UTF-8 encoded
+        print("Found hdlr %s: %s" % (hdlr, hdlr_name))
         if self.handler_name:
             output = uint32_to_str(len(self.handler_name) + 33) + data[4:32] + self.handler_name + '\x00'
-            print "Wrote hdlr %s" % self.handler_name
+            print("Wrote hdlr %s" % self.handler_name)
         else:
             output = data
         return output
 
     def _insert_timing_data(self, data):
         "Help function to insert timestamps and timescale in similar boxes."
-        version = ord(data[8])
+        version = data[8]
         output = data[:12]
         if version == 1:
             if self.creation_modfication_time:
@@ -245,7 +245,7 @@ class StppInitFilter(MP4Filter):
             else:
                 output += data[12:28]
             output += uint32_to_str(self.timescale)
-            output += uint64_to_str(0) # duration
+            output += uint64_to_str(0)  # duration
         else:
             if self.creation_modfication_time:
                 output += uint32_to_str(self.creation_modfication_time)
@@ -257,11 +257,11 @@ class StppInitFilter(MP4Filter):
         return output
 
 
-
 def create_media_segment(track_id, sequence_nr, sample_duration, tfdt_time, ttml_data):
     "Create a media segment."
     ttml_seg = StppMediaFilter(track_id, sequence_nr, sample_duration, tfdt_time, ttml_data)
     return ttml_seg.filter()
+
 
 def create_init_segment(lang="eng", track_id=TRACK_ID, timescale=TIMESCALE, creation_modfication_time=None,
                         hdlr_name=None):

@@ -29,12 +29,12 @@
 
 import unittest
 
-from dash_test_util import *
+from dashlivesim.tests.dash_test_util import rm_outfile, write_data_to_outfile, VOD_CONFIG_DIR, CONTENT_ROOT
 from dashlivesim.dashlib import ttml_timing_offset
 from dashlivesim.dashlib import dash_proxy
 
-TEST_STRING_1 = '< begin="01:02:03.1234" end="10:59:43:29" >'
-TEST_STRING_SEG_NR = '... Segment # 12 ...'
+TEST_STRING_1 = b'< begin="01:02:03.1234" end="10:59:43:29" >'
+TEST_STRING_SEG_NR = b'... Segment # 12 ...'
 
 
 class TestTtmlTimingChange(unittest.TestCase):
@@ -48,14 +48,15 @@ class TestTtmlTimingChange(unittest.TestCase):
     def testAdd1Hour(self):
         "Offset is 3600."
         outString = ttml_timing_offset.adjust_ttml_content(TEST_STRING_1, 3600, None)
-        outGoal = '< begin="02:02:03.1234" end="11:59:43:29" >'
+        outGoal = b'< begin="02:02:03.1234" end="11:59:43:29" >'
         self.assertEqual(outString, outGoal)
 
     def testWrap(self):
         "Add an offset that wraps."
         outString = ttml_timing_offset.adjust_ttml_content(TEST_STRING_1, 360050, None)
-        outGoal = '< begin="101:02:53.1234" end="111:00:33:29" >'
+        outGoal = b'< begin="101:02:53.1234" end="111:00:33:29" >'
         self.assertEqual(outString, outGoal)
+
 
 class TestTtmlSegmentNrChange(unittest.TestCase):
     "Test that TTML string is changed properly."
@@ -63,8 +64,9 @@ class TestTtmlSegmentNrChange(unittest.TestCase):
     def testSetToRightNr(self):
         "Output Nr should be what is input."
         outString = ttml_timing_offset.adjust_ttml_content(TEST_STRING_SEG_NR, 360050, 22)
-        outGoal = '... Segment # 22 ...'
+        outGoal = b'... Segment # 22 ...'
         self.assertEqual(outString, outGoal)
+
 
 class TestSegmentModification(unittest.TestCase):
 
@@ -78,8 +80,9 @@ class TestSegmentModification(unittest.TestCase):
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
         d = dp.handle_request()
         write_data_to_outfile(d, testOutputFile)
-        self.assertTrue(d.find('begin="399035:00:00.000"') > 0)
-        self.assertTrue(d.find('eng : UTC = 2015-07-10T11:00:00Z') > 0)
+        self.assertTrue(d.find(b'begin="399035:00:00.000"') > 0)
+        self.assertTrue(d.find(b'eng : UTC = 2015-07-10T11:00:00Z') > 0)
+
 
 class TestMpdExtraction(unittest.TestCase):
 

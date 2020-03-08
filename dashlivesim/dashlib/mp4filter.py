@@ -49,17 +49,18 @@ class MP4Filter(object):
     def __init__(self, filename=None, data=None):
         self.filename = filename
         if filename is not None:
-            self.data = open(filename, "rb").read()
+            with open(filename, 'rb') as ifh:
+                self.data = ifh.read()
         else:
             self.data = data
         self.emsg = None
-        self.output = ""
-        self.top_level_boxes_to_parse = [] # Boxes at top-level to filter
-        self.composite_boxes_to_parse = [] # Composite boxes to look into
+        self.output = b""
+        self.top_level_boxes_to_parse = []  # Boxes at top-level to filter
+        self.composite_boxes_to_parse = []  # Composite boxes to look into
         self.next_phase_data = {}
         self.nr_iterations_done = 0
         self.output_top_level_boxes = []  # Boxes with size and type
-        #print "MP4Filter with %s" % filename
+        # print "MP4Filter with %s" % filename
 
     def check_box(self, data):
         "Check the type of box starting at position pos."
@@ -69,7 +70,7 @@ class MP4Filter(object):
 
     def filter(self):
         "Top level box parsing. The lower-level parsing is done in self.filter_box(). "
-        self.output = ""
+        self.output = b""
         pos = 0
         prev_output_pos = 0
         while pos < len(self.data):
@@ -92,21 +93,21 @@ class MP4Filter(object):
         self.finalize()
         return self.output
 
-    def filter_box(self, boxtype, data, file_pos, path=""):
+    def filter_box(self, boxtype, data, file_pos, path=b""):
         "Filter box or tree of boxes recursively."
 
-        if boxtype == "moof":
+        if boxtype == b"moof":
             self.moof_start = file_pos
-        elif boxtype == "mdat":
+        elif boxtype == b"mdat":
             self.mdat_start = file_pos
 
-        if path == "":
+        if path == b"":
             path = boxtype
         else:
-            path = "%s.%s" % (path, boxtype)
+            path = b"%s.%s" % (path, boxtype)
 
         if boxtype in self.composite_boxes_to_parse:
-            #print "Parsing %s" % path
+            # print("Parsing %s" % path)
             output = data[:8]
             pos = 8
             while pos < len(data):
@@ -115,13 +116,11 @@ class MP4Filter(object):
                 output += output_child_box
                 pos += child_size
             if len(output) != len(data):
-                #print "Rewriting size of %s from %d to %d" % (boxtype, str_to_uint32(output[0:4]), len(output))
                 output = uint32_to_str(len(output)) + output[4:]
         else:
-            method_name = "process_%s" % boxtype
+            method_name = "process_%s" % boxtype.decode('utf-8')
             method = getattr(self, method_name, None)
             if method is not None:
-                #print "Calling %s" % method_name
                 output = method(data)
             else:
                 output = data

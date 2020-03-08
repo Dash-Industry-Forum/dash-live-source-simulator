@@ -30,8 +30,8 @@
 import unittest
 
 from dashlivesim.dashlib import dash_proxy
+from dashlivesim.tests.dash_test_util import VOD_CONFIG_DIR, CONTENT_ROOT
 
-from dash_test_util import *
 
 class TestSuggestedPresentationDelay(unittest.TestCase):
     "Test that MPD gets startNr changed in an appropriate way"

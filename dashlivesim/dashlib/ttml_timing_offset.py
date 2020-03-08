@@ -29,17 +29,19 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-import re, time
+import re
+import time
 
-TIME_PATTERN_S = re.compile(r'(?P<attr>(begin|end))="(?P<hours>\d\d):(?P<minutes>\d\d):(?P<seconds>\d\d)')
-CONTENT_PATTERN_S = re.compile(r'(?P<lang>\w+) : (?P<hours>\d\d):(?P<minutes>\d\d):(?P<seconds>\d\d)(\.\d+)?')
-CONTENT_PATTERN_SEGMENT = re.compile(r'(?P<intro>Segment # )(?P<seg_nr>\d+)')
+TIME_PATTERN_S = re.compile(rb'(?P<attr>(begin|end))="(?P<hours>\d\d):(?P<minutes>\d\d):(?P<seconds>\d\d)')
+CONTENT_PATTERN_S = re.compile(rb'(?P<lang>\w+) : (?P<hours>\d\d):(?P<minutes>\d\d):(?P<seconds>\d\d)(\.\d+)?')
+CONTENT_PATTERN_SEGMENT = re.compile(rb'(?P<intro>Segment # )(?P<seg_nr>\d+)')
+
 
 def adjust_ttml_content(xml_str, offset_in_s, output_seg_nr):
-    "Add offset in seconds to begin and end elements in xml string."
+    "Add offset in seconds to begin and end elements in xml bytestring."
 
     def replace(match_obj):
-        "Replace function for the TIME_PATTERN_S."
+        "Match and replace time for begin and end attributes."
         matches = match_obj.groupdict()
         attr = matches['attr']
         hours = int(matches['hours'])
@@ -48,22 +50,22 @@ def adjust_ttml_content(xml_str, offset_in_s, output_seg_nr):
         total_seconds = seconds + 60 * minutes + 3600 * hours + offset_in_s
         hours, seconds = divmod(total_seconds, 3600)
         minutes, seconds = divmod(seconds, 60)
-        return '%s="%02d:%02d:%02d' % (attr, hours, minutes, seconds)
+        return b'%s="%02d:%02d:%02d' % (attr, hours, minutes, seconds)
 
     def replace_content(match_obj):
-        "Replace function for the CONTENT_PATTERN_S."
+        "Match and replace time with UTC time in lang time pattern."
         matches = match_obj.groupdict()
         hours = int(matches['hours'])
         minutes = int(matches['minutes'])
         seconds = int(matches['seconds'])
         total_seconds = seconds + 60 * minutes + 3600 * hours + offset_in_s
-        time_str = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(total_seconds))
-        return '%s : UTC = %s' % (matches['lang'], time_str)
+        time_str = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(total_seconds)).encode('utf-8')
+        return b'%s : UTC = %s' % (matches['lang'], time_str)
 
     def replace_segment_nr(match_obj):
         "Match and replace segment number."
         matches = match_obj.groupdict()
-        return '%s%d' % (matches['intro'], output_seg_nr)
+        return b'%s%d' % (matches['intro'], output_seg_nr)
 
     xml_str = re.sub(TIME_PATTERN_S, replace, xml_str)
     xml_str = re.sub(CONTENT_PATTERN_S, replace_content, xml_str)

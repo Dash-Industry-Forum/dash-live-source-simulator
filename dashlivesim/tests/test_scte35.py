@@ -45,6 +45,7 @@ cancelMessage = """\
 </SpliceInsert>
 </SpliceInfoSection>"""
 
+
 class TestScte35(unittest.TestCase):
 
     def testScte35MessageData(self):
@@ -65,7 +66,6 @@ class TestScte35(unittest.TestCase):
                                                            uniqueProgramId, availNum, availsExpected,
                                                            spliceImmediateFlag, ptsTime, autoReturn, duration)
         self.assertEqual(message_data, testMessage)
-
 
     def testScteCancelMessage(self):
         ptsAdjustment = 0

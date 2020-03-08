@@ -111,19 +111,19 @@ def generate_period_data(mpd_data, now, cfg):
     period_data = []
     ad_frequency = -1
     if mpd_data['insertAd'] > 0:
-        ad_frequency = nr_periods_per_hour / mpd_data['xlinkPeriodsPerHour']
+        ad_frequency = nr_periods_per_hour // mpd_data['xlinkPeriodsPerHour']
 
     if nr_periods_per_hour == -1:  # Just one period starting at at time start relative AST
         start = 0
-        start_number = mpd_data['startNumber'] + start / seg_dur
+        start_number = mpd_data['startNumber'] + start // seg_dur
         data = {'id': "p0", 'start': 'PT%dS' % start, 'startNumber': str(start_number),
                 'duration': seg_dur, 'presentationTimeOffset': "%d" % mpd_data['presentationTimeOffset'],
-                'start_s' : start}
+                'start_s': start}
         period_data.append(data)
     elif nr_periods_per_hour == 0:  # nrPeriodsPerHour == 0, make one old period but starting 1000h after AST
         start = 3600 * 1000
-        data = {'id': "p0", 'start': 'PT%dS' % start, 'startNumber': "%d" % (start / seg_dur),
-                'duration': seg_dur, 'presentationTimeOffset': "%d" % start, 'start_s' : start}
+        data = {'id': "p0", 'start': 'PT%dS' % start, 'startNumber': "%d" % (start // seg_dur),
+                'duration': seg_dur, 'presentationTimeOffset': "%d" % start, 'start_s': start}
         period_data.append(data)
     else:  # nr_periods_per_hour > 0
         period_duration = 3600 // nr_periods_per_hour
@@ -133,17 +133,17 @@ def generate_period_data(mpd_data, now, cfg):
             minimum_update_period_s = cfg.seg_duration
         minimum_update_period = "PT%dS" % minimum_update_period_s
         mpd_data['minimumUpdatePeriod'] = minimum_update_period
-        this_period_nr = now // period_duration
+        # this_period_nr = now // period_duration
         last_period_nr = (now + half_period_duration) // period_duration
-        this_period_start = this_period_nr * period_duration
+        # this_period_start = this_period_nr * period_duration
         first_period_nr = (now - mpd_data['timeShiftBufferDepthInS'] - seg_dur) // period_duration
         counter = 0
         for period_nr in range(first_period_nr, last_period_nr+1):
             start_time = period_nr * period_duration
-            data = {'id' : "p%d" % period_nr, 'start' : 'PT%dS' % start_time,
-                    'startNumber' : "%d" % (start_time/seg_dur), 'duration' : seg_dur,
-                    'presentationTimeOffset' : period_nr*period_duration,
-                    'start_s' : start_time}
+            data = {'id': "p%d" % period_nr, 'start': 'PT%dS' % start_time,
+                    'startNumber': "%d" % (start_time//seg_dur), 'duration': seg_dur,
+                    'presentationTimeOffset': period_nr*period_duration,
+                    'start_s': start_time}
             if mpd_data['etpPeriodsPerHour'] > 0:
                 # Check whether the early terminated feature is enabled or not.
                 # If yes, then proceed.
@@ -155,7 +155,7 @@ def generate_period_data(mpd_data, now, cfg):
                                     "should be an integer.")
                 etp_duration = mpd_data['etpDuration']
                 if etp_duration == -1:
-                    etp_duration = period_duration / 2
+                    etp_duration = period_duration // 2
                     # Default value
                     # If no etpDuration is specified, then we take a default values, i.e, half of period duration.
                 if etp_duration > period_duration:
@@ -186,8 +186,8 @@ def generate_period_data(mpd_data, now, cfg):
             counter = counter + 1
             # print period_data
         for i, pdata in enumerate(period_data):
-            if i != len(period_data) - 1: # not last periodDuration
-                if not pdata.has_key('period_duration_s'):
+            if i != len(period_data) - 1:  # not last periodDuration
+                if 'period_duration_s' not in pdata:
                     pdata['period_duration_s'] = period_duration
     return period_data
 
@@ -207,7 +207,7 @@ def generate_response_with_xlink(response, cfg, filename, nr_periods_per_hour, n
             period_id_all.append(child.attrib['id'])
         # period_id_all = findall('Period id="([^"]*)"', response)
         # Find all period ids in the response file.
-        one_xlinks_for_how_many_periods = nr_periods_per_hour / nr_xlink_periods_per_hour
+        one_xlinks_for_how_many_periods = nr_periods_per_hour // nr_xlink_periods_per_hour
         period_id_xlinks = [x for x in period_id_all if int(x[1:]) % one_xlinks_for_how_many_periods == 0]
         # Periods that will be replaced with links.
         base_url = findall('<BaseURL>([^"]*)</BaseURL>', response)
@@ -243,9 +243,8 @@ def generate_response_with_xlink(response, cfg, filename, nr_periods_per_hour, n
                                        base_url[0], filename, period_id)
                 if insert_ad > 0 and counter == 1:  # This condition ensures that the first period in the mpd is not
                     # replaced when the ads are enabled.
-                    response = insert_asset_identifier(response,
-                                                       start_pos_period)  # Insert asset identifier,
-                                                                          # if the the period is not replaced.
+                    response = insert_asset_identifier(response, start_pos_period)
+                    # Insert asset identifier, if the period is not replaced.
                     continue
                 if insert_ad == 5:  # Add additional content for the default content
                     start_pos_period_contents = original_period.find('>') + 1
@@ -335,28 +334,28 @@ class DashProvider(object):
                 raise Exception("Insert ad option can only be used in conjuction with the xlink option. To use the "
                                 "insert ad option, also set use xlink_m in your url.")
             response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, self.now)
-            #The following 'if' is for IOP 4.11.4.3 , deployment scenario when segments not found.
-            if len(cfg.multi_url) > 0 and cfg.segtimelineloss == True:  # There is one specific baseURL with losses specified
-                    a_var, b_var = cfg.multi_url[0].split("_")
-                    dur1 = int(a_var[1:])
-                    dur2 = int(b_var[1:])
-                    total_dur = dur1 + dur2
-                    num_loop = int(ceil(60.0 / (float(total_dur))))
-                    now_mod_60 = self.now % 60
-                    if a_var[0] == 'u' and b_var[0] == 'd':  # parse server up or down information
-                        for i in range(num_loop):
-                            if i * total_dur + dur1 < now_mod_60 <= (i + 1) * total_dur:
-                                #Generate and provide mpd with the latest up time, so that last generated segment is shown
-                                #and no new S element added to SegmentTimeline.
-                                latestUptime= self.now - now_mod_60 + (i * total_dur + dur1)
-                                response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, latestUptime)
-                                break
-                            elif now_mod_60 == i* total_dur +dur1:
-                                #Just before down time starts, add InbandEventStream to the MPD.
-                                cfg.emsg_last_seg=True
-                                response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, self.now)
-                                cfg.emsg_last_seg=False
-                           
+            # The following 'if' is for IOP 4.11.4.3 , deployment scenario when segments not found.
+            if len(cfg.multi_url) > 0 and cfg.segtimelineloss:  # There is one specific baseURL with losses specified
+                a_var, b_var = cfg.multi_url[0].split("_")
+                dur1 = int(a_var[1:])
+                dur2 = int(b_var[1:])
+                total_dur = dur1 + dur2
+                num_loop = int(ceil(60.0 / (float(total_dur))))
+                now_mod_60 = self.now % 60
+                if a_var[0] == 'u' and b_var[0] == 'd':  # parse server up or down information
+                    for i in range(num_loop):
+                        if i * total_dur + dur1 < now_mod_60 <= (i + 1) * total_dur:
+                            # Generate and provide mpd with the latest up time, so that last generated segment is shown
+                            # and no new S element added to SegmentTimeline.
+                            latestUptime = self.now - now_mod_60 + (i * total_dur + dur1)
+                            response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, latestUptime)
+                            break
+                        elif now_mod_60 == i * total_dur + dur1:
+                            # Just before down time starts, add InbandEventStream to the MPD.
+                            cfg.emsg_last_seg = True
+                            response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, self.now)
+                            cfg.emsg_last_seg = False
+
             if nr_xlink_periods_per_hour > 0:
                 response = generate_response_with_xlink(response, cfg.ext, cfg.filename, nr_periods_per_hour,
                                                         nr_xlink_periods_per_hour, mpd_input_data['insertAd'])
@@ -377,8 +376,8 @@ class DashProvider(object):
                 diff = first_segment_ast - self.now_float
                 response = self.error_response("Request %s before first seg AST. %.1fs too early" %
                                                (cfg.filename, diff))
-            elif cfg.availability_end_time is not None and \
-                            self.now > cfg.availability_end_time + EXTRA_TIME_AFTER_END_IN_S:
+            elif (cfg.availability_end_time is not None and
+                  self.now > cfg.availability_end_time + EXTRA_TIME_AFTER_END_IN_S):
                 diff = self.now_float - (cfg.availability_end_time + EXTRA_TIME_AFTER_END_IN_S)
                 response = self.error_response("Request for %s after AET. %.1fs too late" % (cfg.filename, diff))
             elif cfg.ext == ".m4s":
@@ -395,10 +394,11 @@ class DashProvider(object):
                             if i * total_dur + dur1 < now_mod_60 <= (i + 1) * total_dur:
                                 response = self.error_response("BaseURL server down at %d" % (self.now))
                                 break
-                            elif now_mod_60 == i* total_dur +dur1:     #Just before down time starts, add emsg box to the segment.
-                                cfg.emsg_last_seg=True
+                            elif now_mod_60 == i * total_dur + dur1:
+                                # Just before down time starts, add emsg box to the segment.
+                                cfg.emsg_last_seg = True
                                 response = self.process_media_segment(cfg, self.now_float)
-                                cfg.emsg_last_seg=False
+                                cfg.emsg_last_seg = False
                     elif a_var[0] == 'd' and b_var[0] == 'u':
                         for i in range(num_loop):
                             if i * (total_dur) < now_mod_60 <= i * (total_dur) + dur1:
@@ -435,7 +435,7 @@ class DashProvider(object):
             spd = in_data['suggested_presentation_delay_in_s']
             mpd_data['suggestedPresentationDelay'] = \
                 seconds_to_iso_duration(spd)
-        if in_data.has_key('availabilityEndTime'):
+        if 'availabilityEndTime' in in_data:
             mpd_data['availabilityEndTime'] = make_timestamp(in_data['availabilityEndTime'])
         if cfg.stop_time is not None and (now > cfg.stop_time):
             mpd_data['type'] = "static"
@@ -512,8 +512,7 @@ class DashProvider(object):
         timescale = 1
         media_time_at_ast = cfg.adjusted_pto(0, timescale)
         seg_time = (seg_nr - seg_start_nr) * seg_dur + media_time_at_ast
-        seg_ast = (seg_time + seg_dur - media_time_at_ast) + \
-                  cfg.availability_start_time_in_s
+        seg_ast = (seg_time + seg_dur - media_time_at_ast) + cfg.availability_start_time_in_s
 
         if cfg.availability_time_offset_in_s != -1:  # - 1 is infinity
             if now_float < seg_ast - cfg.availability_time_offset_in_s:
@@ -558,7 +557,8 @@ class DashProvider(object):
         seg_filter = MediaSegmentFilter(media_seg_file, seg_nr, cfg.seg_duration, offset_at_loop_start, lmsg, timescale,
                                         scte35_per_minute, rel_path,
                                         is_ttml,
-                                        insert_sidx=cfg.insert_sidx,emsg_last_seg=cfg.emsg_last_seg,now=self.now)
+                                        insert_sidx=cfg.insert_sidx, emsg_last_seg=cfg.emsg_last_seg,
+                                        now=self.now)
         seg_content = seg_filter.filter()
         self.new_tfdt_value = seg_filter.get_tfdt_value()
         return seg_content
@@ -596,7 +596,7 @@ class DashProvider(object):
             very_last_segment = cfg.last_segment_numbers[-1]
             if seg_nr > very_last_segment:
                 return self.error_response("Request for segment %d beyond last (%d)" % (seg_nr, very_last_segment))
-        lmsg = seg_nr in cfg.last_segment_numbers
+        # lmsg = seg_nr in cfg.last_segment_numbers
         # print cfg.last_segment_numbers
         seg_time = (seg_nr - seg_start_nr) * seg_dur + cfg.availability_start_time_in_s
         seg_ast = seg_time + seg_dur
@@ -604,8 +604,7 @@ class DashProvider(object):
         if cfg.availability_time_offset_in_s != -1:  # -1 is infinity
             if now_float < seg_ast - cfg.availability_time_offset_in_s:
                 return self.error_response("Request for %s was %.1fs too early" % (seg_name, seg_ast - now_float))
-            if ((now_float > seg_ast + seg_dur +
-                    cfg.timeshift_buffer_depth_in_s) and not stop_number):
+            if (now_float > seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s):
                 diff = now_float - (seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s)
                 return self.error_response("Request for %s was %.1fs too late" % (seg_name, diff))
 
@@ -617,7 +616,7 @@ class DashProvider(object):
         assert 0 <= vod_nr - cfg.vod_first_segment_in_loop < cfg.vod_nr_segments_in_loop
         rel_path = cfg.rel_path
         thumb_path = join(self.content_dir, cfg.content_name, rel_path,
-                        "%d%s" % (vod_nr, seg_ext))
+                          "%d%s" % (vod_nr, seg_ext))
         with open(thumb_path, 'rb') as ifh:
             seg_content = ifh.read()
         return seg_content

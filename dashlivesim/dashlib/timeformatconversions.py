@@ -33,8 +33,10 @@ import time
 import re
 RE_DURATION = re.compile(r"PT((?P<hours>\d+)H)?((?P<minutes>\d+)M)?((?P<seconds>\d+)S)?")
 
+
 class TimeFormatConversionError(Exception):
     "Generic timeformatconversion error."
+
 
 def iso_duration_to_seconds(duration):
     "Convert a time duration in ISO 8601 format to seconds (only integer parts)."
@@ -49,6 +51,7 @@ def iso_duration_to_seconds(duration):
     if match_obj.group("seconds"):
         secs += int(match_obj.group("seconds"))
     return secs
+
 
 def seconds_to_iso_duration(nr_secs):
     "Make interval string in format PT... from time in seconds."
@@ -66,6 +69,7 @@ def seconds_to_iso_duration(nr_secs):
     if seconds > 0 or period == "PT":
         period += "%dS" % seconds
     return period
+
 
 def make_timestamp(time_in_s):
     "Return timestamp as string."

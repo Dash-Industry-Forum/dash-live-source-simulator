@@ -28,14 +28,16 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 
 import unittest
+from os.path import join
 
-from dash_test_util import *
+from dashlivesim.tests.dash_test_util import rm_outfile, write_data_to_outfile, CONTENT_ROOT
 from dashlivesim.dashlib import segmentmuxer
 
 V1_INIT = join(CONTENT_ROOT, "testpic/V1/init.mp4")
 A1_INIT = join(CONTENT_ROOT, "testpic/A1/init.mp4")
 V1_1 = join(CONTENT_ROOT, "testpic/V1/1.m4s")
 A1_1 = join(CONTENT_ROOT, "testpic/A1/1.m4s")
+
 
 class TestInitMuxing(unittest.TestCase):
 
