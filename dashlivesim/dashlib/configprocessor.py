@@ -65,11 +65,13 @@ class Config(object):
 
         self.availability_start_time_in_s = DEFAULT_AVAILABILITY_STARTTIME_IN_S
         self.availability_time_offset_in_s = DEFAULT_AVAILABILITY_TIME_OFFSET_IN_S
+        self.availability_time_complete = True
         self.suggested_presentation_delay_in_s = None  # Not set
         self.availability_end_time = None
         self.media_presentation_duration = None
         self.timeshift_buffer_depth_in_s = None
         self.minimum_update_period_in_s = None
+        self.chunk_duration_in_s = None
         self.modulo_period = None
         self.last_segment_numbers = []  # The last segment number in every period.
         self.init_seg_avail_offset = 0  # The number of secs before AST that one can fetch the init segments
@@ -341,7 +343,7 @@ class ConfigProcessor(object):
                     "insertad", "mpdcallback", "continuous", "segtimeline",
                     "segtimelinenr", "baseurl", "peroff", "scte35", "utc",
                     "snr", "ato", "spd", "sidx", "segtimelineloss",
-                    "sts", "sid")
+                    "sts", "sid", "chunkdur")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -478,6 +480,14 @@ class ConfigProcessor(object):
             elif key == "segtimelineloss":  # If segment timeline loss case signalled.
                 if int(value) == 1:
                     cfg.segtimelineloss = True
+            elif key == "chunkdur":   # Chunkdur
+                try:
+                    chunk_duration = float(value)
+                    if 0.0 < chunk_duration:
+                        cfg.chunk_duration_in_s = chunk_duration
+                        cfg.availability_time_complete = False
+                except ValueError:
+                    pass
             else:
                 raise ConfigProcessorError("Cannot interpret option %s properly" % key)
             url_pos += 1
