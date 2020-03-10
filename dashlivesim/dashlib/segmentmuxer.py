@@ -30,8 +30,8 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-from .mp4filter import MP4Filter
-from .structops import uint32_to_str, str_to_uint32
+from dashlivesim.dashlib.mp4filter import MP4Filter
+from dashlivesim.dashlib.structops import uint32_to_str, str_to_uint32
 
 
 class InitSegmentStructure(MP4Filter):

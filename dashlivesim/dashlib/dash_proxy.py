@@ -65,13 +65,15 @@ For infinite content, the default is startNumber = 0, availabilityStartTime = 19
 from os.path import splitext, join
 from math import ceil
 from re import findall
-from .initsegmentfilter import InitLiveFilter
-from .mediasegmentfilter import MediaSegmentFilter
-from . import segmentmuxer
-from . import mpdprocessor
-from .timeformatconversions import make_timestamp, seconds_to_iso_duration
-from .configprocessor import ConfigProcessor
 from xml.etree import ElementTree as ET
+
+from dashlivesim.dashlib.initsegmentfilter import InitLiveFilter
+from dashlivesim.dashlib.mediasegmentfilter import MediaSegmentFilter
+from dashlivesim.dashlib import segmentmuxer
+from dashlivesim.dashlib import mpdprocessor
+from dashlivesim.dashlib.timeformatconversions import make_timestamp, seconds_to_iso_duration
+from dashlivesim.dashlib.configprocessor import ConfigProcessor
+
 
 SECS_IN_DAY = 24 * 3600
 DEFAULT_MINIMUM_UPDATE_PERIOD = "P100Y"

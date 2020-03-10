@@ -32,7 +32,7 @@ The filter is streamlined for DASH or other content with one track per file.
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-from .structops import str_to_uint32, uint32_to_str
+from dashlivesim.dashlib.structops import str_to_uint32, uint32_to_str
 
 
 class MP4FilterError(BaseException):

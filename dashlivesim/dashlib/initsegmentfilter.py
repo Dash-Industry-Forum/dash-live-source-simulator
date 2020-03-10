@@ -29,8 +29,8 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-from .structops import str_to_uint32
-from .mp4filter import MP4Filter
+from dashlivesim.dashlib.structops import str_to_uint32
+from dashlivesim.dashlib.mp4filter import MP4Filter
 
 
 class InitFilter(MP4Filter):
