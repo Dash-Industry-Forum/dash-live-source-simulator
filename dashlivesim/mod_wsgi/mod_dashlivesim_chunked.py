@@ -1,4 +1,4 @@
-"WSGI Module for dash-live-source-simulator"
+"WSGI Module for dash-live-source-simulator-chunked."
 
 # The copyright in this software is being made available under the BSD License,
 # included below. This software may be subject to other third party and contributor
@@ -38,7 +38,7 @@ from os.path import splitext
 from urllib.parse import urlparse, parse_qs
 from time import time
 
-from dashlivesim.dashlib import dash_proxy, sessionid
+from dashlivesim.dashlib import dash_proxy_gen, sessionid
 from dashlivesim import SERVER_AGENT
 
 MAX_SESSION_LENGTH = 0  # If non-zero,  limit sessions via redirect
@@ -65,8 +65,8 @@ chunk_hdrs = [('Accept-Ranges', 'bytes'),
               ('Access-Control-Expose-Headers', 'Server,range,Content-Length,Content-Range,Date')]
 
 
-def reply(status_code, resp, body='', headers={}):
-    "Create reply."
+def add_headers(status_code, resp, headers={}):
+    "Add HTTP status and headers to resp."
     status = "%d %s" % (status_code, status_string[status_code])
 
     # Add default headers to all requests
@@ -80,17 +80,7 @@ def reply(status_code, resp, body='', headers={}):
     headers['Access-Control-Allow-Origin'] = '*'
     headers['Access-Control-Expose-Headers'] = 'Server,range,Content-Length,Content-Range,Date'
 
-    if isinstance(body, str):
-        body = body.encode('utf-8')  # Ensure that output is bytes
-
-    if body:
-        headers['Content-Length'] = str(len(body))
-        if 'Content-Type' not in headers:
-            headers['Content-Type'] = 'text/plain'
-
     resp(status, list(headers.items()))
-    return [body]
-
 
 # pylint: disable=too-many-branches, too-many-locals
 def application(environment, start_response):
@@ -127,77 +117,56 @@ def application(environment, start_response):
             new_url += hostname + '/'.join(path_parts)
             if query:
                 new_url += '?' + query
-            return reply(302, start_response, b"", {'Location': new_url})
+            add_headers(302, start_response, {'Location': new_url})
+            return
         elif start_time is None:
-            return reply(404, start_response,
-                         'No start_time in non-manifest request')
+            add_headers(404, start_response)
+            return b'No start_time in non-manifest request'
         else:
             if now > start_time + MAX_SESSION_LENGTH:
-                return reply(410, start_response,
-                             "Maximum session length %ds passed" % MAX_SESSION_LENGTH)
+                add_headers(410, start_response)
+                return ("Maximum session length %ds passed" % MAX_SESSION_LENGTH).encode('utf-8')
             elif start_time > now + 5:  # Give some margin
-                return reply(404, start_response, 'start_time is in future')
-
-    range_line = None
-    if 'HTTP_RANGE' in environment:
-        range_line = environment['HTTP_RANGE']
+                add_headers(404, start_response)
+                return b'start_time is in future'
 
     success = True
-    mimetype = get_mime_type(ext)
-    status_code = 200
-    payload_in = None
+    mime_type = get_mime_type(ext)
+    payload = None
 
     try:
-        response = dash_proxy.handle_request(hostname, path_parts[1:], args,
-                                             vod_conf_dir, content_root, now,
-                                             None, is_https)
-
-        if isinstance(response, bytes) or isinstance(response, str):
-            payload_in = response
-            if not payload_in:
-                success = False
-        elif isinstance(response, dict):
-            if not response['ok']:
-                success = False
-            payload_in = response['pl']
-
+        response = dash_proxy_gen.handle_request(hostname, path_parts[1:], args,
+                                                 vod_conf_dir, content_root, now,
+                                                 None, is_https)
     # pylint: disable=broad-except
     except Exception as exc:
-        success = False
         traceback.print_exc()
-        payload_in = "DASH Proxy Error: {0}\n URL={1}".format(exc, url)
+        add_headers(500, start_response, {'Content-Type': "text/plain"})
+        return ("DASH Proxy Error: {0}\n URL={1}".format(exc, url)).encode('utf-8')
 
-    if not success:
-        if not payload_in:
-            payload_in = "Not found (now)"
+    for part_nr, chunk in enumerate(response):
+        if isinstance(chunk, bytes) or isinstance(chunk, str):
+            payload = chunk
+            if not payload:
+                success = False
+        elif isinstance(chunk, dict):
+            if not response['ok']:
+                success = False
+            payload = response['pl']
 
-        status_code = 404
-        mimetype = "text/plain"
+        if not success:
+            if not payload:
+                payload_in = "Not found (now)"
+            add_headers(404, start_response, {'Content-Type': "text/plain"})
+            return payload.encode('utf-8')
 
-    payload_out = payload_in
+        if part_nr == 0:
+            add_headers(200, start_response, {'Content-Type': mime_type})
 
-    # Setup response headers
-    headers = {'Content-Type': mimetype}
+        if isinstance(payload, str):
+            payload = payload.encode('utf-8')
 
-    if status_code != 404:
-        if range_line:
-            payload_out, range_out = handle_byte_range(payload_in, range_line)
-            if range_out != "":  # OK
-                headers['Content-Range'] = range_out
-                status_code = 206
-            else:  # Bad range, drop it
-                print("mod_dash_handler: Bad range {0}".format(range_line))
-
-    if type(response) == type(Generator):
-        first_chunk = True
-        for chunk in response:
-            if first_chunk:
-                first_chunk = False
-                start_response('200 OK', chunk_hdrs)
-            yield chunk
-        return
-
-    yield reply(status_code, start_response, payload_out, headers)
+        yield payload
 
 
 def get_mime_type(ext):
@@ -210,38 +179,6 @@ def get_mime_type(ext):
         return "video/mp4"
 
     return "text/plain"
-
-
-def handle_byte_range(payload, range_line):
-    """Handle byte range and return data and range-header value.
-    If range is strange, return empty string."""
-    range_parts = range_line.split("=")[-1]
-    ranges = range_parts.split(",")
-    if len(ranges) > 1:
-        return (payload, None)
-    length = len(payload)
-    range_interval = ranges[0]
-    range_start, range_end = range_interval.split("-")
-    bad_range = False
-    if range_start == "" and range_end != "":
-        # This is the rangeStart lasts bytes
-        range_start = length - int(range_end)
-        range_end = length - 1
-    elif range_start != "":
-        range_start = int(range_start)
-        if range_end != "":
-            range_end = min(int(range_end), length-1)
-        else:
-            range_end = length-1
-    else:
-        bad_range = True
-    if range_end < range_start:
-        bad_range = True
-    if bad_range:
-        return (payload, "")
-    ranged_payload = payload[range_start: range_end+1]
-    range_response = "bytes %d-%d/%d" % (range_start, range_end, len(payload))
-    return (ranged_payload, range_response)
 
 
 def main():
