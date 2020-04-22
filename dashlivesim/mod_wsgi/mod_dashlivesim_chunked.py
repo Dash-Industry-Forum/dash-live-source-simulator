@@ -144,19 +144,19 @@ def application(environment, start_response):
         add_headers(500, start_response, {'Content-Type': "text/plain"})
         return ("DASH Proxy Error: {0}\n URL={1}".format(exc, url)).encode('utf-8')
 
-    for part_nr, chunk in enumerate(response):
-        if isinstance(chunk, bytes) or isinstance(chunk, str):
-            payload = chunk
+    for part_nr, response_chunk in enumerate(response):
+        if isinstance(response_chunk, bytes) or isinstance(response_chunk, str):
+            payload = response_chunk
             if not payload:
                 success = False
-        elif isinstance(chunk, dict):
-            if not response['ok']:
+        elif isinstance(response_chunk, dict):
+            if not response_chunk['ok']:
                 success = False
-            payload = response['pl']
+            payload = response_chunk['pl']
 
         if not success:
             if not payload:
-                payload_in = "Not found (now)"
+                payload = "Not found (now)"
             add_headers(404, start_response, {'Content-Type': "text/plain"})
             return payload.encode('utf-8')
 
