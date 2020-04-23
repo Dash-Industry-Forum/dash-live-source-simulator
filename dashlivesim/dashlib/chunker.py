@@ -31,7 +31,7 @@
 
 from time import time, sleep
 
-from dashlivesim.dashlib.mp4 import mp4, trex_box
+from dashlivesim.dashlib.mp4 import mp4
 from dashlivesim.dashlib.boxes import create_moof, create_mdat, Sample
 
 
@@ -85,30 +85,17 @@ def encode_chunked(seqno, track_id, samples, duration):
         yield create_mdat(chunk_samples)
 
 
-def chunk(data, duration, init_data=None):
+def chunk(data, duration, trex_box):
     root = mp4(data)
     mfhd = root.find(b'moof.mfhd')
     tfhd = root.find(b'moof.traf.tfhd')
-    # init_root = mp4(init_data)
-    # trex = root.find('moov.trex')
-    # TODO! Add init_data to call and parse trex from moov!
-    trex = trex_box(b'\x00\x00\x00\x20'  # size
-                    b'trex'              # type
-                    b'\x00'              # version
-                    b'\x00\x00\x00'      # flags
-                    b'\x00\x00\x00\x01'  # track_ID
-                    b'\x00\x00\x00\x01'  # default_sample_description_index
-                    b'\x00\x00\x02\x00'  # default_sample_duration
-                    b'\x00\x00\x00\x00'  # default_sample_size
-                    b'\x02\x00\x00\x00', # default_sample_flags
-                    b'trex', 0x20, 0x0)
 
     seqno = mfhd.seqno
     track_id = tfhd.track_id
 
     boxes = encode_chunked(seqno,
                            track_id,
-                           decode_fragment(data, trex),
+                           decode_fragment(data, trex_box),
                            duration)
     for moof, mdat in zip(boxes, boxes):
         yield moof.serialize()+mdat.serialize()
@@ -124,9 +111,10 @@ def simulate_continuous_production(segment, segment_start, chunk_duration, now_f
         if time_until_available > 0:
             now_float = time()  # Update time
             time_until_available = chunk_availability_time - now_float
-            # print('Chunk %d was delayed by %fs, until %fs' % (i, time_until_available, chunk_availability_time))
+            print('Chunk %d was delayed by %fs, until %fs' % (i, time_until_available, chunk_availability_time))
             if time_until_available > 0:
                 sleep(time_until_available)
+                print('Chunk %d was delayed by %fs, until %fs' % (i, time_until_available, chunk_availability_time))
         yield chunk
 
 

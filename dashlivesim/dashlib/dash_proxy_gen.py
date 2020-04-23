@@ -548,9 +548,9 @@ class DashProvider(object):
             yield self.error_response("No support for multiplexed segments")
             return
         if cfg.chunk_duration_in_s:
-            trex_default_dur = self.filter_trex_default_dur(cfg, rel_path)
+            trex_data = self.get_trex_data(cfg, rel_path)
             segment = self.filter_media_segment(cfg, cfg.reps[0], rel_path, vod_nr, seg_nr, seg_ext,
-                                                offset_at_loop_start, lmsg, trex_default_dur)
+                                                offset_at_loop_start, lmsg, trex_data)
             for chunk in chunker.simulate_continuous_production(segment, seg_time, cfg.chunk_duration_in_s, now_float):
                 yield chunk
         else:
@@ -558,25 +558,26 @@ class DashProvider(object):
                                                  offset_at_loop_start, lmsg):
                 yield seg
 
-    def filter_trex_default_dur(self, cfg, rel_path):
-        "Get default duration from trex box in init segment"
+    def get_trex_data(self, cfg, rel_path):
+        "Get object which has default_sample_duration and other trex data."
         init_file = join(self.content_dir, cfg.content_name, rel_path, "init.mp4")
         init_filter = InitFilter(init_file)
         init_filter.filter()
-        return init_filter.default_sample_duration
+        return init_filter
 
     # pylint: disable=too-many-arguments
     def filter_media_segment(self, cfg, rep, rel_path, vod_nr, seg_nr, seg_ext, offset_at_loop_start, lmsg,
-                             default_sample_duration=None):
+                             trex_data=None):
         "Filter an actual media segment by using time-scale from init segment."
         media_seg_file = join(self.content_dir, cfg.content_name, rel_path, "%d%s" % (vod_nr, seg_ext))
         timescale = rep['timescale']
         scte35_per_minute = (rep['content_type'] == 'video') and cfg.scte35_per_minute or 0
         is_ttml = rep['content_type'] == 'subtitles'
+        default_sample_duration = trex_data.default_sample_duration if trex_data is not None else None
         seg_filter = MediaSegmentFilter(media_seg_file, seg_nr, cfg.seg_duration, offset_at_loop_start, lmsg, timescale,
                                         scte35_per_minute, rel_path,
                                         is_ttml,
-                                        default_sample_duration=default_sample_duration,
+                                        default_sample_duration,
                                         insert_sidx=cfg.insert_sidx, emsg_last_seg=cfg.emsg_last_seg,
                                         now=self.now)
         seg_content = seg_filter.filter()
@@ -584,7 +585,7 @@ class DashProvider(object):
 
         if cfg.chunk_duration_in_s is not None:
             chunk_duration = int(cfg.chunk_duration_in_s * timescale)
-            for chunk in chunker.chunk(seg_content, chunk_duration):
+            for chunk in chunker.chunk(seg_content, chunk_duration, trex_data):
                 yield chunk
         else:
             yield seg_content
