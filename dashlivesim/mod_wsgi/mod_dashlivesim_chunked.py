@@ -65,22 +65,16 @@ chunk_hdrs = [('Accept-Ranges', 'bytes'),
               ('Access-Control-Expose-Headers', 'Server,range,Content-Length,Content-Range,Date')]
 
 
-def add_headers(status_code, resp, headers={}):
+def add_headers(status_code, resp, extra_headers={}):
     "Add HTTP status and headers to resp."
     status = "%d %s" % (status_code, status_string[status_code])
 
-    # Add default headers to all requests
-    headers['Accept-Ranges'] = 'bytes'
-    headers['Pragma'] = 'no-cache'
-    headers['Cache-Control'] = 'no-cache'
-    headers['Expires'] = '-1'
-    headers['DASH-Live-Simulator'] = SERVER_AGENT
-    headers['Access-Control-Allow-Headers'] = 'origin,range,accept-encoding,referer'
-    headers['Access-Control-Allow-Methods'] = 'GET,HEAD,OPTIONS'
-    headers['Access-Control-Allow-Origin'] = '*'
-    headers['Access-Control-Expose-Headers'] = 'Server,range,Content-Length,Content-Range,Date'
+    headers = chunk_hdrs[:]
+    for key, value in extra_headers.items():
+        headers.append((key, value))
 
-    resp(status, list(headers.items()))
+    resp(status, headers)
+
 
 # pylint: disable=too-many-branches, too-many-locals
 def application(environment, start_response):
@@ -166,7 +160,9 @@ def application(environment, start_response):
         if isinstance(payload, str):
             payload = payload.encode('utf-8')
 
+        # print("Time passed for part %d is %.3fs" % (part_nr, time() - now))
         yield payload
+    # print("Time passed after last is %.3fs" % (time() - now))
 
 
 def get_mime_type(ext):
