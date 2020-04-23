@@ -547,15 +547,15 @@ class DashProvider(object):
         if nr_reps > 1:  # Muxed
             yield self.error_response("No support for multiplexed segments")
             return
+        trex_data = self.get_trex_data(cfg, rel_path)
         if cfg.chunk_duration_in_s:
-            trex_data = self.get_trex_data(cfg, rel_path)
             segment = self.filter_media_segment(cfg, cfg.reps[0], rel_path, vod_nr, seg_nr, seg_ext,
                                                 offset_at_loop_start, lmsg, trex_data)
             for chunk in chunker.simulate_continuous_production(segment, seg_time, cfg.chunk_duration_in_s, now_float):
                 yield chunk
         else:
             for seg in self.filter_media_segment(cfg, cfg.reps[0], rel_path, vod_nr, seg_nr, seg_ext,
-                                                 offset_at_loop_start, lmsg):
+                                                 offset_at_loop_start, lmsg, trex_data):
                 yield seg
 
     def get_trex_data(self, cfg, rel_path):
