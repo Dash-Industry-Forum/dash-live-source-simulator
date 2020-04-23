@@ -117,14 +117,16 @@ def chunk(data, duration, init_data=None):
 def simulate_continuous_production(segment, segment_start, chunk_duration, now_float):
     "Simulate continuous production by producing as many chunks as time allows."
 
-    start = time()
     # print('Segment requested at %fs' % now_float)
     for i, chunk in enumerate(segment, start=1):
         chunk_availability_time = segment_start + i * chunk_duration
-        time_until_available = chunk_availability_time - (now_float + time() - start)
+        time_until_available = chunk_availability_time - now_float
         if time_until_available > 0:
+            now_float = time()  # Update time
+            time_until_available = chunk_availability_time - now_float
             # print('Chunk %d was delayed by %fs, until %fs' % (i, time_until_available, chunk_availability_time))
-            sleep(time_until_available)
+            if time_until_available > 0:
+                sleep(time_until_available)
         yield chunk
 
 
