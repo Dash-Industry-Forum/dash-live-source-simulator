@@ -81,8 +81,7 @@ def partition(samples, duration):
 
 def encode_chunked(seqno, track_id, samples, duration):
     for chunk_samples in partition(samples, duration):
-        yield create_moof(seqno, track_id, chunk_samples, None)
-        yield create_mdat(chunk_samples)
+        yield (create_moof(seqno, track_id, chunk_samples, None), create_mdat(chunk_samples))
 
 
 def chunk(data, duration, trex_box):
@@ -93,12 +92,12 @@ def chunk(data, duration, trex_box):
     seqno = mfhd.seqno
     track_id = tfhd.track_id
 
-    boxes = encode_chunked(seqno,
-                           track_id,
-                           decode_fragment(data, trex_box),
-                           duration)
-    for moof, mdat in zip(boxes, boxes):
-        yield moof.serialize()+mdat.serialize()
+    fragments = encode_chunked(seqno,
+                               track_id,
+                               decode_fragment(data, trex_box),
+                               duration)
+    for moof, mdat in fragments:
+        yield moof.serialize() + mdat.serialize()
 
 
 def simulate_continuous_production(segment, segment_start, chunk_duration, now_float):
@@ -111,10 +110,10 @@ def simulate_continuous_production(segment, segment_start, chunk_duration, now_f
         if time_until_available > 0:
             now_float = time()  # Update time
             time_until_available = chunk_availability_time - now_float
-            print('Chunk %d was delayed by %fs, until %fs' % (i, time_until_available, chunk_availability_time))
+            #print('Chunk %d was delayed by %fs, until %fs' % (i, time_until_available, chunk_availability_time))
             if time_until_available > 0:
                 sleep(time_until_available)
-                print('Chunk %d was delayed by %fs, until %fs' % (i, time_until_available, chunk_availability_time))
+                #print('Chunk %d was delayed by %fs, until %fs' % (i, time_until_available, chunk_availability_time))
         yield chunk
 
 
