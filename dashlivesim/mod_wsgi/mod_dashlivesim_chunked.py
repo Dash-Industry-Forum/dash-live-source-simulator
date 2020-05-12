@@ -54,15 +54,14 @@ status_string = {
     410: 'Gone'
     }
 
-chunk_hdrs = [('Accept-Ranges', 'bytes'),
-              ('Pragma', 'no-cache'),
+chunk_hdrs = [('Pragma', 'no-cache'),
               ('Cache-Control', 'no-cache'),
               ('Expires', '-1'),
               ('DASH-Live-Simulator', SERVER_AGENT),
-              ('Access-Control-Allow-Headers', 'origin,range,accept-encoding,referer'),
+              ('Access-Control-Allow-Headers', 'origin,accept-encoding,referer'),
               ('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS'),
               ('Access-Control-Allow-Origin', '*'),
-              ('Access-Control-Expose-Headers', 'Server,range,Content-Length,Content-Range,Date')]
+              ('Access-Control-Expose-Headers', 'Server,Content-Length,Date')]
 
 
 def add_headers(status_code, resp, extra_headers={}):
@@ -136,7 +135,8 @@ def application(environment, start_response):
     except Exception as exc:
         traceback.print_exc()
         add_headers(500, start_response, {'Content-Type': "text/plain"})
-        return ("DASH Proxy Error: {0}\n URL={1}".format(exc, url)).encode('utf-8')
+        yield "DASH Proxy Error: {0}\n URL={1}".format(exc, url).encode('utf-8')
+        return
 
     for part_nr, response_chunk in enumerate(response):
         if isinstance(response_chunk, bytes) or isinstance(response_chunk, str):
@@ -152,7 +152,8 @@ def application(environment, start_response):
             if not payload:
                 payload = "Not found (now)"
             add_headers(404, start_response, {'Content-Type': "text/plain"})
-            return payload.encode('utf-8')
+            yield payload.encode('utf-8')
+            return
 
         if part_nr == 0:
             add_headers(200, start_response, {'Content-Type': mime_type})
