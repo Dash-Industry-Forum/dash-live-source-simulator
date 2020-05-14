@@ -31,6 +31,7 @@
 
 import time
 import re
+
 RE_DURATION = re.compile(r"PT((?P<hours>\d+)H)?((?P<minutes>\d+)M)?((?P<seconds>\d+)S)?")
 
 
