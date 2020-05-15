@@ -35,7 +35,7 @@
 import traceback
 from os.path import splitext
 from urllib.parse import urlparse, parse_qs
-from time import time
+from time import time, sleep
 
 from dashlivesim.dashlib import dash_proxy, sessionid, mpd_proxy
 from dashlivesim.dashlib.dash_proxy import ChunkedSegment
@@ -101,6 +101,8 @@ def application(environment, start_response):
 
     now = time()
 
+    body = None
+
     if MAX_SESSION_LENGTH:  # Redirect and do limit sessions in time
         # Check if there is a sts_xxx parameter.
         start_time = None
@@ -120,96 +122,109 @@ def application(environment, start_response):
             new_url += hostname + '/'.join(path_parts)
             if query:
                 new_url += '?' + query
-            return full_reply(302, start_response, b"", {'Location': new_url})
+            body = b""
+            start_reply(302, start_response, len(body), {'Location': new_url})
+            body = b""
         elif start_time is None:
-            return full_reply(404, start_response,
-                              b'No start_time in non-manifest request')
-        else:
-            if now > start_time + MAX_SESSION_LENGTH:
-                msg = "Maximum session length %ds passed" % MAX_SESSION_LENGTH
-                return full_reply(410, start_response, msg.encode('utf-8'))
-            elif start_time > now + 5:  # Give some margin
-                return full_reply(404, start_response, b'start_time is in future')
+            body = b'No start_time in non-manifest request'
+            start_reply(404, start_response, len(body))
+        elif now > start_time + MAX_SESSION_LENGTH:
+            msg = "Maximum session length %ds passed" % MAX_SESSION_LENGTH
+            body = msg.encode('utf-8')
+            start_reply(410, start_response, len(body))
+        elif start_time > now + 5:  # Give some margin
+            body = b'start_time is in future'
+            start_reply(404, start_response, len(body))
 
-    range_line = None
-    if 'HTTP_RANGE' in environment:
-        range_line = environment['HTTP_RANGE']
+    if body is not None:
+        yield body
+    else:
+        range_line = None
+        if 'HTTP_RANGE' in environment:
+            range_line = environment['HTTP_RANGE']
 
-    success = True
-    mimetype = get_mime_type(ext)
-    status_code = 200
-    payload_in = None
-    chunk = chunk_out = False
+        success = True
+        mimetype = get_mime_type(ext)
+        status_code = 200
+        payload_in = None
+        chunk = chunk_out = False
 
-    try:
-        dashProv = dash_proxy.createProvider(hostname, path_parts[1:], args,
-                                             vod_conf_dir, content_root, now,
-                                             None, is_https)
-        cfg = dashProv.cfg
-        ext = cfg.ext
-        if ext == ".m4s":
-            chunk = cfg.chunk_duration_in_s > 0
-            response = dash_proxy.get_media(dashProv, chunk)
-            if isinstance(response, ChunkedSegment):
-                chunk_out = True
-        elif ext in (".mpd", ".period"):
-            response = mpd_proxy.get_mpd(dashProv)
-        elif ext == ".mp4":
-            response = dash_proxy.get_init(dashProv)
-        elif ext == ".jpg":
-            response = dash_proxy.get_media(dashProv)
-        if isinstance(response, bytes) or isinstance(response, str) or chunk_out:
-            if isinstance(response, str):
-                response = response.encode('utf-8')
-            payload_in = response
+        try:
+            dashProv = dash_proxy.createProvider(hostname, path_parts[1:], args,
+                                                 vod_conf_dir, content_root, now,
+                                                 None, is_https)
+            cfg = dashProv.cfg
+            ext = cfg.ext
+            if ext == ".m4s":
+                if cfg.chunk_duration_in_s is not None and cfg.chunk_duration_in_s > 0:
+                    chunk = True
+                response = dash_proxy.get_media(dashProv, chunk)
+                if isinstance(response, ChunkedSegment):
+                    chunk_out = True
+            elif ext in (".mpd", ".period"):
+                response = mpd_proxy.get_mpd(dashProv)
+            elif ext == ".mp4":
+                response = dash_proxy.get_init(dashProv)
+            elif ext == ".jpg":
+                response = dash_proxy.get_media(dashProv)
+            if isinstance(response, bytes) or isinstance(response, str) or chunk_out:
+                if isinstance(response, str):
+                    response = response.encode('utf-8')
+                payload_in = response
+                if not payload_in:
+                    success = False
+            else:
+                if not response['ok']:
+                    success = False
+                payload_in = response['pl']
+
+        # pylint: disable=broad-except
+        except Exception as exc:
+            success = False
+            traceback.print_exc()
+            payload_in = "DASH Proxy Error: {0}\n URL={1}".format(exc, url)
+
+        if not success:
             if not payload_in:
-                success = False
+                payload_in = "Not found (now)"
+
+            status_code = 404
+            mimetype = "text/plain"
+
+        if isinstance(payload_in, str):
+            payload_in = payload_in.encode('utf-8')
+        payload_out = payload_in
+
+        # Setup response headers
+        headers = {'Content-Type': mimetype}
+
+        if status_code != 404:
+            if range_line and not chunk_out:
+                payload_out, range_out = handle_byte_range(payload_in, range_line)
+                if range_out != "":  # OK
+                    headers['Content-Range'] = range_out
+                    status_code = 206
+                else:  # Bad range, drop it
+                    print("mod_dash_handler: Bad range {0}".format(range_line))
+
+        if not chunk_out:
+            start_reply(status_code, start_response, len(payload_out), headers)
+            yield payload_out
         else:
-            if not response['ok']:
-                success = False
-            payload_in = response['pl']
-
-    # pylint: disable=broad-except
-    except Exception as exc:
-        success = False
-        traceback.print_exc()
-        payload_in = "DASH Proxy Error: {0}\n URL={1}".format(exc, url)
-
-    if not success:
-        if not payload_in:
-            payload_in = "Not found (now)"
-
-        status_code = 404
-        mimetype = "text/plain"
-
-    payload_out = payload_in
-
-    # Setup response headers
-    headers = {'Content-Type': mimetype}
-
-    if status_code != 404:
-        if range_line and not chunk_out:
-            payload_out, range_out = handle_byte_range(payload_in, range_line)
-            if range_out != "":  # OK
-                headers['Content-Range'] = range_out
-                status_code = 206
-            else:  # Bad range, drop it
-                print("mod_dash_handler: Bad range {0}".format(range_line))
-
-    if not chunk_out:
-        return full_reply(status_code, start_response, payload_out, headers)
-
-
-    # Now we have the chunked case left
-    #start_reply(status_code, start_response, headers)
-    #for i, chk in enumerate(payload_in.chunks):
-    #    send_time = payload_in.seg_time + i * cfg.chunk_duration_in_s
-    #    if send_time > now:
-    #        yield chk
-    #    else:
-    #        time.sleep(now - send_time)
-    #        now = time.time()
-    #return
+            start_reply(status_code, start_response, -1, headers)
+            now_float = now
+            seg_start = payload_out.seg_start
+            chunk_dur = cfg.chunk_duration_in_s
+            margin = 0.1  # Make available 100ms before the formal time
+            for i, chunk in enumerate(payload_out.chunks, start=1):
+                now_float = time()  # Update time
+                chunk_availability_time = seg_start + i * chunk_dur - margin
+                time_until_available = chunk_availability_time - now_float
+                # print("%d time_until_available %.3f" % (i, time_until_available))
+                if time_until_available > 0:
+                    #print("Sleeping for %.3f" % time_until_available)
+                    sleep(time_until_available)
+                yield chunk
 
 
 def get_mime_type(ext):

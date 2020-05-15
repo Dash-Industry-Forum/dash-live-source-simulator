@@ -182,7 +182,7 @@ class MediaSegmentFilter(MP4Filter):
             if sample_duration_present:
                 duration += str_to_uint32(data[pos:pos+4])
                 pos += 4
-            else:
+            elif self.default_sample_duration is not None:
                 duration += self.default_sample_duration
             if sample_size_present:
                 pos += 4

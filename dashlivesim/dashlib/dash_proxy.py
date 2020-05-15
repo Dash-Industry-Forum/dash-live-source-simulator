@@ -221,7 +221,6 @@ def process_media_segment(dashProv, now_float, chunk):
                 timescale = rep['timescale']
                 break
         return timescale
-    chunk = True
     cfg = dashProv.cfg
     seg_dur = cfg.seg_duration
     seg_name = cfg.filename
@@ -273,7 +272,8 @@ def process_media_segment(dashProv, now_float, chunk):
                                                offset_at_loop_start, lmsg, trex_data)
             # Here we shall return seg_time (when the segment start to be produced)
             # and then each chunk should be delivered at seg_time + (i+1) * chunk_dur
-            chunks = [chk for chk in chunker.chunk(seg_content, cfg.chunk_duration_in_s, trex_data)]
+            dur = int(cfg.chunk_duration_in_s * cfg.reps[0]['timescale'])
+            chunks = [chk for chk in chunker.chunk(seg_content, dur, trex_data)]
             return ChunkedSegment(seg_time, chunks)
         else:
             seg_content = filter_media_segment(dashProv, cfg.reps[0], rel_path, vod_nr, seg_nr, seg_ext,
@@ -303,8 +303,8 @@ def get_trex_data(dashProv, rel_path):
 
 # pylint: disable=too-many-arguments
 def filter_media_segment(dashProv, rep, rel_path, vod_nr, seg_nr, seg_ext, offset_at_loop_start, lmsg, trex_data=None):
-    cfg = dashProv.cfg
     "Filter an actual media segment by using time-scale from init segment."
+    cfg = dashProv.cfg
     media_seg_file = join(dashProv.content_dir, cfg.content_name, rel_path, "%d%s" % (vod_nr, seg_ext))
     timescale = rep['timescale']
     scte35_per_minute = (rep['content_type'] == 'video') and cfg.scte35_per_minute or 0
