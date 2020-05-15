@@ -2,7 +2,7 @@
 # included below. This software may be subject to other third party and contributor
 # rights, including patent rights, and no such rights are granted under this license.
 #
-# Copyright (c) 2015, Dash Industry Forum.
+# Copyright (c) 2020, Dash Industry Forum.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without modification,
@@ -28,37 +28,20 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 
 import unittest
-import xml.etree.ElementTree as ET
 
-from dashlivesim.tests.dash_test_util import VOD_CONFIG_DIR, CONTENT_ROOT
-from dashlivesim.dashlib import dash_proxy, mpd_proxy
-from dashlivesim.dashlib import mpdprocessor
+from dashlivesim.dashlib import ttml_timing_offset
 
 
-class TestXlinkPeriod(unittest.TestCase):
+TTML_IN = b'<p begin="00:00:00" end="01:00:00.25>Segment # 12 swe : 00:00:30</p>'
+TTML_OUT = b'<p begin="00:00:22" end="01:00:22.25>Segment # 24 swe : UTC = 1970-01-01T00:00:52Z</p>'
 
-    def setUp(self):
-        self.old_set_baseurl_value = mpdprocessor.SET_BASEURL
-        mpdprocessor.SET_BASEURL = True
+# TIME_PATTERN_S = re.compile(rb'(?P<attr>(begin|end))="(?P<hours>\d\d):(?P<minutes>\d\d):(?P<seconds>\d\d)')
+# CONTENT_PATTERN_S = re.compile(rb'(?P<lang>\w+) : (?P<hours>\d\d):(?P<minutes>\d\d):(?P<seconds>\d\d)(\.\d+)?')
+# CONTENT_PATTERN_SEGMENT = re.compile(rb'(?P<intro>Segment # )(?P<seg_nr>\d+)')
 
-    def tearDown(self):
-        mpdprocessor.SET_BASEURL = self.old_set_baseurl_value
 
-    def testMpdPeriodReplaced(self):
-        "Check whether before every xlink period, duration attribute has been inserted."
-        collect_result = []
-        urlParts = ['livesim', 'periods_60', 'xlink_30', 'insertad_1', 'testpic_2s', 'Manifest.mpd']
-        dp = dash_proxy.DashProvider("10.4.247.98", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10000)
-        d = mpd_proxy.get_mpd(dp)
-        xml = ET.fromstring(d)
-        # Make the string as a xml document.
-        # In the following, we will check if for every period before every xlink period, duration attribute has been
-        # added or not.
-        prev_child = []
-        for child in xml.findall('{urn:mpeg:dash:schema:mpd:2011}Period'):  # Collect all period elements first
-            if '{http://www.w3.org/1999/xlink}actuate' in child.attrib:
-                # If the period element has the duration attribute.
-                collect_result.append('duration' in prev_child.attrib)  # Then collect its period id in this
-            prev_child = child
-        # Ideally, at the periods should have a duration attribute, if no then the test fails.
-        self.assertFalse(False in collect_result)
+class TestTTMLTimeUpdate(unittest.TestCase):
+
+    def testUpdateTTMLTime(self):
+        outbytes = ttml_timing_offset.adjust_ttml_content(TTML_IN, 22, 24)
+        self.assertEqual(outbytes, TTML_OUT)

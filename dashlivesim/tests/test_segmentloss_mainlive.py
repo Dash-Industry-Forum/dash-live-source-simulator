@@ -31,7 +31,7 @@ import unittest
 
 from dashlivesim.tests.dash_test_util import VOD_CONFIG_DIR, CONTENT_ROOT
 from dashlivesim.tests.dash_test_util import write_data_to_outfile
-from dashlivesim.dashlib import dash_proxy
+from dashlivesim.dashlib import dash_proxy, mpd_proxy
 # from dashlivesim.dashlib import mpdprocessor
 
 
@@ -52,40 +52,40 @@ class TestSegTimelineLossMainLive(unittest.TestCase):
     def testNoInbandStreamElemInMPD(self):
         urlParts = ['livesim', 'baseurl_u10_d20', 'segtimeline_1', 'segtimelineloss_1', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=60)
-        d = dp.handle_request()
+        d = mpd_proxy.get_mpd(dp)
         inbandEventElement = d.find('<InbandEventStream')
         self.assertLess(inbandEventElement, 0)
 
     def testInbandStreamElemInMPD(self):
         urlParts = ['livesim', 'baseurl_u10_d20', 'segtimeline_1', 'segtimelineloss_1', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10)
-        d = dp.handle_request()
+        d = mpd_proxy.get_mpd(dp)
         inbandEventElement = d.find("<InbandEventStream")
         self.assertGreater(inbandEventElement, 0)
 
     def testNoEmsgInSegment(self):
         urlParts = ['livesim', 'baseurl_u10_d20', 'segtimeline_1', 'segtimelineloss_1', 'testpic', 'A1', '0.m4s']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=60)
-        d = dp.handle_request()
+        d = dash_proxy.get_media(dp)
         self.assertFalse(isEmsgPresentInSegment(d))
 
     def testEmsgInSegment(self):
         urlParts = ['livesim', 'baseurl_u10_d20', 'segtimeline_1', 'segtimelineloss_1', 'testpic', 'A1', '0.m4s']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10)
-        d = dp.handle_request()
+        d = dash_proxy.get_media(dp)
         self.assertTrue(isEmsgPresentInSegment(d))
 
     def testNoNewSegmentsAdded(self):
         urlParts = ['livesim', 'baseurl_u10_d20', 'segtimeline_1', 'segtimelineloss_1', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10)
-        d = dp.handle_request()
+        d = mpd_proxy.get_mpd(dp)
         start = d.find('<SegmentTimeline>')
         end = d.find('</SegmentTimeline>')
         testOutputFile = "SegTimeline1.txt"
         segTimeline = d[start:end+18]
         write_data_to_outfile(d[start:end+18].encode('utf-8'), testOutputFile)
         dp2 = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=15)
-        d2 = dp2.handle_request()
+        d2 = mpd_proxy.get_mpd(dp2)
         start2 = d2.find('<SegmentTimeline>')
         end2 = d2.find('</SegmentTimeline>')
         testOutputFile = "SegTimeline2.txt"
@@ -96,14 +96,14 @@ class TestSegTimelineLossMainLive(unittest.TestCase):
     def testNewSegmentsAdded(self):
         urlParts = ['livesim', 'baseurl_u10_d20', 'segtimeline_1', 'segtimelineloss_1', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10)
-        d = dp.handle_request()
+        d = mpd_proxy.get_mpd(dp)
         start = d.find('<SegmentTimeline>')
         end = d.find('</SegmentTimeline>')
         testOutputFile = "SegTimeline3.txt"
         write_data_to_outfile(d[start:end+18].encode('utf-8'), testOutputFile)
         segTimeline = d[start:end+18]
         dp2 = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=31)
-        d2 = dp2.handle_request()
+        d2 = mpd_proxy.get_mpd(dp2)
         start2 = d2.find('<SegmentTimeline>')
         end2 = d2.find('</SegmentTimeline>')
         testOutputFile = "SegTimeline4.txt"

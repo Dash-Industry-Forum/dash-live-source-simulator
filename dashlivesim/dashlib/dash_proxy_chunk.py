@@ -337,7 +337,7 @@ class DashProvider(object):
             if mpd_input_data['insertAd'] > 0 and nr_xlink_periods_per_hour < 0:
                 raise Exception("Insert ad option can only be used in conjuction with the xlink option. To use the "
                                 "insert ad option, also set use xlink_m in your url.")
-
+            response = self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, self.now)
             # The following 'if' is for IOP 4.11.4.3 , deployment scenario when segments not found.
             if len(cfg.multi_url) > 0 and cfg.segtimelineloss:  # There is one specific baseURL with losses specified
                 a_var, b_var = cfg.multi_url[0].split("_")
@@ -364,7 +364,7 @@ class DashProvider(object):
             if nr_xlink_periods_per_hour > 0:
                 yield generate_response_with_xlink(response, cfg.ext, cfg.filename, nr_periods_per_hour,
                                                    nr_xlink_periods_per_hour, mpd_input_data['insertAd'])
-            yield self.generate_dynamic_mpd(cfg, mpd_filename, mpd_input_data, self.now)
+                return
         elif cfg.ext == ".mp4":  # Init segment
             if self.now < cfg.availability_start_time_in_s - cfg.init_seg_avail_offset:
                 diff = (cfg.availability_start_time_in_s - cfg.init_seg_avail_offset) - self.now_float
@@ -381,7 +381,7 @@ class DashProvider(object):
             if self.now_float < first_segment_ast:
                 diff = first_segment_ast - self.now_float
                 yield self.error_response("Request %s before first seg AST. %.1fs too early" %
-                                               (cfg.filename, diff))
+                                          (cfg.filename, diff))
             elif (cfg.availability_end_time is not None and
                   self.now > cfg.availability_end_time + EXTRA_TIME_AFTER_END_IN_S):
                 diff = self.now_float - (cfg.availability_end_time + EXTRA_TIME_AFTER_END_IN_S)

@@ -2,7 +2,7 @@
 # included below. This software may be subject to other third party and contributor
 # rights, including patent rights, and no such rights are granted under this license.
 #
-# Copyright (c) 2015, Dash Industry Forum.
+# Copyright (c) 2018, Dash Industry Forum.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without modification,
@@ -27,38 +27,16 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
+import os
 import unittest
-import xml.etree.ElementTree as ET
 
-from dashlivesim.tests.dash_test_util import VOD_CONFIG_DIR, CONTENT_ROOT
-from dashlivesim.dashlib import dash_proxy, mpd_proxy
-from dashlivesim.dashlib import mpdprocessor
+from dashlivesim.tests.dash_test_util import VOD_CONFIG_DIR
+from dashlivesim.dashlib import configprocessor
 
 
-class TestXlinkPeriod(unittest.TestCase):
+class TestConfigProcessor(unittest.TestCase):
 
-    def setUp(self):
-        self.old_set_baseurl_value = mpdprocessor.SET_BASEURL
-        mpdprocessor.SET_BASEURL = True
-
-    def tearDown(self):
-        mpdprocessor.SET_BASEURL = self.old_set_baseurl_value
-
-    def testMpdPeriodReplaced(self):
-        "Check whether before every xlink period, duration attribute has been inserted."
-        collect_result = []
-        urlParts = ['livesim', 'periods_60', 'xlink_30', 'insertad_1', 'testpic_2s', 'Manifest.mpd']
-        dp = dash_proxy.DashProvider("10.4.247.98", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10000)
-        d = mpd_proxy.get_mpd(dp)
-        xml = ET.fromstring(d)
-        # Make the string as a xml document.
-        # In the following, we will check if for every period before every xlink period, duration attribute has been
-        # added or not.
-        prev_child = []
-        for child in xml.findall('{urn:mpeg:dash:schema:mpd:2011}Period'):  # Collect all period elements first
-            if '{http://www.w3.org/1999/xlink}actuate' in child.attrib:
-                # If the period element has the duration attribute.
-                collect_result.append('duration' in prev_child.attrib)  # Then collect its period id in this
-            prev_child = child
-        # Ideally, at the periods should have a duration attribute, if no then the test fails.
-        self.assertFalse(False in collect_result)
+    def testReadVodConfigFile(self):
+        cfg_file = os.path.join(VOD_CONFIG_DIR, 'testpic.cfg')
+        vod_cfg = configprocessor.VodConfig()
+        vod_cfg.read_config(cfg_file)

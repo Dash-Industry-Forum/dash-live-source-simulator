@@ -31,7 +31,7 @@ import unittest
 from xml.etree import ElementTree
 
 from dashlivesim.tests.dash_test_util import VOD_CONFIG_DIR, CONTENT_ROOT, rm_outfile, write_data_to_outfile
-from dashlivesim.dashlib import dash_proxy
+from dashlivesim.dashlib import dash_proxy, mpd_proxy
 
 NAMESPACE = 'urn:mpeg:dash:schema:mpd:2011'
 
@@ -48,7 +48,7 @@ class TestMPDWithSegmentTimeline(unittest.TestCase):
         self.tsbd = 30
         urlParts = ['livesim', 'segtimeline_1', 'tsbd_%d' % self.tsbd, 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
-        self.d = dp.handle_request()
+        self.d = mpd_proxy.get_mpd(dp)
         self.root = ElementTree.fromstring(self.d)
 
     def testThatNumberTemplateFeaturesAreAbsent(self):
@@ -95,7 +95,7 @@ class TestMPDWithSegmentTimeline(unittest.TestCase):
         self.tsbd = 30
         urlParts = ['livesim', 'segtimeline_1', 'tsbd_%d' % self.tsbd, 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
-        self.d = dp.handle_request()
+        self.d = mpd_proxy.get_mpd(dp)
         self.root = ElementTree.fromstring(self.d)
         period = self.root.find(node_ns('Period'))
         for adaptation_set in period.findall(node_ns('AdaptationSet')):
@@ -142,14 +142,13 @@ def find_first_audio_t(root):
         if content_type != 'audio':
             continue
         segment_template = adaptation_set.find(node_ns('SegmentTemplate'))
-        timescale = int(segment_template.attrib['timescale'])
+        # timescale = int(segment_template.attrib['timescale'])
         segment_timeline = segment_template.find(node_ns('SegmentTimeline'))
         first_s_elem = segment_timeline.find(node_ns('S'))
         first_t = int(first_s_elem.attrib['t'])
         first_d = int(first_s_elem.attrib['d'])
         return first_t, first_d
     raise ValueError("Could not find audio adaptation set")
-
 
 
 class TestAvoidJump(unittest.TestCase):
@@ -161,16 +160,16 @@ class TestAvoidJump(unittest.TestCase):
         now = 1578681199
         urlParts = ['livesim', 'segtimeline_1', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
-        d = dp.handle_request()
+        d = mpd_proxy.get_mpd(dp)
         root = ElementTree.fromstring(d)
         first_t, first_d = find_first_audio_t(root)
-        tsbd = 300 # TimeShiftBufferDepth
+        # tsbd = 300 # TimeShiftBufferDepth
         self.assertTrue(now - first_t/48000 > 300, "Did not get before timeshift window start")
 
         later = now + 6
         urlParts = ['livesim', 'segtimeline_1', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=later)
-        d = dp.handle_request()
+        d = mpd_proxy.get_mpd(dp)
         root = ElementTree.fromstring(d)
         second_t, second_d = find_first_audio_t(root)
         self.assertEqual(second_t, first_t + first_d, "Second t is not first t + first d ")
@@ -184,7 +183,7 @@ class TestMPDWithSegmentTimelineWrap(unittest.TestCase):
         self.tsbd = 60
         urlParts = ['livesim', 'segtimeline_1', 'tsbd_%d' % self.tsbd, 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
-        self.d = dp.handle_request()
+        self.d = mpd_proxy.get_mpd(dp)
         self.root = ElementTree.fromstring(self.d)
         nrSegments = self.getNrSegments(self.root)
         self.assertEqual(2*10, nrSegments)
@@ -198,7 +197,7 @@ class TestMPDWithSegmentTimelineWrap(unittest.TestCase):
         dp = dash_proxy.DashProvider("server.org", urlParts, None,
                                      VOD_CONFIG_DIR, CONTENT_ROOT,
                                      now=self.now)
-        self.d = dp.handle_request()
+        self.d = mpd_proxy.get_mpd(dp)
         self.root = ElementTree.fromstring(self.d)
         nrSegments = self.getNrSegments(self.root)
         self.assertEqual(2*10, nrSegments)
@@ -229,7 +228,7 @@ class TestSegmentTimelineInterval(unittest.TestCase):
         urlParts = ['livesim', 'segtimeline_1', 'start_60', 'stop_120',
                     'timeoffset_0', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
-        self.d = dp.handle_request()
+        self.d = mpd_proxy.get_mpd(dp)
         self.root = ElementTree.fromstring(self.d)
 
     def testSegmentList(self):
@@ -267,7 +266,7 @@ class TestMultiPeriodSegmentTimeline(unittest.TestCase):
         self.tsbd = 90
         urlParts = ['livesim', 'segtimeline_1', 'periods_60', 'tsbd_%d' % self.tsbd, 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
-        self.d = dp.handle_request()
+        self.d = mpd_proxy.get_mpd(dp)
 
     def testThatThereAreMultiplePeriods(self):
         "Check that the first segment starts less than one period before now-tsbd."
@@ -292,16 +291,16 @@ class TestMediaSegments(unittest.TestCase):
     def testThatTimeLookupWorks(self):
         urlParts = ['livesim', 'segtimeline_1', 'testpic', 'A1', 't%d.m4s' % self.seg_time]
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
-        d = dp.handle_request()
+        d = dash_proxy.get_media(dp)
         self.assertTrue(isinstance(d, bytes), "A segment is returned")
 
     def testThatTimeSegmentIsSameAsNumber(self):
         urlParts = ['livesim', 'segtimeline_1', 'testpic', 'A1', 't%d.m4s' % self.seg_time]
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
-        time_seg = dp.handle_request()
+        time_seg = dash_proxy.get_media(dp)
         urlParts = ['livesim', 'segtimeline_1', 'testpic', 'A1', '%d.m4s' % self.seg_nr]
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
-        nr_seg = dp.handle_request()
+        nr_seg = dash_proxy.get_media(dp)
         self.assertEqual(len(time_seg), len(nr_seg))
         self.assertEqual(time_seg, nr_seg)
 
@@ -315,7 +314,7 @@ class TestMPDWithSegmentTimelineNumber(unittest.TestCase):
         urlParts = ['livesim', 'segtimelinenr_1', 'tsbd_%d' % self.tsbd,
                     'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("server.org", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=self.now)
-        self.d = dp.handle_request()
+        self.d = mpd_proxy.get_mpd(dp)
         self.root = ElementTree.fromstring(self.d)
 
     def testThatSomeFeaturesAreAbsent(self):

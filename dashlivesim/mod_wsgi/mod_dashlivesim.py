@@ -37,10 +37,11 @@ from os.path import splitext
 from urllib.parse import urlparse, parse_qs
 from time import time
 
-from dashlivesim.dashlib import dash_proxy, sessionid
+from dashlivesim.dashlib import dash_proxy, sessionid, mpd_proxy
+from dashlivesim.dashlib.dash_proxy import ChunkedSegment
 from dashlivesim import SERVER_AGENT
 
-MAX_SESSION_LENGTH = 3600  # If non-zero,  limit sessions via redirect
+MAX_SESSION_LENGTH = 0  # If non-zero,  limit sessions via redirect
 
 # Helper for HTTP responses
 # pylint: disable=dangerous-default-value
@@ -54,8 +55,8 @@ status_string = {
     }
 
 
-def reply(status_code, resp, body='', headers={}):
-    "Create reply."
+def start_reply(status_code, response, length=-1, headers={}):
+    "Start reply by writing headers reply."
     status = "%d %s" % (status_code, status_string[status_code])
 
     # Add default headers to all requests
@@ -69,15 +70,18 @@ def reply(status_code, resp, body='', headers={}):
     headers['Access-Control-Allow-Origin'] = '*'
     headers['Access-Control-Expose-Headers'] = 'Server,range,Content-Length,Content-Range,Date'
 
-    if isinstance(body, str):
-        body = body.encode('utf-8')  # Ensure that output is bytes
+    if length >= 0:
+        headers['Content-Length'] = str(length)
 
-    if body:
-        headers['Content-Length'] = str(len(body))
-        if 'Content-Type' not in headers:
-            headers['Content-Type'] = 'text/plain'
+    if 'Content-Type' not in headers:
+        headers['Content-Type'] = 'text/plain'
 
-    resp(status, list(headers.items()))
+    response(status, list(headers.items()))
+
+
+def full_reply(status_code, response, body=b"", headers={}):
+    "A full reply including body and content-length."
+    start_reply(status_code, response, len(body), headers)
     return [body]
 
 
@@ -116,16 +120,16 @@ def application(environment, start_response):
             new_url += hostname + '/'.join(path_parts)
             if query:
                 new_url += '?' + query
-            return reply(302, start_response, b"", {'Location': new_url})
+            return full_reply(302, start_response, b"", {'Location': new_url})
         elif start_time is None:
-            return reply(404, start_response,
-                         'No start_time in non-manifest request')
+            return full_reply(404, start_response,
+                              b'No start_time in non-manifest request')
         else:
             if now > start_time + MAX_SESSION_LENGTH:
-                return reply(410, start_response,
-                             "Maximum session length %ds passed" % MAX_SESSION_LENGTH)
+                msg = "Maximum session length %ds passed" % MAX_SESSION_LENGTH
+                return full_reply(410, start_response, msg.encode('utf-8'))
             elif start_time > now + 5:  # Give some margin
-                return reply(404, start_response, 'start_time is in future')
+                return full_reply(404, start_response, b'start_time is in future')
 
     range_line = None
     if 'HTTP_RANGE' in environment:
@@ -135,12 +139,28 @@ def application(environment, start_response):
     mimetype = get_mime_type(ext)
     status_code = 200
     payload_in = None
+    chunk = chunk_out = False
 
     try:
-        response = dash_proxy.handle_request(hostname, path_parts[1:], args,
+        dashProv = dash_proxy.createProvider(hostname, path_parts[1:], args,
                                              vod_conf_dir, content_root, now,
                                              None, is_https)
-        if isinstance(response, bytes) or isinstance(response, str):
+        cfg = dashProv.cfg
+        ext = cfg.ext
+        if ext == ".m4s":
+            chunk = cfg.chunk_duration_in_s > 0
+            response = dash_proxy.get_media(dashProv, chunk)
+            if isinstance(response, ChunkedSegment):
+                chunk_out = True
+        elif ext in (".mpd", ".period"):
+            response = mpd_proxy.get_mpd(dashProv)
+        elif ext == ".mp4":
+            response = dash_proxy.get_init(dashProv)
+        elif ext == ".jpg":
+            response = dash_proxy.get_media(dashProv)
+        if isinstance(response, bytes) or isinstance(response, str) or chunk_out:
+            if isinstance(response, str):
+                response = response.encode('utf-8')
             payload_in = response
             if not payload_in:
                 success = False
@@ -168,7 +188,7 @@ def application(environment, start_response):
     headers = {'Content-Type': mimetype}
 
     if status_code != 404:
-        if range_line:
+        if range_line and not chunk_out:
             payload_out, range_out = handle_byte_range(payload_in, range_line)
             if range_out != "":  # OK
                 headers['Content-Range'] = range_out
@@ -176,7 +196,20 @@ def application(environment, start_response):
             else:  # Bad range, drop it
                 print("mod_dash_handler: Bad range {0}".format(range_line))
 
-    return reply(status_code, start_response, payload_out, headers)
+    if not chunk_out:
+        return full_reply(status_code, start_response, payload_out, headers)
+
+
+    # Now we have the chunked case left
+    #start_reply(status_code, start_response, headers)
+    #for i, chk in enumerate(payload_in.chunks):
+    #    send_time = payload_in.seg_time + i * cfg.chunk_duration_in_s
+    #    if send_time > now:
+    #        yield chk
+    #    else:
+    #        time.sleep(now - send_time)
+    #        now = time.time()
+    #return
 
 
 def get_mime_type(ext):

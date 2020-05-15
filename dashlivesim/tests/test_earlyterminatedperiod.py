@@ -30,7 +30,7 @@
 import unittest
 
 from dashlivesim.tests.dash_test_util import VOD_CONFIG_DIR, CONTENT_ROOT
-from dashlivesim.dashlib import dash_proxy
+from dashlivesim.dashlib import dash_proxy, mpd_proxy
 from dashlivesim.dashlib import mpdprocessor
 import xml.etree.ElementTree as ET
 
@@ -53,7 +53,7 @@ class TestXlinkPeriod(unittest.TestCase):
             urlParts = ['livesim', 'periods_%s' % nr_period_per_hour, 'etp_%s' % nr_etp_periods_per_hour,
                         'testpic_2s', 'Manifest.mpd']
             dp = dash_proxy.DashProvider("10.4.247.98", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=10000)
-            d = dp.handle_request()
+            d = mpd_proxy.get_mpd(dp)
             xml = ET.fromstring(d)
             # Make the string as a xml document.
             periods_containing_duration_attribute = []

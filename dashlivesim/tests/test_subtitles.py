@@ -31,7 +31,7 @@ import unittest
 
 from dashlivesim.tests.dash_test_util import rm_outfile, write_data_to_outfile, VOD_CONFIG_DIR, CONTENT_ROOT
 from dashlivesim.dashlib import ttml_timing_offset
-from dashlivesim.dashlib import dash_proxy
+from dashlivesim.dashlib import dash_proxy, mpd_proxy
 
 TEST_STRING_1 = b'< begin="01:02:03.1234" end="10:59:43:29" >'
 TEST_STRING_SEG_NR = b'... Segment # 12 ...'
@@ -78,7 +78,7 @@ class TestSegmentModification(unittest.TestCase):
         now = segmentNr * 2 + 10
         urlParts = ['livsim', 'ato_inf', 'testpic_stpp', 'S1', segment]
         dp = dash_proxy.DashProvider("127.0.0.1", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=now)
-        d = dp.handle_request()
+        d = dash_proxy.get_media(dp)
         write_data_to_outfile(d, testOutputFile)
         self.assertTrue(d.find(b'begin="399035:00:00.000"') > 0)
         self.assertTrue(d.find(b'eng : UTC = 2015-07-10T11:00:00Z') > 0)
@@ -90,5 +90,5 @@ class TestMpdExtraction(unittest.TestCase):
         "Check that all 3 media components have startNumber=0"
         urlParts = ['livesim', 'testpic_stpp', 'Manifest_stpp.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
-        d = dp.handle_request()
+        d = mpd_proxy.get_mpd(dp)
         self.assertEqual(d.count('startNumber="0'), 3)
