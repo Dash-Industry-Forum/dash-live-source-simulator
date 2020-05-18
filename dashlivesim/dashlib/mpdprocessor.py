@@ -107,6 +107,13 @@ class MpdProcessor(object):
             if old_profiles.find("dash-if-simple") >= 0:
                 new_profiles = old_profiles.replace("dash-if-simple", "dash-if-main")
                 mpd.set('profiles', new_profiles)
+        if 'add_profiles' in mpd_data:
+            profiles = mpd.get('profiles').split(",")
+            for prof in mpd_data['add_profiles']:
+                if prof not in profiles:
+                    profiles.append(prof)
+            mpd.set('profiles', ",".join(profiles))
+
         key_list = ['availabilityStartTime', 'availabilityEndTime', 'timeShiftBufferDepth',
                     'minimumUpdatePeriod', 'maxSegmentDuration',
                     'mediaPresentationDuration', 'suggestedPresentationDelay']
