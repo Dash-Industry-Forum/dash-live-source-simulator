@@ -360,7 +360,6 @@ class MpdProcessor(object):
                 for seg_template in seg_templates:
                     set_attribs(seg_template, segmenttemplate_attribs, pdata)
                     if ll_data:
-                        print(ll_data)
                         set_attribs(seg_template,
                                     ('availabilityTimeOffset', 'availabilityTimeComplete'),
                                     ll_data)
