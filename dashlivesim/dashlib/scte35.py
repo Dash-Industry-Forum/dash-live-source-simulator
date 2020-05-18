@@ -31,7 +31,7 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-from . import emsg
+from dashlivesim.dashlib import emsg
 
 # The scheme_id_uri is a bit unsure. There is also a binary format, which may be preferred (...:2014:bin)
 SCHEME_ID_URI = "urn:scte:scte35:2013:xml"
@@ -40,9 +40,11 @@ PROFILE = "http://dashif.org/guidelines/adin/app"
 
 PTS_MOD = 2**33
 
+
 def make_xml_bool(value):
     "Return a true or false string."
     return value and "true" or "false"
+
 
 class Scte35Error(Exception):
     "Error in SCTE-35 context."
@@ -52,14 +54,14 @@ def create_scte35_insert_message(pts_adjustment, tier, splice_event_id, splice_e
                                  out_of_network_indicator, unique_program_id, avail_num, avails_expected,
                                  splice_immediate_flag, pts_time, auto_return, duration):
     "Create the emsg message data for an SCTE-35 Insert Event."
-    #pylint: disable=too-many-arguments, too-many-locals
-    splice_insert_attribs = {'spliceEventId' : splice_event_id,
-                             'spliceEventCancelIndicator' : make_xml_bool(splice_event_cancel_indicator),
-                             'outOfNetworkIndicator' : make_xml_bool(out_of_network_indicator),
-                             'uniqueProgramId' : unique_program_id,
-                             'availNum' : avail_num,
-                             'availsExpected' : avails_expected,
-                             'spliceImmediateFlag' : make_xml_bool(splice_immediate_flag)}
+    # pylint: disable=too-many-arguments, too-many-locals
+    splice_insert_attribs = {'spliceEventId': splice_event_id,
+                             'spliceEventCancelIndicator': make_xml_bool(splice_event_cancel_indicator),
+                             'outOfNetworkIndicator': make_xml_bool(out_of_network_indicator),
+                             'uniqueProgramId': unique_program_id,
+                             'availNum': avail_num,
+                             'availsExpected': avails_expected,
+                             'spliceImmediateFlag': make_xml_bool(splice_immediate_flag)}
     splice_insert_attr_keys = ('spliceEventId', 'spliceEventCancelIndicator', 'outOfNetworkIndicator',
                                'uniqueProgramId', 'availNum', 'availsExpected', 'spliceImmediateFlag')
     splice_event_cancel_indicator = make_xml_bool(splice_event_cancel_indicator)
@@ -85,7 +87,7 @@ class Scte35Emsg(emsg.Emsg):
     "Class providing an SCTE-35 Insert EMSG box."
 
     def __init__(self, timescale, presentation_time_offset, presentation_time, duration, message_id, splice_id):
-        #pylint: disable=too-many-locals
+        # pylint: disable=too-many-locals
         if timescale != 90000:
             raise Scte35Error("Only supports timescale=90000")
         presentation_time_delta = presentation_time - presentation_time_offset

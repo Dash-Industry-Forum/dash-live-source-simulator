@@ -29,16 +29,17 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-from .structops import str_to_uint32
-from .mp4filter import MP4Filter
+from dashlivesim.dashlib.structops import str_to_uint32
+from dashlivesim.dashlib.mp4filter import MP4Filter
+
 
 class InitFilter(MP4Filter):
     "Filter init segment file and extract track timescale."
 
     def __init__(self, filename=None, data=None):
         MP4Filter.__init__(self, filename, data)
-        self.top_level_boxes_to_parse = ['moov']
-        self.composite_boxes_to_parse = ['moov', 'trak', 'mdia', 'mvex']
+        self.top_level_boxes_to_parse = [b'moov']
+        self.composite_boxes_to_parse = [b'moov', b'trak', b'mdia', b'mvex']
         self._track_timescale = -1
         self._track_id = None
         self._handler_type = None
@@ -51,7 +52,7 @@ class InitFilter(MP4Filter):
     def process_tkhd(self, data):
         "Filter track header box and find track_id."
         assert self.track_id is None, "Multiple tracks in init file %s. Not supported." % self.filename
-        version = ord(data[8])
+        version = data[8]
         if version == 0:
             self._track_id = str_to_uint32(data[20:24])
         elif version == 1:
@@ -94,50 +95,50 @@ class InitLiveFilter(MP4Filter):
 
     def __init__(self, file_name=None, data=None):
         MP4Filter.__init__(self, file_name, data)
-        self.top_level_boxes_to_parse = ['moov']
-        self.composite_boxes_to_parse = ['moov', 'trak', 'mdia', 'mvex']
+        self.top_level_boxes_to_parse = [b'moov']
+        self.composite_boxes_to_parse = [b'moov', b'trak', b'mdia', b'mvex']
         self.movie_timescale = -1
 
     def process_mvhd(self, data):
         "Set duration in mvhd."
-        version = ord(data[8])
-        output = ""
+        version = data[8]
+        output = b""
         if version == 1:
             self.movie_timescale = str_to_uint32(data[28:32])
             output += data[:32]
-            output += '\x00'*8 # duration
+            output += b'\x00' * 8  # duration
             output += data[40:]
-        else: # version = 0
+        else:  # version = 0
             self.movie_timescale = str_to_uint32(data[20:24])
             output += data[:24]
-            output += '\x00'*4 # duration
+            output += b'\x00' * 4  # duration
             output += data[28:]
         return output
 
     def process_tkhd(self, data):
         "Set track duration."
-        version = ord(data[8])
-        output = ""
+        version = data[8]
+        output = b""
         if version == 1:
             output += data[:36]
-            output += '\x00'*8 # duration
+            output += b'\x00' * 8  # duration
             output += data[44:]
-        else: # version = 0
+        else:  # version = 0
             output += data[:28]
-            output += '\x00'*4 # duration
+            output += b'\x00' * 4  # duration
             output += data[32:]
         return output
 
     def process_mdhd(self, data):
         "Set media duration."
-        output = ""
-        version = ord(data[8])
+        output = b""
+        version = data[8]
         if version == 1:
             output += data[:32]
-            output += '\x00'*8 # duration
+            output += b'\x00' * 8  # duration
             output += data[40:]
-        else: # version = 0
+        else:  # version = 0
             output += data[:24]
-            output += '\x00'*4 # duration
+            output += b'\x00' * 4  # duration
             output += data[28:]
         return output

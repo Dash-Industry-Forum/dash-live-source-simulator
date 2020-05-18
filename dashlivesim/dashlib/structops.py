@@ -31,25 +31,31 @@
 
 from struct import pack, unpack
 
+
 def str_to_uint32(string4):
     "4-character string to unsigned int32."
     return unpack(">I", string4)[0]
+
 
 def str_to_sint32(string4):
     "4-character string to signed int32."
     return unpack(">i", string4)[0]
 
+
 def str_to_uint64(string8):
     "8-character string to unsigned int64."
     return unpack(">Q", string8)[0]
+
 
 def uint32_to_str(uint32):
     "Unsigned int32 to string."
     return pack(">I", uint32)
 
+
 def sint32_to_str(sint32):
     "Signed int32 to string."
     return pack(">i", sint32)
+
 
 def uint64_to_str(uint64):
     "Unsigned int64 to string."

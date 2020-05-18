@@ -45,9 +45,10 @@ For our own messages, we should use some other scheme_id_uri.
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-from .structops import uint32_to_str
+from dashlivesim.dashlib.structops import uint32_to_str
 
 DASH_SCHEME = "urn:mpeg:dash:event:2012"
+
 
 class Emsg(object):
     "EMSG MP4 box."
@@ -67,24 +68,24 @@ class Emsg(object):
         size = 12 + 4*4 + len(self.scheme_id_uri) + 1 + len(self.value) + 1 + len(self.messagedata)
         parts = []
         parts.append(uint32_to_str(size))
-        parts.append("emsg")
-        parts.append("\x00\x00\x00\x00")
-        parts.append(self.scheme_id_uri + "\x00")
-        parts.append(self.value + "\x00")
+        parts.append(b"emsg")
+        parts.append(b"\x00\x00\x00\x00")
+        parts.append(self.scheme_id_uri.encode("utf-8") + b"\x00")
+        parts.append(self.value.encode('utf-8') + b"\x00")
         parts.append(uint32_to_str(self.timescale))
         parts.append(uint32_to_str(self.presentation_time_delta))
         parts.append(uint32_to_str(self.event_duration))
         parts.append(uint32_to_str(self.emsg_id))
-        parts.append(self.messagedata)
-        return "".join(parts)
+        parts.append(self.messagedata.encode("utf-8"))
+        return b"".join(parts)
 
     def get_messagedata(self):
         "Return the message data of the box."
         return self.messagedata
 
     def __str__(self):
-        return "EMSG: %(scheme_id_uri)s %(value)s %(timescale)d %(presentation_time_delta)d %(event_duration)d" +\
-        " %(emsg_id)d" % self.__dict__
+        return ("EMSG: %(scheme_id_uri)s %(value)s %(timescale)d %(presentation_time_delta)d %(event_duration)d" +
+                " %(emsg_id)d" % self.__dict__)
 
 
 def create_emsg(scheme_id_uri="", value="", timescale=1, presentation_time_delta=0, event_duration=0, emsg_id=0,
@@ -93,12 +94,14 @@ def create_emsg(scheme_id_uri="", value="", timescale=1, presentation_time_delta
     emsg = Emsg(scheme_id_uri, value, timescale, presentation_time_delta, event_duration, emsg_id, message_data)
     return emsg.get_box()
 
+
 def main():
     "Main function for testing."
-    print "Writing file emsg.mp4"
+    print("Writing file emsg.mp4")
     ofh = open("emsg.mp4", "wb")
     emsg = create_emsg(DASH_SCHEME, "1", 2000, 100, 345, 1, "xmldata")
     ofh.write(emsg)
+
 
 if __name__ == "__main__":
     main()

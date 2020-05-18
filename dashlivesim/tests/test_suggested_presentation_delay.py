@@ -29,9 +29,9 @@
 
 import unittest
 
-from dashlivesim.dashlib import dash_proxy
+from dashlivesim.dashlib import dash_proxy, mpd_proxy
+from dashlivesim.tests.dash_test_util import VOD_CONFIG_DIR, CONTENT_ROOT
 
-from dash_test_util import *
 
 class TestSuggestedPresentationDelay(unittest.TestCase):
     "Test that MPD gets startNr changed in an appropriate way"
@@ -40,12 +40,12 @@ class TestSuggestedPresentationDelay(unittest.TestCase):
         "Check that suggestedPresentationDelayIsNotPresent."
         urlParts = ['pdash', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
-        d = dp.handle_request()
+        d = mpd_proxy.get_mpd(dp)
         self.assertTrue(d.find('suggestedPresentationDelay') < 0)
 
     def testSuggestedPresentationDelayPresent(self):
         "Check that suggestedPresentationDelay get the right value."
         urlParts = ['pdash', 'spd_10', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
-        d = dp.handle_request()
+        d = mpd_proxy.get_mpd(dp)
         self.assertTrue(d.find('suggestedPresentationDelay="PT10S"') > 0)

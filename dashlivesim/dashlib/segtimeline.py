@@ -34,9 +34,8 @@ from struct import unpack
 from xml.etree import ElementTree
 import bisect
 
-from configprocessor import SEGTIMEFORMAT, SegTimeEntry
-
-from dash_namespace import add_ns
+from dashlivesim.dashlib.configprocessor import SEGTIMEFORMAT, SegTimeEntry
+from dashlivesim.dashlib.dash_namespace import add_ns
 
 
 class SegmentTimeLineGeneratorError(Exception):
@@ -52,10 +51,10 @@ class SegmentTimeLineGenerator(object):
         self.cfg = cfg
         try:
             dat_file = media_data['dat_file']
-        except KeyError, e:
-            print "Error for %s: %s" % (media_data, e)
+        except KeyError as e:
+            print("Error for %s: %s" % (media_data, e))
         dat_file_path = os.path.join(self.cfg.vod_cfg_dir, dat_file)
-        self.segtimedata = [] # Tuples corresponding to SegTimeEntry
+        self.segtimedata = []  # Tuples corresponding to SegTimeEntry
         with open(dat_file_path, "rb") as ifh:
             data = ifh.read(12)
             while data:
@@ -84,7 +83,7 @@ class SegmentTimeLineGenerator(object):
         if end_index is None:
             raise SegmentTimeLineGeneratorError("No end_index for %d %d. Before AST" % (start_time, end_time))
         end_tics = self.get_seg_endtime(end_wraps, end_index, end_repeats)
-        #print "end_time %d %d" % (end, end_tics)
+        # print("end_time %d %d" % (end, end_tics))
 
         while end_tics > end:
             if end_repeats > 0:
@@ -100,26 +99,26 @@ class SegmentTimeLineGenerator(object):
                     return (None, None, None)
             end_tics = self.get_seg_endtime(end_wraps, end_index, end_repeats)
 
-        #print "end_time2 %d %d %d" % (end, end_tics, (end-end_tics)/(self.timescale*1.0))
-        #print "end time %d %d %d" % (end_index, end_repeats, end_wraps)
+        # print "end_time2 %d %d %d" % (end, end_tics, (end-end_tics)/(self.timescale*1.0))
+        # print "end time %d %d %d" % (end_index, end_repeats, end_wraps)
 
         if use_closest:
             result = self.find_closest_start(start)
         else:
             result = self.find_latest_starting_before(start)
         (start_index, start_repeats, start_wraps) = result
-        #print "start %d %d %d" % (start_index, start_repeats, start_wraps)
+        # print("start %d %d %d" % (start_index, start_repeats, start_wraps))
         start_tics = self.get_seg_starttime(start_wraps, start_index, start_repeats)
         start_tics_end = self.get_seg_starttime(end_wraps, end_index, end_repeats)
         if (start_tics_end < start_tics):
-            return seg_timeline # Empty timeline in this case
-        #print "start time %d %d %d" % (start_tics, start, start - start_tics)
+            return seg_timeline  # Empty timeline in this case
+        # print("start time %d %d %d" % (start_tics, start, start - start_tics))
         repeat_index = end_index
         nr_wraps = end_wraps
         # Create the S elements in backwards order
         while repeat_index != start_index or nr_wraps != start_wraps:
             seg_data = self.segtimedata[repeat_index]
-            #print repeat_index, start_index, nr_wraps, start_wraps
+            # print(repeat_index, start_index, nr_wraps, start_wraps)
             if repeat_index == end_index:
                 s_elem = self.generate_s_elem(None, seg_data.duration, end_repeats)
             else:
@@ -137,7 +136,7 @@ class SegmentTimeLineGenerator(object):
         elif len(self.segtimedata) == 1 and end_repeats < start_repeats:
             nr_repeats = (self.segtimedata[0].repeats + end_repeats -
                           start_repeats)
-        else: # There was only one entry which was repeated
+        else:  # There was only one entry which was repeated
             nr_repeats = end_repeats - start_repeats
         s_elem = self.generate_s_elem(seg_start_time, seg_data.duration, nr_repeats)
         seg_timeline.insert(0, s_elem)
@@ -165,7 +164,7 @@ class SegmentTimeLineGenerator(object):
         "Find the latest segment starting before act_time."
         nr_wraps, rel_time = divmod(act_time, self.wrap_duration)
         if nr_wraps < 0:
-            return (None, None, None) # This is before AST
+            return (None, None, None)  # This is before AST
         index = bisect.bisect(self.interval_starts, rel_time) - 1
         seg_data = self.segtimedata[index]
         repeats = 0
@@ -178,7 +177,7 @@ class SegmentTimeLineGenerator(object):
     def find_closest_start(self, act_time):
         nr_wraps, rel_time = divmod(act_time, self.wrap_duration)
         if nr_wraps < 0:
-            return (None, None, None) # This is before AST
+            return (None, None, None)  # This is before AST
         index = bisect.bisect(self.interval_starts, rel_time) - 1
         seg_data = self.segtimedata[index]
         repeats = 0
@@ -203,7 +202,7 @@ class SegmentTimeLineGenerator(object):
         "Find "
         nr_wraps, rel_time = divmod(act_time, self.wrap_duration)
         if nr_wraps < 0:
-            return (None, None, None) # This is before AST
+            return (None, None, None)  # This is before AST
         index = bisect.bisect(self.interval_starts, rel_time) - 1
         seg_data = self.segtimedata[index]
         repeats = 0

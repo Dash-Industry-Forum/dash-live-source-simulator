@@ -27,15 +27,16 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-import unittest, os
-from dash_test_util import *
+import os
+import unittest
+from dashlivesim.tests.dash_test_util import VOD_CONFIG_DIR
 
 from dashlivesim.dashlib import configprocessor
+
 
 class TestConfigProcessor(unittest.TestCase):
 
     def testReadVodConfigFile(self):
         cfg_file = os.path.join(VOD_CONFIG_DIR, 'testpic.cfg')
-        ifh = open(cfg_file, "rb")
         vod_cfg = configprocessor.VodConfig()
         vod_cfg.read_config(cfg_file)

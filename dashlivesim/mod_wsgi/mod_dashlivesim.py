@@ -33,21 +33,31 @@
 # For Apache mod_wsgi, this is done using setEnv
 
 import traceback
-import httplib
 from os.path import splitext
-from urlparse import urlparse, parse_qs
-from time import time
+from urllib.parse import urlparse, parse_qs
+from time import time, sleep
 
-from dashlivesim.dashlib import dash_proxy, sessionid
+from dashlivesim.dashlib import dash_proxy, sessionid, mpd_proxy
+from dashlivesim.dashlib.dash_proxy import ChunkedSegment
 from dashlivesim import SERVER_AGENT
 
-MAX_SESSION_LENGTH = 3600  # If non-zero,  limit sessions via redirect
+MAX_SESSION_LENGTH = 0  # If non-zero,  limit sessions via redirect
 
 # Helper for HTTP responses
-#pylint: disable=dangerous-default-value
-def reply(code, resp, body='', headers={}):
-    "Create reply."
-    status = str(code) + ' ' + httplib.responses[code]
+# pylint: disable=dangerous-default-value
+
+status_string = {
+    200: 'OK',
+    206: 'Partial Content',
+    302: 'Found',
+    404: 'Not Found',
+    410: 'Gone'
+    }
+
+
+def start_reply(status_code, response, length=-1, headers={}):
+    "Start reply by writing headers reply."
+    status = "%d %s" % (status_code, status_string[status_code])
 
     # Add default headers to all requests
     headers['Accept-Ranges'] = 'bytes'
@@ -60,20 +70,25 @@ def reply(code, resp, body='', headers={}):
     headers['Access-Control-Allow-Origin'] = '*'
     headers['Access-Control-Expose-Headers'] = 'Server,range,Content-Length,Content-Range,Date'
 
-    if body:
-        headers['Content-Length'] = str(len(body))
-        if not 'Content-Type' in headers:
-            headers['Content-Type'] = 'text/plain'
+    if length >= 0:
+        headers['Content-Length'] = str(length)
 
-    resp(status, headers.items())
+    if 'Content-Type' not in headers:
+        headers['Content-Type'] = 'text/plain'
+
+    response(status, list(headers.items()))
+
+
+def full_reply(status_code, response, body=b"", headers={}):
+    "A full reply including body and content-length."
+    start_reply(status_code, response, len(body), headers)
     return [body]
 
 
-#pylint: disable=too-many-branches, too-many-locals
+# pylint: disable=too-many-branches, too-many-locals
 def application(environment, start_response):
     "WSGI Entrypoint"
 
-    #pylint: disable=too-many-locals
     hostname = environment['HTTP_HOST']
     url = urlparse(environment['REQUEST_URI'])
     vod_conf_dir = environment['VOD_CONF_DIR']
@@ -86,6 +101,8 @@ def application(environment, start_response):
 
     now = time()
 
+    body = None
+
     if MAX_SESSION_LENGTH:  # Redirect and do limit sessions in time
         # Check if there is a sts_xxx parameter.
         start_time = None
@@ -93,7 +110,7 @@ def application(environment, start_response):
             if part.startswith('sts_'):
                 try:
                     start_time = int(part[4:])
-                except:
+                except Exception:
                     pass
 
         if ext == ".mpd" and start_time is None:
@@ -101,85 +118,113 @@ def application(environment, start_response):
             start_part = "sts_%d" % int(now)
             session_id_path = "sid_%s" % sessionid.generate_session_id()
             path_parts = (path_parts[:2] + [start_part] +
-                          [session_id_path]+ path_parts[2:])
+                          [session_id_path] + path_parts[2:])
             new_url += hostname + '/'.join(path_parts)
             if query:
                 new_url += '?' + query
-            return reply(302, start_response, "", {'Location': new_url})
+            body = b""
+            start_reply(302, start_response, len(body), {'Location': new_url})
+            body = b""
         elif start_time is None:
-            return reply(404, start_response,
-                         'No start_time in non-manifest request')
-        else:
-            if now > start_time + MAX_SESSION_LENGTH:
-                return reply(410, start_response,
-                                  "Maximum session length %ds passed" %
-                                  MAX_SESSION_LENGTH)
-            elif start_time > now + 5: # Give some margin
-                return reply(404, start_response, 'start_time is in future')
+            body = b'No start_time in non-manifest request'
+            start_reply(404, start_response, len(body))
+        elif now > start_time + MAX_SESSION_LENGTH:
+            msg = "Maximum session length %ds passed" % MAX_SESSION_LENGTH
+            body = msg.encode('utf-8')
+            start_reply(410, start_response, len(body))
+        elif start_time > now + 5:  # Give some margin
+            body = b'start_time is in future'
+            start_reply(404, start_response, len(body))
 
-    range_line = None
-    if 'HTTP_RANGE' in environment:
-        range_line = environment['HTTP_RANGE']
+    if body is not None:
+        yield body
+    else:
+        range_line = None
+        if 'HTTP_RANGE' in environment:
+            range_line = environment['HTTP_RANGE']
 
-    # Print debug information
-    #print hostname
-    #print url
-    #print path_parts
-    #print ext
-    #print range_line
+        success = True
+        mimetype = get_mime_type(ext)
+        status_code = 200
+        payload_in = None
+        chunk = chunk_out = False
 
-    success = True
-    mimetype = get_mime_type(ext)
-    status = httplib.OK
-    payload_in = None
+        try:
+            dashProv = dash_proxy.createProvider(hostname, path_parts[1:], args,
+                                                 vod_conf_dir, content_root, now,
+                                                 None, is_https)
+            cfg = dashProv.cfg
+            ext = cfg.ext
+            if ext == ".m4s":
+                if cfg.chunk_duration_in_s is not None and cfg.chunk_duration_in_s > 0:
+                    chunk = True
+                response = dash_proxy.get_media(dashProv, chunk)
+                if isinstance(response, ChunkedSegment):
+                    chunk_out = True
+            elif ext in (".mpd", ".period"):
+                response = mpd_proxy.get_mpd(dashProv)
+            elif ext == ".mp4":
+                response = dash_proxy.get_init(dashProv)
+            elif ext == ".jpg":
+                response = dash_proxy.get_media(dashProv)
+            if isinstance(response, bytes) or isinstance(response, str) or chunk_out:
+                if isinstance(response, str):
+                    response = response.encode('utf-8')
+                payload_in = response
+                if not payload_in:
+                    success = False
+            else:
+                if not response['ok']:
+                    success = False
+                payload_in = response['pl']
 
-    try:
-        response = dash_proxy.handle_request(hostname, path_parts[1:], args,
-                                             vod_conf_dir, content_root, now,
-                                             None, is_https)
-        if isinstance(response, basestring):
-            payload_in = response
+        # pylint: disable=broad-except
+        except Exception as exc:
+            success = False
+            traceback.print_exc()
+            payload_in = "DASH Proxy Error: {0}\n URL={1}".format(exc, url)
+
+        if not success:
             if not payload_in:
-                success = False
+                payload_in = "Not found (now)"
+
+            status_code = 404
+            mimetype = "text/plain"
+
+        if isinstance(payload_in, str):
+            payload_in = payload_in.encode('utf-8')
+        payload_out = payload_in
+
+        # Setup response headers
+        headers = {'Content-Type': mimetype}
+
+        if status_code != 404:
+            if range_line and not chunk_out:
+                payload_out, range_out = handle_byte_range(payload_in, range_line)
+                if range_out != "":  # OK
+                    headers['Content-Range'] = range_out
+                    status_code = 206
+                else:  # Bad range, drop it
+                    print("mod_dash_handler: Bad range {0}".format(range_line))
+
+        if not chunk_out:
+            start_reply(status_code, start_response, len(payload_out), headers)
+            yield payload_out
         else:
-            if not response['ok']:
-                success = False
-
-            payload_in = response['pl']
-
-    #pylint: disable=broad-except
-    except Exception, exc:
-        success = False
-        print "mod_dash_handler request error: %s" % exc
-        traceback.print_exc()
-        payload_in = "DASH Proxy Error: %s\n URL=%s" % (exc, url)
-
-    if not success:
-        if payload_in == "":
-            print "dash_proxy error: No body!"
-            payload_in = "Now found (now)"
-        elif payload_in is None:
-            print "dash_proxy: No content found"
-            payload_in = "Not found (now)"
-
-        status = httplib.NOT_FOUND
-        mimetype = "text/plain"
-
-    payload_out = payload_in
-
-    # Setup response headers
-    headers = {'Content-Type':mimetype}
-
-    if status != httplib.NOT_FOUND:
-        if range_line:
-            payload_out, range_out = handle_byte_range(payload_in, range_line)
-            if range_out != "": # OK
-                headers['Content-Range'] = range_out
-                status = httplib.PARTIAL_CONTENT
-            else: # Bad range, drop it
-                print "mod_dash_handler: Bad range %s" % (range_line)
-
-    return reply(status, start_response, payload_out, headers)
+            start_reply(status_code, start_response, -1, headers)
+            now_float = now
+            seg_start = payload_out.seg_start
+            chunk_dur = cfg.chunk_duration_in_s
+            margin = 0.1  # Make available 100ms before the formal time
+            for i, chunk in enumerate(payload_out.chunks, start=1):
+                now_float = time()  # Update time
+                chunk_availability_time = seg_start + i * chunk_dur - margin
+                time_until_available = chunk_availability_time - now_float
+                # print("%d time_until_available %.3f" % (i, time_until_available))
+                if time_until_available > 0:
+                    #print("Sleeping for %.3f" % time_until_available)
+                    sleep(time_until_available)
+                yield chunk
 
 
 def get_mime_type(ext):
@@ -208,7 +253,7 @@ def handle_byte_range(payload, range_line):
     if range_start == "" and range_end != "":
         # This is the rangeStart lasts bytes
         range_start = length - int(range_end)
-        range_end = length -1
+        range_end = length - 1
     elif range_start != "":
         range_start = int(range_start)
         if range_end != "":
@@ -225,12 +270,9 @@ def handle_byte_range(payload, range_line):
     range_response = "bytes %d-%d/%d" % (range_start, range_end, len(payload))
     return (ranged_payload, range_response)
 
-#
-# Local wsgi server for testing
-#
 
 def main():
-    "Run stand-alone wsgi server for testing."
+    "Local stand-alone wsgi server for testing."
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument("-d", "--config_dir", dest="vod_conf_dir", type=str,
@@ -241,10 +283,9 @@ def main():
     parser.add_argument("--port", dest="port", type=int, help="IPv4 port", default=8059)
     args = parser.parse_args()
 
-
     def application_wrapper(env, resp):
         "Wrapper around application for local webserver."
-        env['REQUEST_URI'] = env['PATH_INFO'] # Set REQUEST_URI from PATH_INFO
+        env['REQUEST_URI'] = env['PATH_INFO']  # Set REQUEST_URI from PATH_INFO
         env['VOD_CONF_DIR'] = args.vod_conf_dir
         env['CONTENT_ROOT'] = args.content_dir
         return application(env, resp)
@@ -252,11 +293,12 @@ def main():
     def run_local_webserver(wrapper, host, port):
         "Local webserver."
         from wsgiref.simple_server import make_server
-        print 'Waiting for requests at "{0}:{1}"'.format(host, port)
+        print('Waiting for requests at "{0}:{1}"'.format(host, port))
         httpd = make_server(host, port, wrapper)
         httpd.serve_forever()
 
     run_local_webserver(application_wrapper, args.host, args.port)
+
 
 if __name__ == '__main__':
     main()

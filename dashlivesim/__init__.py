@@ -2,7 +2,7 @@
 # included below. This software may be subject to other third party and contributor
 # rights, including patent rights, and no such rights are granted under this license.
 #
-# Copyright (c) 2015-2018, Dash Industry Forum.
+# Copyright (c) 2015-2020, Dash Industry Forum.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without modification,
@@ -27,5 +27,5 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 
-SERVER_VERSION = "1.7.0"
+SERVER_VERSION = "2.0.0"
 SERVER_AGENT = "DASH-IF live DASH simulator %s" % SERVER_VERSION

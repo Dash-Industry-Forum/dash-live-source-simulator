@@ -2,7 +2,7 @@
 # included below. This software may be subject to other third party and contributor
 # rights, including patent rights, and no such rights are granted under this license.
 #
-# Copyright (c) 2015, Dash Industry Forum.
+# Copyright (c) 2020, Dash Industry Forum.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without modification,
@@ -29,28 +29,19 @@
 
 import unittest
 
-from dashlivesim.mod_python import dashlive_handler
+from dashlivesim.dashlib import ttml_timing_offset
 
-class TestRange(unittest.TestCase):
-    "Test that ranges are handled correctly"
 
-    def testDoubleRange(self):
-        payload = "0123456789"
-        rangeLine = "range=1-6"
-        (pl, rangeResponse) = dashlive_handler.handle_byte_range(payload, rangeLine)
-        self.assertEqual(pl, "123456", "Double range data not OK")
-        self.assertEqual(rangeResponse, "bytes 1-6/10", "RangeResponse for double range")
+TTML_IN = b'<p begin="00:00:00" end="01:00:00.25>Segment # 12 swe : 00:00:30</p>'
+TTML_OUT = b'<p begin="00:00:22" end="01:00:22.25>Segment # 24 swe : UTC = 1970-01-01T00:00:52Z</p>'
 
-    def testEndRange(self):
-        payload = "0123456789"
-        rangeLine = "range=1-"
-        (pl, rangeResponse) = dashlive_handler.handle_byte_range(payload, rangeLine)
-        self.assertEqual(pl, "123456789", "End Range payload")
-        self.assertEqual(rangeResponse, "bytes 1-9/10", "RangeResponse for double range")
+# TIME_PATTERN_S = re.compile(rb'(?P<attr>(begin|end))="(?P<hours>\d\d):(?P<minutes>\d\d):(?P<seconds>\d\d)')
+# CONTENT_PATTERN_S = re.compile(rb'(?P<lang>\w+) : (?P<hours>\d\d):(?P<minutes>\d\d):(?P<seconds>\d\d)(\.\d+)?')
+# CONTENT_PATTERN_SEGMENT = re.compile(rb'(?P<intro>Segment # )(?P<seg_nr>\d+)')
 
-    def testLastRange(self):
-        payload = "0123456789"
-        rangeLine = "range=-6"
-        (pl, rangeResponse) = dashlive_handler.handle_byte_range(payload, rangeLine)
-        self.assertEqual(pl, "456789", "LastRange payload")
-        self.assertEqual(rangeResponse, "bytes 4-9/10", "LastRange range")
+
+class TestTTMLTimeUpdate(unittest.TestCase):
+
+    def testUpdateTTMLTime(self):
+        outbytes = ttml_timing_offset.adjust_ttml_content(TTML_IN, 22, 24)
+        self.assertEqual(outbytes, TTML_OUT)

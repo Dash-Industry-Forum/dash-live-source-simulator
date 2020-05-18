@@ -13,10 +13,9 @@ def parse_dat_file(infile_handle, verbosity_level):
         if lste:
             last_end = lste.start_time + lste.duration * (lste.repeats + 1)
             if last_end != ste.start_time:
-                print "Mismatch in end vs start time %d %d" % (
-                    ste.start_time, last_end)
+                print("Mismatch in end vs start time %d %d" % (ste.start_time, last_end))
         if verbosity_level > 0:
-            print ste
+            print(ste)
         lste = ste
         data = infile_handle.read(12)
 
@@ -25,7 +24,7 @@ def parse_dat_file(infile_handle, verbosity_level):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Check segment datfile')
     parser.add_argument('infile', nargs=1, type=argparse.FileType('rb'))
-    parser.add_argument('--verbose', '-v', action='count')
+    parser.add_argument('--verbose', '-v', action='count', default=0)
 
     args = parser.parse_args()
     parse_dat_file(args.infile[0], args.verbose)

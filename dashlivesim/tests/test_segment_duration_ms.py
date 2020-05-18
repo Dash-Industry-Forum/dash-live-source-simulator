@@ -2,7 +2,7 @@
 # included below. This software may be subject to other third party and contributor
 # rights, including patent rights, and no such rights are granted under this license.
 #
-# Copyright (c) 2015, Dash Industry Forum.
+# Copyright (c) 2018, Dash Industry Forum.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without modification,
@@ -26,3 +26,17 @@
 #  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
+
+import os
+import unittest
+
+from dashlivesim.tests.dash_test_util import VOD_CONFIG_DIR
+from dashlivesim.dashlib import configprocessor
+
+
+class TestConfigProcessor(unittest.TestCase):
+
+    def testReadVodConfigFile(self):
+        cfg_file = os.path.join(VOD_CONFIG_DIR, 'testpic.cfg')
+        vod_cfg = configprocessor.VodConfig()
+        vod_cfg.read_config(cfg_file)

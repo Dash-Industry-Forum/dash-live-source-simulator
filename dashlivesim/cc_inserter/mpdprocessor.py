@@ -30,16 +30,18 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 
 from xml.etree import ElementTree
-import cStringIO
+import io
 import re
 
-from ..dashlib import timeformatconversions as tfc
+from dashlivesim.dashlib import timeformatconversions as tfc
 
 RE_DURATION = re.compile(r"PT((?P<hours>\d+)H)?((?P<minutes>\d+)M)?((?P<seconds>\d+)S)?")
 RE_NAMESPACE_TAG = re.compile(r"({.*})?(.*)")
 
+
 class MpdElementError(Exception):
     "General MpdElement Error."
+
 
 class MpdElement(object):
     "BaseClass for MPD elements."
@@ -48,17 +50,17 @@ class MpdElement(object):
         self.node = node
         self.attribs = {}
 
-    #pylint: disable=no-self-use
+    # pylint: disable=no-self-use
     def parse(self):
         "Parse the node and its children."
         raise MpdElementError("Not implemented")
 
-    #pylint: disable=no-self-use, unused-argument
+    # pylint: disable=no-self-use, unused-argument
     def make_live(self, data):
         "Change attributes and values to make this MPD live. Use the data dictionary for this."
         raise MpdElementError("Not implemented")
 
-    #pylint: disable=no-self-use, unused-variable
+    # pylint: disable=no-self-use, unused-variable
     def tag_and_namespace(self, full_tag):
         "Extract tag and namespace."
         match_obj = RE_NAMESPACE_TAG.match(full_tag)
@@ -74,15 +76,15 @@ class MpdElement(object):
     def check_and_add_attributes(self, node, attribs):
         "Check if node has attributes and add them to self.attribs."
         for attr in attribs:
-            if node.attrib.has_key(attr):
+            if attr in node.attrib:
                 self.attribs[attr] = node.attrib[attr]
             else:
-                if not self.attribs.has_key(attr):
+                if attr not in self.attribs:
                     self.attribs[attr] = None
 
     def set_value(self, element, key, data):
         "Set attribute key of element to value data[key], if present."
-        if data.has_key(key):
+        if key in data:
             element.set(key, str(data[key]))
 
 
@@ -171,7 +173,7 @@ class AdaptationSet(MpdElement):
     @property
     def duration(self):
         "Segment duration (in whole seconds)."
-        return int(self.attribs['duration']) / self.timescale
+        return int(self.attribs['duration']) // self.timescale
 
     def parse(self):
         "Parse the node and its children."
@@ -250,10 +252,10 @@ class MpdProcessor(MpdElement):
         mpd = self.root
         tag, self.mpd_namespace = self.tag_and_namespace(mpd.tag)
         assert tag == "MPD"
-        if mpd.attrib.has_key('mediaPresentationDuration'):
+        if 'mediaPresentationDuration' in mpd.attrib:
             self.media_presentation_duration = mpd.attrib['mediaPresentationDuration']
             self.media_presentation_duration_in_s = tfc.iso_duration_to_seconds(self.media_presentation_duration)
-            print "Found mediaPresentationDuration = %ds" % self.media_presentation_duration_in_s
+            print("Found mediaPresentationDuration = %ds" % self.media_presentation_duration_in_s)
         for child in mpd:
             if self.compare_tag(child.tag, 'Period'):
                 for grand_child in child:
@@ -272,7 +274,7 @@ class MpdProcessor(MpdElement):
         initPath = None
         for AS in self.adaptation_sets:
             if AS.contentType == "video":
-                print AS.initialization
+                print(AS.initialization)
                 initPath = AS.initialization.replace("$RepresentationID$", self.muxed_rep)
         return initPath
 
@@ -295,11 +297,11 @@ class MpdProcessor(MpdElement):
         MPD.set('type', "dynamic")
         for key in data.keys():
             self.setValue(MPD, key, data)
-        if MPD.attrib.has_key('mediaPresentationDuration'):
+        if 'mediaPresentationDuration' in MPD.attrib:
             del MPD.attrib['mediaPresentationDuration']
         for child in MPD:
             if self.compare_tag(child.tag, 'Period'):
-                child.set("start", "PT0S") # Set Period start to 0
+                child.set("start", "PT0S")  # Set Period start to 0
 
     def makeLiveMultiplexedMpd(self, data, mediaData):
         self.makeLiveMpd(data)
@@ -336,7 +338,7 @@ class MpdProcessor(MpdElement):
             combinedCodecs = "%s,%s" % (audioCodec, videoCodec)
             videoRep.set("codecs", combinedCodecs)
         except KeyError:
-            print "Could not combine codecs"
+            print("Could not combine codecs")
         period.remove(audioAS)
 
     def makeContentComponent(self, contentType, trackID):
@@ -349,8 +351,8 @@ class MpdProcessor(MpdElement):
 
     def getCleanString(self, clean=True, targetMpdNameSpace=None):
         "Get a string of all XML cleaned (no ns0 namespace)"
-        ofh = cStringIO.StringIO()
-        self.tree.write(ofh, encoding="utf-8")#, default_namespace=NAMESPACE)
+        ofh = io.StringIO()
+        self.tree.write(ofh)#, default_namespace=NAMESPACE)
         value = ofh.getvalue()
         if clean:
             value = value.replace("ns0:", "").replace("xmlns:ns0=", "xmlns=")
