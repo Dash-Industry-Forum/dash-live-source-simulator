@@ -20,7 +20,7 @@ class TestLowLatencyMPD(unittest.TestCase):
         urlParts = ['livesim', 'chunkdur_1', 'ato_7', 'testpic', 'Manifest.mpd']
         dp = dash_proxy.DashProvider("streamtest.eu", urlParts, None, VOD_CONFIG_DIR, CONTENT_ROOT, now=0)
         d = mpd_proxy.get_mpd(dp)
-        print(d)
+        #print(d)
         self.assertTrue(d.find('UTCTiming') > 0,
                         "Should find UTC-timing element")
         self.assertTrue(d.find('http://www.dashif.org/guidelines/low-latency-live-v5') > 0,
@@ -31,3 +31,5 @@ class TestLowLatencyMPD(unittest.TestCase):
                         "Should find availabilityTimeComplete in SegmentTemplate")
         self.assertTrue(d.find('<ServiceDescription') > 0,
                         "Should find ServiceDescription in MPD")
+        self.assertTrue(d.find('<ProducerReferenceTime') > 0,
+                        "Should find ProducerReferenceTime in MPD")

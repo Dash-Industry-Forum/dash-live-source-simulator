@@ -254,6 +254,19 @@ class MpdProcessor(object):
         sd_elem.tail = "\n"
         mpd.insert(pos, sd_elem)
 
+    def insert_producer_reference(self, ad_set, pos):
+        prt_elem = ElementTree.Element(add_ns('ProducerReferenceTime'))
+        prt_elem.set("id", "0")
+        prt_elem.set("type", "encoder")
+        prt_elem.set("wallClockTime", "1970-01-01T00:00:00")
+        prt_elem.set("presentationTime", "0")
+        utc_elem = self.create_descriptor_elem('UTCTiming', 'urn:mpeg:dash:utc:http-iso:2014',
+                                               UTC_TIMING_HTTP_SERVER)
+        prt_elem.insert(0, utc_elem)
+        prt_elem.text = "\n"
+        prt_elem.tail = "\n"
+        ad_set.insert(pos, prt_elem)
+
     def update_periods(self, mpd, period_data, offset_at_period_level, ll_data):
         "Update periods to provide appropriate values."
         # pylint: disable = too-many-statements
@@ -341,6 +354,8 @@ class MpdProcessor(object):
                                                                         "urn:mpeg:dash:period_continuity:2014",
                                                                         last_period_id)
                     ad_set.insert(ad_pos, supplementalprop_elem)
+                if ll_data:
+                    self.insert_producer_reference(ad_set, ad_pos)
                 seg_templates = ad_set.findall(add_ns('SegmentTemplate'))
                 for seg_template in seg_templates:
                     set_attribs(seg_template, segmenttemplate_attribs, pdata)
