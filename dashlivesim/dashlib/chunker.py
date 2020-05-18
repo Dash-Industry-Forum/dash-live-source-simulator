@@ -36,6 +36,7 @@ from dashlivesim.dashlib.boxes import create_moof, create_mdat, Sample
 
 
 def decode_fragment(data, trex):
+    "Extract samples from a segment."
     root = mp4(data)
     moof = root.find(b'moof')
     tfhd = moof.find(b'traf.tfhd')
@@ -85,6 +86,7 @@ def encode_chunked(seqno, track_id, samples, duration):
 
 
 def chunk(data, duration, trex_box):
+    "Decode data into a segment and chunk it given duration and trex_box data."
     root = mp4(data)
     mfhd = root.find(b'moof.mfhd')
     tfhd = root.find(b'moof.traf.tfhd')
@@ -96,8 +98,10 @@ def chunk(data, duration, trex_box):
                                track_id,
                                decode_fragment(data, trex_box),
                                duration)
+    chunks = []
     for moof, mdat in fragments:
-        yield moof.serialize() + mdat.serialize()
+        chunks.append(moof.serialize() + mdat.serialize())
+    return chunks
 
 
 def simulate_continuous_production(segment, segment_start, chunk_duration, now_float):
