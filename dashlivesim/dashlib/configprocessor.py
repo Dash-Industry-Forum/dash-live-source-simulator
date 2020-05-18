@@ -483,9 +483,10 @@ class ConfigProcessor(object):
             elif key == "chunkdur":   # Chunkdur
                 try:
                     chunk_duration = float(value)
-                    if 0.0 < chunk_duration:
+                    if chunk_duration > 0:
                         cfg.chunk_duration_in_s = chunk_duration
                         cfg.availability_time_complete = False
+                        print(cfg.chunk_duration_in_s)
                 except ValueError:
                     pass
             else:

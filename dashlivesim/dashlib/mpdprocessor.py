@@ -85,13 +85,13 @@ class MpdProcessor(object):
         self.emsg_last_seg = cfg.emsg_last_seg if cfg is not None else False
         self.segtimelineloss = cfg.segtimelineloss if cfg is not None else False
 
-    def process(self, mpd_data, period_data):
+    def process(self, mpd_data, period_data, ll_data={}):
         "Top-level call to process the XML."
         mpd = self.root
         self.availability_start_time_in_s = mpd_data[
             'availability_start_time_in_s']
         self.process_mpd(mpd, mpd_data)
-        self.process_mpd_children(mpd, mpd_data, period_data)
+        self.process_mpd_children(mpd, mpd_data, period_data, ll_data)
 
     def process_mpd(self, mpd, mpd_data):
         """Process the root element (MPD)"""
@@ -107,6 +107,13 @@ class MpdProcessor(object):
             if old_profiles.find("dash-if-simple") >= 0:
                 new_profiles = old_profiles.replace("dash-if-simple", "dash-if-main")
                 mpd.set('profiles', new_profiles)
+        if 'add_profiles' in mpd_data:
+            profiles = mpd.get('profiles').split(",")
+            for prof in mpd_data['add_profiles']:
+                if prof not in profiles:
+                    profiles.append(prof)
+            mpd.set('profiles', ",".join(profiles))
+
         key_list = ['availabilityStartTime', 'availabilityEndTime', 'timeShiftBufferDepth',
                     'minimumUpdatePeriod', 'maxSegmentDuration',
                     'mediaPresentationDuration', 'suggestedPresentationDelay']
@@ -127,9 +134,10 @@ class MpdProcessor(object):
 
     # pylint: disable = too-many-branches
 
-    def process_mpd_children(self, mpd, data, period_data):
+    def process_mpd_children(self, mpd, data, period_data, ll_data):
         """Process the children of the MPD element.
-        They should be in order ProgramInformation, BaseURL, Location, Period, UTCTiming, Metrics."""
+        They should be in order ProgramInformation, BaseURL, Location, ServiceDescription,
+        Period, UTCTiming, Metrics."""
         ato = 0
         atc = 'true'
         if 'availabilityTimeOffset' in data:
@@ -182,6 +190,10 @@ class MpdProcessor(object):
             self.insert_location(mpd, pos, loc_url)
             pos += 1
 
+        if ll_data:
+            self.insert_service_description(mpd, pos)
+            pos += 1
+
         children = list(mpd)
         for ch_nr in range(pos, len(children)):
             if children[ch_nr].tag == add_ns("Period"):
@@ -194,7 +206,7 @@ class MpdProcessor(object):
             new_period = copy.deepcopy(period)
             mpd.insert(pos+i, new_period)
         self.insert_utc_timings(mpd, pos+len(period_data))
-        self.update_periods(mpd, period_data, data['periodOffset'] >= 0)
+        self.update_periods(mpd, period_data, data['periodOffset'] >= 0, ll_data)
 
     def insert_baseurl(self, mpd, pos, new_baseurl, new_ato, new_atc):
         "Create and insert a new <BaseURL> element."
@@ -223,7 +235,39 @@ class MpdProcessor(object):
         location_elem.tail = "\n"
         mpd.insert(pos, location_elem)
 
-    def update_periods(self, mpd, period_data, offset_at_period_level=False):
+    def insert_service_description(self, mpd, pos):
+        sd_elem = ElementTree.Element(add_ns('ServiceDescription'))
+        sd_elem.set("id", "0")
+        sd_elem.text = "\n"
+        lat_elem = ElementTree.Element(add_ns('Latency'))
+        lat_elem.set("min", "2000")
+        lat_elem.set("max", "6000")
+        lat_elem.set("target", "4000")
+        lat_elem.set("referenceId", "0")
+        lat_elem.tail = "\n"
+        sd_elem.insert(0, lat_elem)
+        pr_elem = ElementTree.Element(add_ns('PlaybackRate'))
+        pr_elem.set("min", "0.96")
+        pr_elem.set("max", "1.04")
+        pr_elem.tail = "\n"
+        sd_elem.insert(1, pr_elem)
+        sd_elem.tail = "\n"
+        mpd.insert(pos, sd_elem)
+
+    def insert_producer_reference(self, ad_set, pos):
+        prt_elem = ElementTree.Element(add_ns('ProducerReferenceTime'))
+        prt_elem.set("id", "0")
+        prt_elem.set("type", "encoder")
+        prt_elem.set("wallClockTime", "1970-01-01T00:00:00")
+        prt_elem.set("presentationTime", "0")
+        utc_elem = self.create_descriptor_elem('UTCTiming', 'urn:mpeg:dash:utc:http-iso:2014',
+                                               UTC_TIMING_HTTP_SERVER)
+        prt_elem.insert(0, utc_elem)
+        prt_elem.text = "\n"
+        prt_elem.tail = "\n"
+        ad_set.insert(pos, prt_elem)
+
+    def update_periods(self, mpd, period_data, offset_at_period_level, ll_data):
         "Update periods to provide appropriate values."
         # pylint: disable = too-many-statements
 
@@ -310,9 +354,16 @@ class MpdProcessor(object):
                                                                         "urn:mpeg:dash:period_continuity:2014",
                                                                         last_period_id)
                     ad_set.insert(ad_pos, supplementalprop_elem)
+                if ll_data:
+                    self.insert_producer_reference(ad_set, ad_pos)
                 seg_templates = ad_set.findall(add_ns('SegmentTemplate'))
                 for seg_template in seg_templates:
                     set_attribs(seg_template, segmenttemplate_attribs, pdata)
+                    if ll_data:
+                        print(ll_data)
+                        set_attribs(seg_template,
+                                    ('availabilityTimeOffset', 'availabilityTimeComplete'),
+                                    ll_data)
                     if pdata.get('startNumber') == '-1':  # Default to 1
                         remove_attribs(seg_template, ['startNumber'])
 
@@ -351,7 +402,6 @@ class MpdProcessor(object):
                             set_attribs(seg_template,
                                         ('startNumber',),
                                         {'startNumber': segtime_gen.start_number})
-
                         seg_template.set('media', media_template)
                         seg_template.text = "\n"
                         seg_template.insert(0, seg_timeline)
