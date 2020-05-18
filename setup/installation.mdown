@@ -6,7 +6,7 @@ It is recommended to use mod_wsgi and Apache. However, wsgi is cross-platform an
 For local testing, it is also possible to run the wsgi server itself by calling the script `tools/run_wsgi_server.sh`.
 
 ### Requirements:
-Python 2.6 or 2.7, Apache2 with mod_wsgi or mod_python (can also be run without Apache, or with nginx).
+Python >= 3.6, Apache2 with mod_wsgi(can also be run without Apache, or with nginx).
 
 ### Configuration for server static files (VoD mode)
 
@@ -33,17 +33,6 @@ or something similar on other Linux distributions.
 As seen in the example file provided in this directory, `VOD_CONF_DIR` and `CONTENT_ROOT` must be set up,
 and the path to the directory containing the `dashlivesim` package and the Python module `mod_wsgi/mod_dashlivesim.py`
 must be specified.
-
-### Setup for Apache2 with mod_python
-This is the old way of setting up the simulator with Apache.
-Once mod\_python has been installed, there needs to be a config file similar to the `mod_python_livesim.conf` file,
-that is provided in this directory. For CentOS, it is installed as `/etc/httpd/conf.d/mod_python_dashlivesim.conf`.
-
-It points to the where the dashlivesim package is installed.
-
-The paths for content and vod configurations are specified in `dashlivesim/mod_python/mod_dashlivesim.py` itself,
-so either this file must be changed or the vod\_configs stored in `/var/www/dash-live/vod_configs` and the content in
-`/var/www/dash-live/content`.
 
 
 ### Setup for a local wsgi server
