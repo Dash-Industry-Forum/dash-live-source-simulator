@@ -157,7 +157,7 @@ def get_media(dashProv, chunk=False):
         diff = dashProv.now_float - (cfg.availability_end_time + EXTRA_TIME_AFTER_END_IN_S)
         response = error_response(dashProv, "Request for %s after AET. %.1fs too late" % (cfg.filename, diff))
     elif cfg.ext == ".m4s":
-        response = process_media_segment(dashProv, dashProv.now_float, chunk)
+        response = None
         if len(cfg.multi_url) == 1:  # There is one specific baseURL with losses specified
             a_var, b_var = cfg.multi_url[0].split("_")
             dur1 = int(a_var[1:])
@@ -173,13 +173,15 @@ def get_media(dashProv, chunk=False):
                     elif now_mod_60 == i * total_dur + dur1:
                         # Just before down time starts, add emsg box to the segment.
                         cfg.emsg_last_seg = True
-                        response = process_media_segment(dashProv, dashProv.now_float)
+                        response = process_media_segment(dashProv, dashProv.now_float, chunk)
                         cfg.emsg_last_seg = False
             elif a_var[0] == 'd' and b_var[0] == 'u':
                 for i in range(num_loop):
                     if i * (total_dur) < now_mod_60 <= i * (total_dur) + dur1:
                         response = error_response(dashProv, "BaseURL server down at %d" % (dashProv.now))
                         break
+        if response is None:
+            response = process_media_segment(dashProv, dashProv.now_float, chunk)
     else:  # cfg.ext == ".jpg"
         response = process_thumbnail(dashProv, dashProv.now_float)
     return response
