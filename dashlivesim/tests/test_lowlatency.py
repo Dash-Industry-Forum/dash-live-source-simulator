@@ -28,4 +28,6 @@ class TestLowLatencyMPD(unittest.TestCase):
         self.assertTrue(d.find("<BaseURL>http://streamtest.eu/livesim/chunkdur_1/ato_7/testpic/</BaseURL>") > 0,
                         "Should not have availabilityTimeComplete here")
         self.assertTrue(d.find('availabilityTimeComplete="false" availabilityTimeOffset="7.000000"') > 0,
-                        "Should find availabilityTimeComplete in ")
+                        "Should find availabilityTimeComplete in SegmentTemplate")
+        self.assertTrue(d.find('<ServiceDescription') > 0,
+                        "Should find ServiceDescription in MPD")
