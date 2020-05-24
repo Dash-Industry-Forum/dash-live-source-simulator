@@ -93,7 +93,7 @@ def application(environment, start_response):
     url = urlparse(environment['REQUEST_URI'])
     vod_conf_dir = environment['VOD_CONF_DIR']
     content_root = environment['CONTENT_ROOT']
-    is_https = environment.get('HTTPS', 0)
+    is_https = environment.get('wsgi.url_scheme', False) and environment['wsgi.url_scheme'] == 'https'
     path_parts = url.path.split('/')
     ext = splitext(path_parts[-1])[1]
     query = url.query if url.query else environment.get('QUERY_STRING', '')
@@ -222,7 +222,7 @@ def application(environment, start_response):
                 time_until_available = chunk_availability_time - now_float
                 # print("%d time_until_available %.3f" % (i, time_until_available))
                 if time_until_available > 0:
-                    #print("Sleeping for %.3f" % time_until_available)
+                    # print("Sleeping for %.3f" % time_until_available)
                     sleep(time_until_available)
                 yield chunk
 
