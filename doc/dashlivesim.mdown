@@ -245,7 +245,8 @@ Some examples of this are the modifiers:
 In addition, one can turn on signalling of continuous periods, but adding the flag /continuous_1/`.
 
 ## Changelog
-2.0.0 - May. 18 2020: Changed to Python3. Integrated low-latencu chunked mode triggered by chunkdur and ato parameters.
+2.0.1 - May 24 2020: Fixed https detection (Issue #97) 
+2.0.0 - May 18 2020: Changed to Python3. Integrated low-latencu chunked mode triggered by chunkdur and ato parameters.
 1.7.0 - Dec. 12 2019: Added two more UTCTiming modes, new mode
 segtimelineloss, query-strings are neglected, possible session time limit and
 id via redirect, fixed bug in segmenttimeline wraparound
