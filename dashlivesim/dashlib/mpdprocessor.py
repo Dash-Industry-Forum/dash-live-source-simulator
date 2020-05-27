@@ -154,6 +154,8 @@ class MpdProcessor(object):
         set_baseurl = SET_BASEURL
         if self.cfg and self.cfg.add_location:
             set_baseurl = False  # Cannot have both BASEURL and Location
+        if self.cfg.session_start_time == 314:
+            set_baseurl = False
         if next_child.tag == add_ns('BaseURL'):
             if 'BaseURL' not in data or not set_baseurl:
                 self.root.remove(next_child)

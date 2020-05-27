@@ -113,6 +113,7 @@ class Config(object):
         self.insert_sidx = False
         self.segtimelineloss = False  # This flag is true only when there is /segtimelineloss_1/
         self.emsg_last_seg = False
+        self.session_start_time = None
 
     def __str__(self):
         lines = ["%s=%s" % (k, v) for (k, v) in self.__dict__.items() if not k.startswith("_")]
@@ -400,8 +401,7 @@ class ConfigProcessor(object):
                 break
             key, value = cfg_parts
             if key == "sts":  # Non-used session_start_time
-                # session_start_time = int(value)
-                pass
+                cfg.session_start_time = int(value)
             elif key == "sid":  # Non-used session_id
                 # session_id = value
                 pass
@@ -436,7 +436,7 @@ class ConfigProcessor(object):
                 cfg.periods_per_hour = int(value)
             elif key == "xlink":  # Make periods access via xlink.
                 cfg.xlink_periods_per_hour = int(value)
-            elif key == "etp":  # Make periods access via xlink.
+            elif key == "etp":  # Early terminated periods
                 cfg.etp_periods_per_hour = int(value)
             elif key == "etpDuration":  # Add a presentation duration for multiple periods
                 cfg.etp_duration = int(value)
