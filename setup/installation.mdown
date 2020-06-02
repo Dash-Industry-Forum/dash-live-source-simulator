@@ -1,8 +1,9 @@
 DASH-IF live source simulator installation
 -------------------------------
 
-The DASH live source simulator can be run using wsgi or mod_python.
-It is recommended to use mod_wsgi and Apache. However, wsgi is cross-platform and should work with nginx as well.
+The DASH live source simulator us using the wsgi HTTP API.
+It is recommended to use Apache with mod_wsgi, and that is how the https://livesim.dashif.org server is run.
+However, wsgi is cross-platform and should work with nginx as well.
 For local testing, it is also possible to run the wsgi server itself by calling the script `tools/run_wsgi_server.sh`.
 
 ### Requirements:
@@ -10,17 +11,23 @@ Python >= 3.6, Apache2 with mod_wsgi(can also be run without Apache, or with ngi
 
 ### Configuration for server static files (VoD mode)
 
-The VoD content (in live profile) that serves as raw content for live should typically be at
+The VoD content (in live profile) that serves as raw content for live should typically be as maps under
 
-  /var/www/html/dash/vod
+  /var/www/html/dash/vod/
 
 The directory is specified as `CONTENT_ROOT` to the simulator.
 
-The main issue for browser players like dash.js is typically CORS.
-For serving files using Apache2 from /var/www/html/dash/vod it is recommended to add the file
-dash.conf to the Apache2 configuration. The location depends on distribution, but in CentOS it is `/etc/httpd/conf.d/dash.conf`.
+Example content that can be used for both VoD and live streaming is available as
 
-### Setup for Apache2 with mod_wsgi
+    https://livesim.dashif.org/dash/vod/testpic_2s.tar
+    https://livesim.dashif.org/dash/vod/testpic4_8s.tar
+
+The main issue for browser players like dash.js is typically CORS.
+For serving the VoD files using Apache2 from `/var/www/html/dash/vod` it is recommended to add the file
+dash.conf to the Apache2 configuration.
+The location depends on distribution, but in CentOS it is `/etc/httpd/conf.d/dash.conf`.
+
+### Setup of simulated live streaming from Apache2 with mod_wsgi
 This is the recommended way to run on a public server. For testing, it may easier to run a local server, see below.
 How mod_wsgi is installed depends on the Linux distribution.
 
@@ -31,13 +38,17 @@ The mod_wsgi configuration goes into the configuration directory (for CentOS)
 or something similar on other Linux distributions.
 
 As seen in the example file provided in this directory, `VOD_CONF_DIR` and `CONTENT_ROOT` must be set up,
-and the path to the directory containing the `dashlivesim` package and the Python module `mod_wsgi/mod_dashlivesim.py`
-must be specified.
+and the source code tree `dashlivesim` must be found by the `WSGIPythonPath` and `WSGIScriptAlias`must point to
+`mod_wsgi/mod_dashlivesim.py` must be specified.
 
+To install the actual source code, get it from github and copy the `dashlivesim` directory recursively into
+`/usr/local/bin/mod_wsgi/`.
 
-### Setup for a local wsgi server
+Finally, the configuration files must be installed in `/var/www/html/livesim_vod_configs` or whatever `VOD_CONF_DIR`
+points at.
+
+### Setup for a locl wsgi server
 To run a local wsgi http server use the script `tools/run_wsgi_server`. The `vod_config` and `content_root` directories need to specified on the command line.
-
 
 ### Configuration of live material
 
@@ -72,10 +83,14 @@ Note that the file extensions are critical, but the base names not.
         -> [rep2]
             ...
 
+Sample content and configuration can be found at `https://livesim.dashif.org/dash/`.
+The configurations can be copied from `https://livesim.dashif.org/dash/vod_configs/`.
+
 ### UTCTiming Head mode
 For UTCTiming head mode to work, there must be file accessible via http://<server>/dash/time.txt``.
 The content is not relevant.
 The CORS support for the header Date must be supported.
 
 ### Sample content and configurations
-Sample content is available at [http://vm2.dashif.org/dash/vod/](http://vm2.dashif.org/dash/vod/).
+Sample content and configuration can be found at `https://livesim.dashif.org/dash/`.
+The configurations can be copied from `https://livesim.dashif.org/dash/vod_configs/`.
