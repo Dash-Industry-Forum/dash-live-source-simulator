@@ -93,4 +93,5 @@ The CORS support for the header Date must be supported.
 
 ### Sample content and configurations
 Sample content and configuration can be found at `https://livesim.dashif.org/dash/`.
+Instead of downloading individual segments, it is recommended to download the `.tar` files when available.
 The configurations can be copied from `https://livesim.dashif.org/dash/vod_configs/`.
