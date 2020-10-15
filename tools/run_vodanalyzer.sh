@@ -1,2 +1,2 @@
 export PYTHONPATH=${PYTHONPATH}:..
-python -m dashlivesim.vodanalyzer.dashanalyzer $1
+python3 -m dashlivesim.vodanalyzer.dashanalyzer $1
