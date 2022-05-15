@@ -414,8 +414,10 @@ class MpdProcessor(object):
             elem.set("value", value)
         if elem_id:
             elem.set("id", elem_id)
-        if messageData:
-            elem.set("messageData", messageData)
+        if name == "EventStream" and messageData:
+            eventElem = ElementTree.Element(add_ns("Event"))
+            eventElem.set("messageData", messageData)
+            elem.append(eventElem)
         elem.tail = "\n"
         return elem
 
