@@ -37,7 +37,7 @@ import re
 from struct import pack
 from dashlivesim.dashlib import configprocessor
 from dashlivesim.dashlib import initsegmentfilter, mediasegmentfilter
-from mpdprocessor import MpdProcessor
+from dashlivesim.dashlib.mpdprocessor import MpdProcessor
 
 DEFAULT_DASH_NAMESPACE = "urn:mpeg:dash:schema:mpd:2011"
 MUX_TYPE_NONE = 0

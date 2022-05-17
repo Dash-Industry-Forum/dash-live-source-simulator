@@ -49,14 +49,22 @@ MUX_TYPE_SAMPLES = 2
 
 
 def generate_data(scc_data):
-    """Function to generate scc data byte string."""
+    """Generate SEI CEA-608 NAL units prepended with size fields."""
     output = b""
 
     for data in scc_data:
         cea608_bytes = data['cea608']
-        payload_size = (1 + 2 + 4 + 1) + (1 + 1 + (len(cea608_bytes) * 3)) + 1
-        nal_unit = [0x66, 0x04, payload_size, 0xb5, 0x00, 0x31, ord('G'), ord('A'), ord('9'),
-                    ord('4'), 0x03, 0xc0 + len(cea608_bytes), 0xff]
+        payload_size = (1 + 2 + 4 + 1) + (1 + 1 + (len(cea608_bytes) * 3))
+        nal_unit = [0x66,  # NAL Header
+                    0x04,  # SEI type 4
+                    payload_size,  # SEI payload length (< 255)
+                    0xb5,  # Country code
+                    0x00, 0x31,  # Provider code
+                    0x47, 0x41, 0x39, 0x34,  # UserIdentifier
+                    0x03,  # UserDataTypeCode
+                    0xc0 + len(cea608_bytes),  # 5-bit ccCount
+                    0xff  # reserved byte
+                    ]
 
         # print(len(cea608_bytes), payload_size)
 
@@ -65,14 +73,14 @@ def generate_data(scc_data):
             cc_byte2 = (int(i, 16) & 0xff)
 
             # Field 1
-            #nal_unit.append(0xfc)
+            # nal_unit.append(0xfc)
             # Field 2
-            nal_unit.append(0xfd)
+            nal_unit.append(0xfd)  # ccValid + ccType
 
             nal_unit.append(cc_byte1)
             nal_unit.append(cc_byte2)
 
-        nal_unit.append(0xff)
+        nal_unit.append(0x80)  # rbsp_trailing_bits
 
         output += struct.pack('>I', len(nal_unit))
         output += bytes(nal_unit)

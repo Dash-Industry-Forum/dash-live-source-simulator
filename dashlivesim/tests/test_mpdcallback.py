@@ -64,6 +64,9 @@ class TestXlinkPeriod(unittest.TestCase):
                 if eventStream is None:
                     continue
                 periods_containing_callback_element.append(child.attrib['id'])
+                event = eventStream.find('{urn:mpeg:dash:schema:mpd:2011}Event')
+                self.assertIsNotNone(event, "there should be an Event inside EventStream")
+                self.assertTrue("/mpdcallback/" in event.attrib['messageData'])
                 # Then collect its period id in this array
             one_callback_for_how_many_periods = nr_period_per_hour/nr_callback_periods_per_hour
             checker_array = [int(x[1:]) % one_callback_for_how_many_periods for x in periods_containing_callback_element]
