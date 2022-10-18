@@ -99,7 +99,7 @@ class Mpd(MpdElement):
         """Parse the node and its children."""
         self.check_and_add_attributes(self.node, ('profiles', 'maxSegmentDuration', 'minBufferTime',
                                                   'type', 'mediaPresentationDuration'))
-        for child in self.node.getchildren():
+        for child in self.node:
             if self.compare_tag(child.tag, 'Period'):
                 period = Period(child)
                 period.parse()
@@ -124,7 +124,7 @@ class Period(MpdElement):
     def parse(self):
         "Parse the node and its children."
         self.check_and_add_attributes(self.node, ('id', 'start'))
-        for child in self.node.getchildren():
+        for child in self.node:
             if self.compare_tag(child.tag, 'AdaptationSet'):
                 adaptation_set = AdaptationSet(child)
                 adaptation_set.parse()
@@ -178,7 +178,7 @@ class AdaptationSet(MpdElement):
     def parse(self):
         "Parse the node and its children."
         self.check_and_add_attributes(self.node, ('contentType', 'mimeType'))
-        for child in self.node.getchildren():
+        for child in self.node:
             if self.compare_tag(child.tag, 'SegmentTemplate'):
                 self.check_and_add_attributes(child, ('initialization', 'startNumber', 'media',
                                                       'duration', 'timescale'))
