@@ -167,7 +167,7 @@ class AdaptationSet(MpdElement):
 
     @property
     def timescale(self):
-        "Timescale in units per seconds to be used for the derivation of different real-time duration values in the Segment Information"
+        "Timescale for the derivation of different real-time duration values in the Segment Information."
         return int(self.attribs['timescale'] or 1)
 
     @property
@@ -178,7 +178,7 @@ class AdaptationSet(MpdElement):
     def parse(self):
         "Parse the node and its children."
         self.check_and_add_attributes(self.node, ('contentType', 'mimeType'))
-        for child in self.node.getchildren():
+        for child in self.node:
             if self.compare_tag(child.tag, 'SegmentTemplate'):
                 self.check_and_add_attributes(child, ('initialization', 'startNumber', 'media',
                                                       'duration', 'timescale'))
@@ -310,7 +310,7 @@ class MpdProcessor(MpdElement):
         videoAS = None
         period = None
         audioRep = None
-        vidoeRep = None
+        videoRep = None
         for child in MPD:
             if self.compare_tag(child.tag, 'Period'):
                 period = child
@@ -352,7 +352,7 @@ class MpdProcessor(MpdElement):
     def getCleanString(self, clean=True, targetMpdNameSpace=None):
         "Get a string of all XML cleaned (no ns0 namespace)"
         ofh = io.StringIO()
-        self.tree.write(ofh)#, default_namespace=NAMESPACE)
+        self.tree.write(ofh)  # ,default_namespace=NAMESPACE)
         value = ofh.getvalue()
         if clean:
             value = value.replace("ns0:", "").replace("xmlns:ns0=", "xmlns=")
