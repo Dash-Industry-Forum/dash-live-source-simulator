@@ -1,3 +1,13 @@
+# Time to move to livesim2!
+
+This project is no longer maintained and new efforts are done in the <a href="https://github.com/Dash-Industry-Forum/livesim2">livesim2</a>
+project instead.
+
+The online service https://livesim.dashif.org will be stopped before the end of September and replaced by https://livesim2.dashif.org.
+
+Please look at the new project and use <a href="https://github.com/Dash-Industry-Forum/livesim-content">livesim-content</a> to set
+up your own test service.
+
 # DASH-IF DASH Live Source Simulator
 
 This software is intended as a reference that can be customized to provide a reference
