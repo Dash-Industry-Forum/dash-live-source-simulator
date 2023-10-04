@@ -3,7 +3,11 @@
 This project is no longer maintained and new efforts are done in the <a href="https://github.com/Dash-Industry-Forum/livesim2">livesim2</a>
 project instead.
 
-The online service https://livesim.dashif.org will be stopped before the end of September and replaced by https://livesim2.dashif.org.
+The online service https://livesim.dashif.org on AWS is being stopped beginning of October 2023, and the DNS instead pointed to
+the new livesim2 service on Linode at https://livesim2.dashif.org.
+
+The old AWS instance can currently (Oct. 4 2023) be reached at
+<a href="http://ec2-54-161-101-85.compute-1.amazonaws.com">http://ec2-54-161-101-85.compute-1.amazonaws.com</a>.
 
 Please look at the new project and use <a href="https://github.com/Dash-Industry-Forum/livesim-content">livesim-content</a> to set
 up your own test service.
